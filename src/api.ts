@@ -1,4 +1,4 @@
-import type { CharacterConfig, ExportFormat, Line, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
+import type { CharacterConfig, Expression, ExportFormat, Gesture, Line, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
 
 async function post<T>(url: string, init: RequestInit): Promise<T> {
   let res: Response;
@@ -33,6 +33,18 @@ export async function health(): Promise<{ rhubarb: boolean; gemini: boolean }> {
 
 export function tts(lines: ScriptLineInput[]): Promise<{ audioId: string; durationMs: number; lines: Line[]; cues: MouthCue[] }> {
   return post('/api/tts', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines }) });
+}
+
+export function autoTag(texts: string[]): Promise<{ expression: Expression; gesture: Gesture }[]> {
+  return post<{ tags: { expression: Expression; gesture: Gesture }[] }>('/api/autotag', {
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texts }),
+  }).then((r) => r.tags);
+}
+
+export function transcribe(audioId: string): Promise<{ text: string; startMs: number; endMs: number }[]> {
+  return post<{ lines: { text: string; startMs: number; endMs: number }[] }>('/api/transcribe', {
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ audioId }),
+  }).then((r) => r.lines);
 }
 
 export interface ExportBody { character: CharacterConfig; timeline: Timeline; audioId: string; format: ExportFormat }

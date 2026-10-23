@@ -39,6 +39,41 @@ export function App() {
     }
   };
 
+  const run = async (label: string, job: () => Promise<void>) => {
+    setError(null);
+    try {
+      setStatus(label);
+      await job();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setStatus('');
+    }
+  };
+
+  // Auto-tag the script draft; empty lines are kept as they are and not sent.
+  const autoTagScript = () => run('Tagging expressions…', async () => {
+    const idx = scriptLines.flatMap((l, i) => (l.text.trim() ? [i] : []));
+    if (!idx.length) return;
+    const tags = await api.autoTag(idx.map((i) => scriptLines[i].text));
+    setScriptLines((cur) => cur.map((l, i) => {
+      const t = tags[idx.indexOf(i)];
+      return t && idx.includes(i) ? { ...l, expression: t.expression, gesture: t.gesture } : l;
+    }));
+  });
+
+  // Transcribe the uploaded audio, then tag each sentence; same cues, audioId and duration.
+  const addExpressions = () => run('Listening…', async () => {
+    const { audioId, timeline } = state;
+    if (!audioId || !timeline) return;
+    const heard = await api.transcribe(audioId);
+    if (!heard.length) throw new Error("Couldn't find any speech to tag.");
+    setStatus('Tagging expressions…');
+    const tags = await api.autoTag(heard.map((l) => l.text));
+    const lines = heard.map((l, i) => ({ ...l, expression: tags[i].expression, gesture: tags[i].gesture }));
+    setState((s) => ({ ...s, timeline: { ...timeline, lines } }));
+  });
+
   const generate = async () => {
     setError(null);
     try {
@@ -65,7 +100,7 @@ export function App() {
       <main>
         <section className="panel">
           {step === 0 && <CharacterStep character={state.character} onChange={(character) => setState((s) => ({ ...s, character }))} />}
-          {step === 1 && <VoiceoverStep busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} />}
+          {step === 1 && <VoiceoverStep busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} onAutoTag={autoTagScript} onAddExpressions={addExpressions} canTag={Boolean(state.timeline && state.audioId)} />}
           {step === 2 && <ExportStep character={state.character} timeline={state.timeline} audioId={state.audioId} />}
         </section>
         <Preview character={state.character} timeline={state.timeline} audioUrl={state.audioId ? `/api/audio/${state.audioId}` : null} status={status} />

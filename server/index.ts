@@ -6,7 +6,7 @@ import { mkdir, rm } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { normalizeAudio, concatWithGaps, AudioError, AUDIO_DIR } from './audio';
-import { tts, GeminiError } from './gemini';
+import { tts, autoTag, transcribe, GeminiError } from './gemini';
 import { EXPRESSIONS, GESTURES } from '../shared/types';
 import type { Line, ScriptLineInput } from '../shared/types';
 import { runRhubarb, rhubarbAvailable } from './rhubarb';
@@ -17,6 +17,15 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const UPLOAD_DIR = join('data', 'uploads');
 const EXPORT_DIR = join('data', 'exports');
 const EXPORT_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(mp4|webm)$/i;
+
+/** Sends the standard JSON error for a Gemini failure; `failed` is the 502 message. */
+function sendGeminiError(res: express.Response, e: unknown, failed: string): boolean {
+  if (!(e instanceof GeminiError)) return false;
+  if (e.code === 'no_key') res.status(400).json({ error: 'Gemini key missing — add GEMINI_API_KEY to .env' });
+  else if (e.code === 'rate_limited') res.status(429).json({ error: 'Free Gemini limit reached, try again later' });
+  else res.status(502).json({ error: failed });
+  return true;
+}
 
 export function createApp() {
   const app = express();
@@ -90,12 +99,39 @@ export function createApp() {
       const out: Line[] = lines.map((l, i) => ({ text: l.text, expression: l.expression, gesture: l.gesture, ...spans[i] }));
       res.json({ audioId: basename(path, '.wav'), durationMs, lines: out, cues });
     } catch (e) {
-      if (e instanceof GeminiError && e.code === 'no_key') res.status(400).json({ error: 'Gemini key missing — add GEMINI_API_KEY to .env' });
-      else if (e instanceof GeminiError && e.code === 'rate_limited') res.status(429).json({ error: 'Free Gemini limit reached, try again later' });
-      else if (e instanceof AudioError && e.code === 'too_long') res.status(400).json({ error: 'Script is longer than 3 minutes. Please shorten it.' });
+      if (sendGeminiError(res, e, 'Voice generation failed. Please try again.')) return;
+      if (e instanceof AudioError && e.code === 'too_long') res.status(400).json({ error: 'Script is longer than 3 minutes. Please shorten it.' });
       else {
         console.error('tts failed', e);
         res.status(502).json({ error: 'Voice generation failed. Please try again.' });
+      }
+    }
+  });
+
+  app.post('/api/autotag', async (req, res) => {
+    const texts = req.body?.texts;
+    if (!Array.isArray(texts) || texts.length > 50 || !texts.every((t) => typeof t === 'string' && t.length <= 500)) {
+      return res.status(400).json({ error: 'Invalid request' });
+    }
+    try {
+      res.json({ tags: await autoTag(texts) });
+    } catch (e) {
+      if (!sendGeminiError(res, e, 'AI tagging failed. Please try again.')) {
+        console.error('autotag failed', e);
+        res.status(502).json({ error: 'AI tagging failed. Please try again.' });
+      }
+    }
+  });
+
+  app.post('/api/transcribe', async (req, res) => {
+    const p = audioPath(req.body?.audioId);
+    if (!p || !existsSync(p)) return res.status(404).json({ error: 'Audio not found' });
+    try {
+      res.json({ lines: await transcribe(p) });
+    } catch (e) {
+      if (!sendGeminiError(res, e, 'AI tagging failed. Please try again.')) {
+        console.error('transcribe failed', e);
+        res.status(502).json({ error: 'AI tagging failed. Please try again.' });
       }
     }
   });

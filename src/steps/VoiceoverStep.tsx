@@ -11,9 +11,15 @@ interface Props {
   scriptLines: ScriptLineInput[];
   onScriptLines: (lines: ScriptLineInput[]) => void;
   onGenerate: () => void;
+  onAutoTag: () => void;
+  onAddExpressions: () => void;
+  canTag: boolean; // an uploaded/generated timeline exists
 }
 
-function UploadTab({ busy, error, onUpload }: Props) {
+type TabProps = Props & { geminiOk: boolean };
+const NEEDS_KEY = 'Needs GEMINI_API_KEY';
+
+function UploadTab({ busy, error, onUpload, onAddExpressions, canTag, geminiOk }: TabProps) {
   return (
     <div>
       <label className="upload">
@@ -31,17 +37,15 @@ function UploadTab({ busy, error, onUpload }: Props) {
         />
       </label>
       <p className="hint">WAV, MP3, M4A… up to 3 minutes. Your character will lip-sync to it.</p>
+      {canTag && (
+        <button className="btn" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={onAddExpressions}>✨ Add expressions</button>
+      )}
       {error && <p role="alert" className="error">{error}</p>}
     </div>
   );
 }
 
-function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, onGenerate }: Props) {
-  const [geminiOk, setGeminiOk] = useState(true);
-  useEffect(() => {
-    Promise.resolve(api.health()).then((h) => setGeminiOk(h?.gemini !== false), () => {});
-  }, []);
-
+function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, onGenerate, onAutoTag, geminiOk }: TabProps) {
   const update = (i: number, patch: Partial<ScriptLineInput>) => setLines(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   const move = (i: number, d: number) => {
     const next = [...lines];
@@ -78,6 +82,7 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
       <div className="line-actions">
         <button className="btn" disabled={lines.length >= 50} onClick={() => setLines([...lines, { text: '', voice, expression: 'neutral', gesture: 'none' }])}>+ Line</button>
         <button className="btn" disabled={busy} onClick={onGenerate}>▶ Generate voice</button>
+        <button className="btn" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={onAutoTag}>✨ Auto-tag expressions</button>
       </div>
       <p className="hint">Tip: add tags like &lt;short pause&gt; inside a line. Powered by Gemini TTS.</p>
       {error && <p role="alert" className="error">{error}</p>}
@@ -87,6 +92,10 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
 
 export function VoiceoverStep(props: Props) {
   const [tab, setTab] = useState<'upload' | 'script'>('upload');
+  const [geminiOk, setGeminiOk] = useState(true); // fetched once, shared by both tabs
+  useEffect(() => {
+    Promise.resolve(api.health()).then((h) => setGeminiOk(h?.gemini !== false), () => {});
+  }, []);
   return (
     <div>
       <h2>Add a voiceover</h2>
@@ -94,7 +103,7 @@ export function VoiceoverStep(props: Props) {
         <button className={`tab${tab === 'upload' ? ' active' : ''}`} onClick={() => setTab('upload')}>⬆ Upload</button>
         <button className={`tab${tab === 'script' ? ' active' : ''}`} onClick={() => setTab('script')}>✍ Write script</button>
       </div>
-      {tab === 'upload' ? <UploadTab {...props} /> : <ScriptTab {...props} />}
+      {tab === 'upload' ? <UploadTab {...props} geminiOk={geminiOk} /> : <ScriptTab {...props} geminiOk={geminiOk} />}
     </div>
   );
 }
