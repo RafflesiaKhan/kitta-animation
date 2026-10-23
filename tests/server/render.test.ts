@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -41,6 +41,10 @@ const render = (format: { aspect: '16:9' | '9:16'; transparent: boolean }, name:
   return renderVideo({ character, timeline, audioPath: wav, format, outPath, onProgress }).then(() => outPath);
 };
 
+const rawFrame = (file: string) =>
+  execFileSync('ffmpeg', ['-v', 'error', '-c:v', 'libvpx-vp9', '-i', file, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-'], { maxBuffer: 100 * 1024 * 1024 });
+const px = (buf: Buffer, w: number, x: number, y: number) => Array.from(buf.subarray((y * w + x) * 4, (y * w + x) * 4 + 4));
+
 describe('renderVideo', () => {
   it('renders 16:9 MP4 with exact frame count and matching audio', async () => {
     const calls: [number, number][] = [];
@@ -62,5 +66,19 @@ describe('renderVideo', () => {
     const { v } = probe(out);
     const alpha = v.pix_fmt === 'yuva420p' || v.tags?.alpha_mode === '1';
     expect(alpha).toBe(true);
+  }, 60_000);
+
+  it('keeps transparent pixels transparent and anchors the body to the bottom edge', async () => {
+    const buf = rawFrame(await render({ aspect: '16:9', transparent: true }, 'd.webm'));
+    expect(px(buf, 1920, 5, 5)[3]).toBe(0);
+    expect(px(buf, 1920, 960, 1079)[3]).toBe(255);
+  }, 60_000);
+
+  it('rejects when ffmpeg exits non-zero', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(renderVideo({ character, timeline, audioPath: join(tmp, 'missing.wav'), format: { aspect: '16:9', transparent: false }, outPath: join(tmp, 'x.mp4') })).rejects.toThrow('ffmpeg failed');
+    await expect(renderVideo({ character, timeline, audioPath: wav, format: { aspect: '16:9', transparent: false }, outPath: join(tmp, 'no-such-dir', 'x.mp4') })).rejects.toThrow('ffmpeg failed');
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
   }, 60_000);
 });

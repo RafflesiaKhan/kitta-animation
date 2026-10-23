@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import { once } from 'node:events';
 import { createElement } from 'react';
 import { Resvg } from '@resvg/resvg-js';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -16,13 +15,24 @@ export interface RenderOptions {
   onProgress?: (frame: number, total: number) => void;
 }
 
-/** The character's square box fills 80% of the frame height, centred. */
+/** The character's square box is 80% of the frame height, centred horizontally and anchored to the bottom edge (portrait-style crop). */
 function frameSvg(character: CharacterConfig, frame: ReturnType<typeof frameAt>, w: number, h: number) {
   const size = Math.round(h * 0.8);
   const x = Math.round((w - size) / 2);
-  const y = Math.round((h - size) / 2);
+  const y = h - size;
   const inner = renderToStaticMarkup(createElement(Character, { config: character, frame, width: size, height: size }));
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><g transform="translate(${x} ${y})">${inner}</g></svg>`;
+}
+
+/** resvg returns premultiplied RGBA; ffmpeg's rgba input expects straight alpha. */
+function unpremultiply(px: Buffer) {
+  for (let i = 0; i < px.length; i += 4) {
+    const a = px[i + 3];
+    if (a === 0 || a === 255) continue;
+    px[i] = Math.min(255, Math.round((px[i] * 255) / a));
+    px[i + 1] = Math.min(255, Math.round((px[i + 1] * 255) / a));
+    px[i + 2] = Math.min(255, Math.round((px[i + 2] * 255) / a));
+  }
 }
 
 export async function renderVideo({ character, timeline, audioPath, format, outPath, onProgress }: RenderOptions): Promise<void> {
@@ -59,9 +69,10 @@ export async function renderVideo({ character, timeline, audioPath, format, outP
       const key = JSON.stringify(frame);
       if (!rgba || key !== lastKey) {
         rgba = Buffer.from(new Resvg(frameSvg(character, frame, w, h), { background: format.transparent ? undefined : '#ffffff', font: { loadSystemFonts: false } }).render().pixels);
+        if (format.transparent) unpremultiply(rgba);
         lastKey = key;
       }
-      if (!ff.stdin.write(rgba)) await Promise.race([once(ff.stdin, 'drain'), closed]);
+      if (!ff.stdin.write(rgba)) await Promise.race([new Promise((r) => ff.stdin.once('drain', r)), closed]);
       onProgress?.(i + 1, total);
     }
     ff.stdin.end();
