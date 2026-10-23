@@ -148,7 +148,7 @@ function Mouth({ frame, x, y, scale }: { frame: FrameState; x: number; y: number
   // Same id ⇔ same local geometry, so duplicate ids across several characters on one page are harmless.
   const clipId = `kitta-mouth-${frame.mouth}-${frame.expression}`;
   return (
-    <g data-part="mouth" transform={`translate(${n(x)} ${n(y)}) scale(${scale})`}>
+    <g data-part="mouth" data-shape={frame.mouth} transform={`translate(${n(x)} ${n(y)}) scale(${scale})`}>
       <defs><clipPath id={clipId}><path d={d} /></clipPath></defs>
       <path d={d} fill={MOUTH_IN} />
       <g clipPath={`url(#${clipId})`}>

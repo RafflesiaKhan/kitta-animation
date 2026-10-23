@@ -15,6 +15,8 @@
     "rhubarb-lip-sync-wasm": "0.1.8"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/express": "^5.0.6",
     "@types/multer": "^2.3.0",
     "@types/node": "^26.6.5",
