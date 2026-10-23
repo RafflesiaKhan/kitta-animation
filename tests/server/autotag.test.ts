@@ -67,6 +67,21 @@ describe('autoTag', () => {
     delete process.env.GEMINI_API_KEY;
     await expect(autoTag(['a'])).rejects.toBeInstanceOf(GeminiError);
   });
+
+  it('maps 503 / high demand to busy', async () => {
+    generateContent.mockRejectedValue(Object.assign(new Error('{"error":{"code":503,"status":"UNAVAILABLE"}}'), { status: 503 }));
+    await expect(autoTag(['a'])).rejects.toMatchObject({ code: 'busy' });
+    generateContent.mockRejectedValue(new Error('This model is currently experiencing high demand.'));
+    await expect(autoTag(['a'])).rejects.toMatchObject({ code: 'busy' });
+  });
+
+  it('sends a timeout signal and maps a timeout to timed_out', async () => {
+    generateContent.mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'));
+    await expect(autoTag(['a'])).rejects.toMatchObject({ code: 'timed_out' });
+    const { config } = generateContent.mock.calls[0][0];
+    expect(config.abortSignal).toBeInstanceOf(AbortSignal);
+    expect(config.httpOptions.retryOptions.attempts).toBeLessThanOrEqual(2);
+  });
 });
 
 describe('transcribe', () => {
@@ -119,6 +134,14 @@ describe('transcribe', () => {
     for (const d of made) expect(existsSync(d)).toBe(false);
   });
 
+  it('sends a timeout signal and maps busy and timeout errors', async () => {
+    generateContent.mockRejectedValue(Object.assign(new Error('UNAVAILABLE'), { status: 503 }));
+    await expect(transcribe(wav)).rejects.toMatchObject({ code: 'busy' });
+    expect(generateContent.mock.calls[0][0].config.abortSignal).toBeInstanceOf(AbortSignal);
+    generateContent.mockRejectedValue(new DOMException('aborted', 'AbortError'));
+    await expect(transcribe(wav)).rejects.toMatchObject({ code: 'timed_out' });
+  });
+
   it('drops items whose end is not after start, and survives malformed JSON', async () => {
     generateContent.mockResolvedValue(json([{ text: 'bad', start: 2, end: 2 }, { text: 'ok', start: 0, end: 1 }]));
     expect(await transcribe(wav)).toEqual([{ text: 'ok', startMs: 0, endMs: 1000 }]);
@@ -158,6 +181,14 @@ describe('POST /api/autotag', () => {
     r = await request(app).post('/api/autotag').send({ texts: ['a'] });
     expect(r.status).toBe(502);
     expect(r.body).toEqual({ error: 'AI tagging failed. Please try again.' });
+    generateContent.mockRejectedValue(Object.assign(new Error('UNAVAILABLE'), { status: 503 }));
+    r = await request(app).post('/api/autotag').send({ texts: ['a'] });
+    expect(r.status).toBe(503);
+    expect(r.body).toEqual({ error: 'Gemini is busy right now. Please try again in a minute.' });
+    generateContent.mockRejectedValue(new DOMException('timed out', 'TimeoutError'));
+    r = await request(app).post('/api/autotag').send({ texts: ['a'] });
+    expect(r.status).toBe(504);
+    expect(r.body).toEqual({ error: 'Gemini took too long to answer. Please try again.' });
   });
 });
 

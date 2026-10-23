@@ -24,6 +24,8 @@ function sendGeminiError(res: express.Response, e: unknown, failed: string): boo
   if (e.code === 'no_key') res.status(400).json({ error: 'Gemini key missing — add GEMINI_API_KEY to .env' });
   else if (e.code === 'bad_key') res.status(400).json({ error: 'Gemini key looks invalid — check GEMINI_API_KEY in .env' });
   else if (e.code === 'rate_limited') res.status(429).json({ error: 'Free Gemini limit reached, try again later' });
+  else if (e.code === 'busy') res.status(503).json({ error: 'Gemini is busy right now. Please try again in a minute.' });
+  else if (e.code === 'timed_out') res.status(504).json({ error: 'Gemini took too long to answer. Please try again.' });
   else res.status(502).json({ error: failed });
   return true;
 }

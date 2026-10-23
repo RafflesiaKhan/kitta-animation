@@ -8,7 +8,7 @@ import type { Expression, Gesture, ScriptLineInput } from '../shared/types';
 export { VOICES } from '../shared/voices';
 
 export class GeminiError extends Error {
-  constructor(public code: 'no_key' | 'bad_key' | 'rate_limited' | 'failed') {
+  constructor(public code: 'no_key' | 'bad_key' | 'rate_limited' | 'busy' | 'timed_out' | 'failed') {
     super(code);
     this.name = 'GeminiError';
   }
@@ -20,12 +20,20 @@ function client(): GoogleGenAI {
   return new GoogleGenAI({ apiKey });
 }
 
-/** Maps any SDK failure to a GeminiError (429 -> rate_limited, invalid key -> bad_key) and logs the rest. */
+// Upper bounds for one AI call, so an overloaded model (the SDK retries 503s) can't hang the UI for minutes
+const AUTOTAG_TIMEOUT_MS = 30_000;
+const TRANSCRIBE_TIMEOUT_MS = 90_000;
+// One quick retry instead of the SDK default (5 attempts, backoff up to 60 s), so a busy model is reported in seconds
+const QUICK_RETRY = { retryOptions: { attempts: 2, initialDelay: 1, maxDelay: 2 } };
+
+/** Maps any SDK failure to a GeminiError (429 -> rate_limited, 503 -> busy, abort -> timed_out, invalid key -> bad_key) and logs the rest. */
 function toGeminiError(e: unknown, what: string): GeminiError {
   if (e instanceof GeminiError) return e;
-  const err = e as { status?: number; code?: number; message?: string };
+  const err = e as { name?: string; status?: number; code?: number; message?: string };
+  if (err?.name === 'TimeoutError' || err?.name === 'AbortError') return new GeminiError('timed_out');
   if (err?.status === 429 || err?.code === 429 || /RESOURCE_EXHAUSTED/.test(err?.message ?? '')) return new GeminiError('rate_limited');
   const status = err?.status ?? err?.code;
+  if (status === 503 || /UNAVAILABLE|high demand|overloaded/i.test(err?.message ?? '')) return new GeminiError('busy');
   if ((status === 400 || status === 403) && /API key|API_KEY_INVALID|PERMISSION_DENIED/i.test(err?.message ?? '')) return new GeminiError('bad_key');
   console.error(`gemini ${what} failed`, err?.status ?? '', err?.message ?? 'unknown error');
   return new GeminiError('failed');
@@ -84,6 +92,8 @@ export async function autoTag(texts: string[]): Promise<Tag[]> {
         "Use gesture 'none' unless a gesture clearly fits. Reply with a JSON array with one item per line, in order.\n\n" +
         texts.map((t, i) => `${i + 1}. ${t}`).join('\n'),
       config: {
+        abortSignal: AbortSignal.timeout(AUTOTAG_TIMEOUT_MS),
+        httpOptions: QUICK_RETRY,
         responseMimeType: 'application/json',
         responseSchema: {
           type: 'ARRAY',
@@ -135,6 +145,8 @@ export async function transcribe(wavPath: string): Promise<{ text: string; start
         { inlineData: { mimeType: 'audio/wav', data } },
       ] }],
       config: {
+        abortSignal: AbortSignal.timeout(TRANSCRIBE_TIMEOUT_MS),
+        httpOptions: QUICK_RETRY,
         responseMimeType: 'application/json',
         responseSchema: {
           type: 'ARRAY',
