@@ -1,4 +1,4 @@
-import type { CharacterConfig, ExportFormat, MouthCue, Timeline } from '../shared/types';
+import type { CharacterConfig, ExportFormat, Line, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
 
 async function post<T>(url: string, init: RequestInit): Promise<T> {
   let res: Response;
@@ -24,6 +24,15 @@ export async function lipsync(audioId: string, dialog?: string): Promise<MouthCu
     body: JSON.stringify({ audioId, dialog }),
   });
   return cues;
+}
+
+export async function health(): Promise<{ rhubarb: boolean; gemini: boolean }> {
+  const res = await fetch('/api/health');
+  return res.json();
+}
+
+export function tts(lines: ScriptLineInput[]): Promise<{ audioId: string; durationMs: number; lines: Line[]; cues: MouthCue[] }> {
+  return post('/api/tts', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines }) });
 }
 
 export interface ExportBody { character: CharacterConfig; timeline: Timeline; audioId: string; format: ExportFormat }

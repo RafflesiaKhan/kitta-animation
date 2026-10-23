@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
 const run = promisify(execFile);
@@ -35,4 +37,55 @@ export async function normalizeAudio(inputPath: string, id: string): Promise<{ p
     throw new AudioError('unreadable');
   }
   return { path, durationMs: Math.round(seconds * 1000) };
+}
+
+/**
+ * Joins WAV clips with silence between them (not after the last), saved like an upload.
+ * spans[i] is where clip i sits in the joined audio.
+ */
+export async function concatWithGaps(
+  wavs: Buffer[],
+  gapMs = 250,
+): Promise<{ path: string; durationMs: number; spans: { startMs: number; endMs: number }[] }> {
+  const dir = await mkdtemp(join(tmpdir(), 'kitta-concat-'));
+  const clips: { path: string; durationMs: number }[] = [];
+  try {
+    for (let i = 0; i < wavs.length; i++) {
+      const raw = join(dir, `raw${i}.wav`);
+      await writeFile(raw, wavs[i]);
+      // normalizeAudio gives us the format conversion and the duration probe; its output is only scratch here
+      const id = `scratch-${randomUUID()}`;
+      const n = await normalizeAudio(raw, id);
+      clips.push(n);
+    }
+    const spans: { startMs: number; endMs: number }[] = [];
+    let at = 0;
+    clips.forEach((c, i) => {
+      if (i > 0) at += gapMs;
+      spans.push({ startMs: at, endMs: at + c.durationMs });
+      at += c.durationMs;
+    });
+
+    const args = ['-y', '-loglevel', 'error'];
+    clips.forEach((c) => args.push('-i', c.path));
+    const parts: string[] = [];
+    const labels: string[] = [];
+    clips.forEach((_c, i) => {
+      if (i > 0) { parts.push(`anullsrc=r=44100:cl=mono,atrim=duration=${gapMs / 1000}[g${i}]`); labels.push(`[g${i}]`); }
+      labels.push(`[${i}:a]`);
+    });
+    parts.push(`${labels.join('')}concat=n=${labels.length}:v=0:a=1[out]`);
+    const joined = join(dir, 'joined.wav');
+    args.push('-filter_complex', parts.join(';'), '-map', '[out]', '-ac', '1', '-ar', '44100', '-c:a', 'pcm_s16le', joined);
+    try {
+      await run('ffmpeg', args);
+    } catch {
+      throw new AudioError('unreadable');
+    }
+    const out = await normalizeAudio(joined, randomUUID()); // saves it + enforces the 3-minute limit
+    return { path: out.path, durationMs: out.durationMs, spans };
+  } finally {
+    await Promise.all(clips.map((c) => rm(c.path, { force: true })));
+    await rm(dir, { recursive: true, force: true });
+  }
 }

@@ -3,9 +3,12 @@ import multer from 'multer';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { normalizeAudio, AudioError, AUDIO_DIR } from './audio';
+import { normalizeAudio, concatWithGaps, AudioError, AUDIO_DIR } from './audio';
+import { tts, GeminiError } from './gemini';
+import { EXPRESSIONS, GESTURES } from '../shared/types';
+import type { Line, ScriptLineInput } from '../shared/types';
 import { runRhubarb, rhubarbAvailable } from './rhubarb';
 import { renderVideo } from './render';
 import { validateExport } from './validate';
@@ -66,6 +69,34 @@ export function createApp() {
     } catch (e) {
       console.error('lipsync failed', e);
       res.status(500).json({ error: 'Lip sync failed. Please try again.' });
+    }
+  });
+
+  app.post('/api/tts', async (req, res) => {
+    const raw = req.body?.lines;
+    const isLine = (l: any) =>
+      l && typeof l.text === 'string' && l.text.length <= 500 && typeof l.voice === 'string' && l.voice &&
+      EXPRESSIONS.includes(l.expression) && GESTURES.includes(l.gesture) && (l.note === undefined || (typeof l.note === 'string' && l.note.length <= 200));
+    if (!Array.isArray(raw) || raw.length < 1 || raw.length > 50 || !raw.every(isLine)) return res.status(400).json({ error: 'Invalid request' });
+    const lines = raw as ScriptLineInput[];
+    const emptyAt = lines.findIndex((l) => !l.text.trim());
+    if (emptyAt >= 0) return res.status(400).json({ error: `Line ${emptyAt + 1} is empty` });
+    try {
+      const wavs: Buffer[] = [];
+      for (const l of lines) wavs.push(await tts(l)); // sequential: kinder to free-tier limits
+      const { path, durationMs, spans } = await concatWithGaps(wavs);
+      const dialog = lines.map((l) => l.text.replace(/<[^>]*>/g, ' ')).join(' ').replace(/\s+/g, ' ').trim();
+      const cues = await runRhubarb(path, dialog || undefined);
+      const out: Line[] = lines.map((l, i) => ({ text: l.text, expression: l.expression, gesture: l.gesture, ...spans[i] }));
+      res.json({ audioId: basename(path, '.wav'), durationMs, lines: out, cues });
+    } catch (e) {
+      if (e instanceof GeminiError && e.code === 'no_key') res.status(400).json({ error: 'Gemini key missing — add GEMINI_API_KEY to .env' });
+      else if (e instanceof GeminiError && e.code === 'rate_limited') res.status(429).json({ error: 'Free Gemini limit reached, try again later' });
+      else if (e instanceof AudioError && e.code === 'too_long') res.status(400).json({ error: 'Script is longer than 3 minutes. Please shorten it.' });
+      else {
+        console.error('tts failed', e);
+        res.status(502).json({ error: 'Voice generation failed. Please try again.' });
+      }
     }
   });
 

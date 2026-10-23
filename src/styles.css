@@ -29,3 +29,10 @@ main { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: 
 .btn { display: inline-block; padding: 8px 14px; border-radius: 10px; background: var(--accent); color: #fff; cursor: pointer; font-size: 14px; }
 .hint { font-size: 12px; color: #777; }
 .error { color: #c0392b; background: #fdecea; padding: 8px 12px; border-radius: 8px; font-size: 13px; }
+.field { display: block; margin-bottom: 10px; font-size: 13px; }
+.line-card { border: 1px solid #ddd; border-radius: 10px; padding: 8px; margin-bottom: 8px; }
+.line-chips { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+.line-chips input { flex: 1; min-width: 120px; }
+.line-card textarea { width: 100%; box-sizing: border-box; font: inherit; }
+.line-actions { display: flex; gap: 6px; justify-content: space-between; margin-bottom: 6px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
