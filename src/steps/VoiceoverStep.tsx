@@ -1,42 +1,25 @@
-import { useState } from 'react';
-import type { Timeline } from '../../shared/types';
-import * as api from '../api';
-
 interface Props {
-  onReady: (r: { audioId: string; timeline: Timeline }) => void;
-  onStatus: (s: string) => void;
+  busy: boolean;
+  error: string | null;
+  onUpload: (file: File) => void;
 }
 
-function UploadTab({ onReady, onStatus }: Props) {
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const pick = async (file: File | undefined) => {
-    if (!file) return;
-    setError(null);
-    setBusy(true);
-    try {
-      onStatus('Uploading…');
-      const { audioId, durationMs } = await api.uploadAudio(file);
-      onStatus('Matching lips…');
-      const cues = await api.lipsync(audioId);
-      onReady({
-        audioId,
-        timeline: { durationMs, cues, lines: [{ text: '', startMs: 0, endMs: durationMs, expression: 'neutral', gesture: 'none' }] },
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-      onStatus('');
-    }
-  };
-
+function UploadTab({ busy, error, onUpload }: Props) {
   return (
     <div>
       <label className="upload">
         <span className="btn">⬆ Upload voiceover</span>
-        <input type="file" accept="audio/*" aria-label="Upload voiceover" disabled={busy} onChange={(e) => pick(e.target.files?.[0])} />
+        <input
+          type="file"
+          accept="audio/*"
+          aria-label="Upload voiceover"
+          disabled={busy}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = ''; // so picking the same file again still fires onChange
+            if (file) onUpload(file);
+          }}
+        />
       </label>
       <p className="hint">WAV, MP3, M4A… up to 3 minutes. Your character will lip-sync to it.</p>
       {error && <p role="alert" className="error">{error}</p>}

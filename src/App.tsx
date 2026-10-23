@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { CharacterConfig, Timeline } from '../shared/types';
 import { STARTERS } from '../shared/character/starters';
+import * as api from './api';
 import { Preview } from './Preview';
 import { CharacterStep } from './steps/CharacterStep';
 import { VoiceoverStep } from './steps/VoiceoverStep';
@@ -14,6 +15,25 @@ export function App() {
   const [step, setStep] = useState(0);
   const [state, setState] = useState<State>({ character: KIT, timeline: null, audioId: null });
   const [status, setStatus] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const busy = status !== '';
+
+  // Upload state lives here (not in the tab) so it survives switching steps.
+  const upload = async (file: File) => {
+    setError(null);
+    try {
+      setStatus('Uploading…');
+      const { audioId, durationMs } = await api.uploadAudio(file);
+      setStatus('Matching lips…');
+      const cues = await api.lipsync(audioId);
+      const timeline: Timeline = { durationMs, cues, lines: [{ text: '', startMs: 0, endMs: durationMs, expression: 'neutral', gesture: 'none' }] };
+      setState((s) => ({ ...s, audioId, timeline }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setStatus('');
+    }
+  };
 
   return (
     <div className="app">
@@ -28,7 +48,7 @@ export function App() {
       <main>
         <section className="panel">
           {step === 0 && <CharacterStep character={state.character} onChange={(character) => setState((s) => ({ ...s, character }))} />}
-          {step === 1 && <VoiceoverStep onStatus={setStatus} onReady={({ audioId, timeline }) => setState((s) => ({ ...s, audioId, timeline }))} />}
+          {step === 1 && <VoiceoverStep busy={busy} error={error} onUpload={upload} />}
           {step === 2 && <div><h2>Export</h2><p className="hint">Export comes next.</p></div>}
         </section>
         <Preview character={state.character} timeline={state.timeline} audioUrl={state.audioId ? `/api/audio/${state.audioId}` : null} status={status} />

@@ -23,7 +23,13 @@ export function Preview({ character, timeline, audioUrl, status }: PreviewProps)
     let raf = 0;
     const tick = () => {
       const audio = audioRef.current;
-      setFrame(timeline && audio ? frameAt(timeline, audio.currentTime * 1000) : frameAt(IDLE, performance.now()));
+      const idle = frameAt(IDLE, performance.now());
+      if (!timeline || !audio) setFrame(idle);
+      else {
+        const f = frameAt(timeline, audio.currentTime * 1000);
+        // While playing everything follows the audio (matches export); when paused keep blinking/breathing on the wall clock.
+        setFrame(audio.paused || audio.ended ? { ...f, blink: idle.blink, bob: idle.bob } : f);
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);

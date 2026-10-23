@@ -31,3 +31,12 @@ it('idles with a closed mouth when there is no timeline', () => {
   expect(container.querySelector('[data-part=mouth]')!.getAttribute('data-shape')).toBe('X');
   expect(container.querySelector('audio')).toBeNull();
 });
+
+it('keeps blinking/breathing on the wall clock while the audio is paused', () => {
+  const { container } = render(<Preview character={kit} timeline={timeline} audioUrl="/a.wav" />);
+  const bob = () => container.querySelector('[data-part=character]')!.getAttribute('transform');
+  act(() => { vi.advanceTimersByTime(50); });
+  const first = bob();
+  act(() => { vi.advanceTimersByTime(600); });
+  expect(bob()).not.toBe(first);
+});
