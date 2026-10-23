@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { EXPRESSIONS, GESTURES } from '../../shared/types';
-import type { ScriptLineInput } from '../../shared/types';
+import type { Expression, Gesture, Line, ScriptLineInput } from '../../shared/types';
 import { VOICES } from '../../shared/voices';
 import * as api from '../api';
 
@@ -13,13 +13,33 @@ interface Props {
   onGenerate: () => void;
   onAutoTag: () => void;
   onAddExpressions: () => void;
-  canTag: boolean; // an uploaded/generated timeline exists
+  uploadLines: Line[] | null; // lines of the uploaded timeline; null unless the current audio was uploaded
+  onEditUploadLine: (i: number, patch: Pick<Line, 'expression'> | Pick<Line, 'gesture'>) => void;
 }
 
 type TabProps = Props & { geminiOk: boolean };
 const NEEDS_KEY = 'Needs GEMINI_API_KEY';
 
-function UploadTab({ busy, error, onUpload, onAddExpressions, canTag, geminiOk }: TabProps) {
+const mmss = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
+
+/** The expression and gesture selects shared by script lines and uploaded-audio lines. */
+function TagSelects({ busy, expression, gesture, onExpression, onGesture }: {
+  busy: boolean; expression: Expression; gesture: Gesture;
+  onExpression: (x: Expression) => void; onGesture: (g: Gesture) => void;
+}) {
+  return (
+    <>
+      <select aria-label="Expression" disabled={busy} value={expression} onChange={(e) => onExpression(e.target.value as Expression)}>
+        {EXPRESSIONS.map((x) => <option key={x} value={x}>{x}</option>)}
+      </select>
+      <select aria-label="Gesture" disabled={busy} value={gesture} onChange={(e) => onGesture(e.target.value as Gesture)}>
+        {GESTURES.map((x) => <option key={x} value={x}>{x}</option>)}
+      </select>
+    </>
+  );
+}
+
+function UploadTab({ busy, error, onUpload, onAddExpressions, uploadLines, onEditUploadLine, geminiOk }: TabProps) {
   return (
     <div>
       <label className="upload">
@@ -37,8 +57,20 @@ function UploadTab({ busy, error, onUpload, onAddExpressions, canTag, geminiOk }
         />
       </label>
       <p className="hint">WAV, MP3, M4A… up to 3 minutes. Your character will lip-sync to it.</p>
-      {canTag && (
-        <button className="btn" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={onAddExpressions}>✨ Add expressions</button>
+      {uploadLines && (
+        <>
+          <button className="btn" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={onAddExpressions}>✨ Add expressions</button>
+          {uploadLines.map((l, i) => (
+            <div key={i} className="line-card" data-testid="upload-line">
+              <div className="line-chips">
+                <span>{mmss(l.startMs)}–{mmss(l.endMs)}</span>
+                <TagSelects busy={busy} expression={l.expression} gesture={l.gesture}
+                  onExpression={(expression) => onEditUploadLine(i, { expression })} onGesture={(gesture) => onEditUploadLine(i, { gesture })} />
+              </div>
+              <p className="hint">{l.text || '(whole clip)'}</p>
+            </div>
+          ))}
+        </>
       )}
       {error && <p role="alert" className="error">{error}</p>}
     </div>
@@ -65,13 +97,9 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
       {lines.map((l, i) => (
         <div key={i} className="line-card" data-testid="script-line">
           <div className="line-chips">
-            <select aria-label="Expression" disabled={busy} value={l.expression} onChange={(e) => update(i, { expression: e.target.value as ScriptLineInput['expression'] })}>
-              {EXPRESSIONS.map((x) => <option key={x} value={x}>{x}</option>)}
-            </select>
-            <select aria-label="Gesture" disabled={busy} value={l.gesture} onChange={(e) => update(i, { gesture: e.target.value as ScriptLineInput['gesture'] })}>
-              {GESTURES.map((x) => <option key={x} value={x}>{x}</option>)}
-            </select>
-            <input aria-label="Delivery note" disabled={busy} placeholder="Delivery note (optional)" value={l.note ?? ''} onChange={(e) => update(i, { note: e.target.value })} />
+            <TagSelects busy={busy} expression={l.expression} gesture={l.gesture}
+              onExpression={(expression) => update(i, { expression })} onGesture={(gesture) => update(i, { gesture })} />
+            <input aria-label="Delivery note" disabled={busy} maxLength={200} placeholder="Delivery note (optional)" value={l.note ?? ''} onChange={(e) => update(i, { note: e.target.value })} />
             <button aria-label="Move up" disabled={busy || i === 0} onClick={() => move(i, -1)}>↑</button>
             <button aria-label="Move down" disabled={busy || i === lines.length - 1} onClick={() => move(i, 1)}>↓</button>
             <button aria-label="Delete line" disabled={busy || lines.length === 1} onClick={() => setLines(lines.filter((_, j) => j !== i))}>✕</button>
@@ -81,7 +109,7 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
       ))}
       <div className="line-actions">
         <button className="btn" disabled={busy || lines.length >= 50} onClick={() => setLines([...lines, { text: '', voice, expression: 'neutral', gesture: 'none' }])}>+ Line</button>
-        <button className="btn" disabled={busy} onClick={onGenerate}>▶ Generate voice</button>
+        <button className="btn" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={onGenerate}>▶ Generate voice</button>
         <button className="btn" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={onAutoTag}>✨ Auto-tag expressions</button>
       </div>
       <p className="hint">Tip: add tags like &lt;short pause&gt; inside a line. Powered by Gemini TTS.</p>

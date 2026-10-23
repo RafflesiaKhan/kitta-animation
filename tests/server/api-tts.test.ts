@@ -57,6 +57,15 @@ describe('POST /api/tts', () => {
     expect(r.body).toEqual({ error: 'Gemini key missing — add GEMINI_API_KEY to .env' });
   });
 
+  it('returns the invalid-key error', async () => {
+    generateContent.mockRejectedValue(Object.assign(new Error('API key not valid'), { status: 400 }));
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const r = await request(app).post('/api/tts').send({ lines: [L('hi')] });
+    expect(r.status).toBe(400);
+    expect(r.body).toEqual({ error: 'Gemini key looks invalid — check GEMINI_API_KEY in .env' });
+    spy.mockRestore();
+  });
+
   it('passes a 429 through with the friendly message', async () => {
     generateContent.mockRejectedValue(Object.assign(new Error('quota'), { status: 429 }));
     const r = await request(app).post('/api/tts').send({ lines: [L('hi')] });

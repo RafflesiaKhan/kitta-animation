@@ -115,9 +115,19 @@ it('upload tab: disabled with tooltip without a key; health fetched once', async
   expect(api.health).toHaveBeenCalledTimes(1);
 });
 
+it('after generating a script, Add expressions and the upload line list are hidden', async () => {
+  vi.mocked(api.tts).mockResolvedValue({ audioId: 'zzz', durationMs: 2000, cues, lines: [{ text: 'hi', startMs: 0, endMs: 2000, expression: 'sad', gesture: 'none' }] });
+  await openScript();
+  fireEvent.change(screen.getByLabelText('Line text'), { target: { value: 'hi' } });
+  await act(async () => { fireEvent.click(btn('▶ Generate voice')); });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: '⬆ Upload' })); });
+  expect(screen.queryByRole('button', { name: '✨ Add expressions' })).toBeNull();
+  expect(screen.queryByTestId('upload-line')).toBeNull();
+});
+
 it('withTaggedLines discards results when the audio changed or the timeline is gone', () => {
   const tl = { durationMs: 1, cues: [], lines: [] };
-  const base = { character: {} as any, timeline: tl, audioId: 'new' };
+  const base = { character: {} as any, timeline: tl, audioId: 'new', source: 'upload' as const };
   const lines = [{ text: 'x', startMs: 0, endMs: 1, expression: 'happy' as const, gesture: 'none' as const }];
   expect(withTaggedLines(base, 'old', lines)).toBe(base);
   expect(withTaggedLines({ ...base, timeline: null }, 'new', lines).timeline).toBeNull();

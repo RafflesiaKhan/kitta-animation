@@ -8,7 +8,7 @@ import type { Expression, Gesture, ScriptLineInput } from '../shared/types';
 export { VOICES } from '../shared/voices';
 
 export class GeminiError extends Error {
-  constructor(public code: 'no_key' | 'rate_limited' | 'failed') {
+  constructor(public code: 'no_key' | 'bad_key' | 'rate_limited' | 'failed') {
     super(code);
     this.name = 'GeminiError';
   }
@@ -20,11 +20,13 @@ function client(): GoogleGenAI {
   return new GoogleGenAI({ apiKey });
 }
 
-/** Maps any SDK failure to a GeminiError (429 -> rate_limited) and logs the rest. */
+/** Maps any SDK failure to a GeminiError (429 -> rate_limited, invalid key -> bad_key) and logs the rest. */
 function toGeminiError(e: unknown, what: string): GeminiError {
   if (e instanceof GeminiError) return e;
   const err = e as { status?: number; code?: number; message?: string };
   if (err?.status === 429 || err?.code === 429 || /RESOURCE_EXHAUSTED/.test(err?.message ?? '')) return new GeminiError('rate_limited');
+  const status = err?.status ?? err?.code;
+  if ((status === 400 || status === 403) && /API key|API_KEY_INVALID|PERMISSION_DENIED/i.test(err?.message ?? '')) return new GeminiError('bad_key');
   console.error(`gemini ${what} failed`, err?.status ?? '', err?.message ?? 'unknown error');
   return new GeminiError('failed');
 }

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { App } from '../../src/App';
 import * as api from '../../src/api';
@@ -57,4 +57,24 @@ it('keeps the input disabled across step switches and applies the result once', 
   expect((screen.getByLabelText('Upload voiceover') as HTMLInputElement).disabled).toBe(false);
   expect(vi.mocked(api.uploadAudio)).toHaveBeenCalledTimes(1);
   expect(lastProps!.audioUrl).toBe('/api/audio/first');
+});
+
+it('lists the uploaded line and lets you edit its expression and gesture without re-running anything', async () => {
+  vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: false });
+  vi.mocked(api.uploadAudio).mockResolvedValue({ audioId: 'abc', durationMs: 65000 });
+  vi.mocked(api.lipsync).mockResolvedValue(cues);
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: '2 Voiceover' }));
+  expect(screen.queryByTestId('upload-line')).toBeNull();
+  await act(async () => { pick(); });
+  const row = screen.getByTestId('upload-line');
+  expect(row.textContent).toContain('0:00–1:05');
+  expect(row.textContent).toContain('(whole clip)');
+  await act(async () => { fireEvent.change(within(row).getByLabelText('Expression'), { target: { value: 'happy' } }); });
+  fireEvent.change(within(screen.getByTestId('upload-line')).getByLabelText('Gesture'), { target: { value: 'wave' } });
+  expect((lastProps!.timeline as { lines: unknown[] }).lines).toEqual([
+    { text: '', startMs: 0, endMs: 65000, expression: 'happy', gesture: 'wave' },
+  ]);
+  expect(api.lipsync).toHaveBeenCalledTimes(1);
+  expect(api.tts).not.toHaveBeenCalled();
 });

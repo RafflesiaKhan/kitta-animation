@@ -47,6 +47,29 @@ describe('tts', () => {
     await expect(tts(line)).rejects.toMatchObject({ code: 'rate_limited' });
   });
 
+  it('maps invalid-key errors (400/403 mentioning the key) to bad_key', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const cases = [
+      Object.assign(new Error('API key not valid. Please pass a valid API key.'), { status: 400 }),
+      Object.assign(new Error('{"error":{"status":"PERMISSION_DENIED"}}'), { status: 403 }),
+      Object.assign(new Error('API_KEY_INVALID'), { status: 400 }),
+    ];
+    for (const e of cases) {
+      generateContent.mockRejectedValueOnce(e);
+      await expect(tts(line)).rejects.toMatchObject({ code: 'bad_key' });
+    }
+    spy.mockRestore();
+  });
+
+  it('keeps unrelated 400/403 errors as failed', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    generateContent.mockRejectedValueOnce(Object.assign(new Error('Invalid argument: bad voice'), { status: 400 }));
+    await expect(tts(line)).rejects.toMatchObject({ code: 'failed' });
+    generateContent.mockRejectedValueOnce(Object.assign(new Error('API key not valid'), { status: 500 }));
+    await expect(tts(line)).rejects.toMatchObject({ code: 'failed' });
+    spy.mockRestore();
+  });
+
   it('maps other failures and empty audio to failed', async () => {
     generateContent.mockRejectedValue(new Error('boom'));
     await expect(tts(line)).rejects.toBeInstanceOf(GeminiError);

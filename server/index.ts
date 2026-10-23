@@ -22,6 +22,7 @@ const EXPORT_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 function sendGeminiError(res: express.Response, e: unknown, failed: string): boolean {
   if (!(e instanceof GeminiError)) return false;
   if (e.code === 'no_key') res.status(400).json({ error: 'Gemini key missing — add GEMINI_API_KEY to .env' });
+  else if (e.code === 'bad_key') res.status(400).json({ error: 'Gemini key looks invalid — check GEMINI_API_KEY in .env' });
   else if (e.code === 'rate_limited') res.status(429).json({ error: 'Free Gemini limit reached, try again later' });
   else res.status(502).json({ error: failed });
   return true;
@@ -185,5 +186,5 @@ export function createApp() {
 const isEntry = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isEntry) {
   if (existsSync('.env')) process.loadEnvFile('.env');
-  createApp().listen(5175, () => console.log('Kitta API on http://localhost:5175'));
+  createApp().listen(5175, '127.0.0.1', () => console.log('Kitta API on http://127.0.0.1:5175'));
 }

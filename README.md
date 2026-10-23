@@ -10,15 +10,15 @@ cp .env.example .env     # then add your GEMINI_API_KEY (optional, see below)
 npm run dev
 ```
 
-Open http://localhost:5173. Lip sync uses Rhubarb, which is bundled as a WASM package, so there is nothing else to install (no `npm run setup`). Needs `ffmpeg` on your PATH.
+Open http://localhost:5173. Lip sync uses Rhubarb, which is bundled as a WASM package, so there is nothing else to install (no `npm run setup`). Needs Node 21.7 or newer (the server uses `process.loadEnvFile`) and `ffmpeg` on your PATH.
 
 ## How to use
 
 1. **Character**: pick a starter and customise it.
-2. **Voiceover**: either upload audio (up to 3 minutes), or write a script and click "Generate voice". "✨ Add expressions" (after an upload) and "✨ Auto-tag expressions" (in the script) let Gemini pick the expression and gesture per line; you can change any of them afterwards.
+2. **Voiceover**: either upload audio (up to 3 minutes), or write a script and click "Generate voice". "✨ Add expressions" (after an upload) and "✨ Auto-tag expressions" (in the script) let Gemini pick the expression and gesture per line; you can change any of them afterwards, for uploads too (each line of an uploaded clip is listed under the upload button).
 3. **Export**: choose 16:9 or 9:16, or transparent, and download the MP4/WebM.
 
-Upload, lip sync and export work without a Gemini key. Voice generation, "Add expressions" and "Auto-tag" need `GEMINI_API_KEY`; without one those buttons are disabled. Gemini has a free tier with rate limits; if it is hit, the app shows "Free Gemini limit reached, try again later".
+Upload, lip sync and export work without a Gemini key. Voice generation, "Add expressions" and "Auto-tag" need `GEMINI_API_KEY`; without one those buttons are disabled (you can still set the expression and gesture by hand). Gemini has a free tier with rate limits; if it is hit, the app shows "Free Gemini limit reached, try again later".
 
 ## Gemini features (optional)
 

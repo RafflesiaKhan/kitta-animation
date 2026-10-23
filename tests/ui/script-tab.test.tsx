@@ -42,11 +42,18 @@ it('expression dropdown lists EXPRESSIONS', async () => {
   expect([...sel.options].map((o) => o.value)).toEqual(EXPRESSIONS);
 });
 
-it('shows the notice when gemini is not configured, and keeps Generate enabled', async () => {
+it('shows the notice and disables Generate when gemini is not configured', async () => {
   vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: false });
   await open();
   expect(screen.getByText('Add GEMINI_API_KEY to .env to generate voices.')).toBeTruthy();
-  expect((screen.getByRole('button', { name: '▶ Generate voice' }) as HTMLButtonElement).disabled).toBe(false);
+  const gen = screen.getByRole('button', { name: '▶ Generate voice' }) as HTMLButtonElement;
+  expect(gen.disabled).toBe(true);
+  expect(gen.title).toBe('Needs GEMINI_API_KEY');
+});
+
+it('delivery note input is capped at 200 characters', async () => {
+  await open();
+  expect((screen.getByLabelText('Delivery note') as HTMLInputElement).maxLength).toBe(200);
 });
 
 it('shows API errors inline', async () => {
