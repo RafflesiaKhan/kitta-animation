@@ -54,7 +54,7 @@ From the owner:
 
 My calls (open to challenge):
 - **Platform:** a local web app. The frontend is React, TypeScript and Vite. A small local Node server keeps the Gemini key in `.env` and runs command-line tools (Rhubarb, ffmpeg).
-- **Lip sync:** [Rhubarb Lip Sync](https://github.com/DanielSWolf/rhubarb-lip-sync) CLI with its 9 mouth shapes (A–H and X). When the script text is known, it is passed in with `--dialogFile` for better accuracy.
+- **Lip sync:** Rhubarb Lip Sync via its WebAssembly port [rhubarb-lip-sync-wasm](https://github.com/danieloquelis/rhubarb-lip-sync-wasm), which runs natively on Apple Silicon. The official CLI is Intel-only and would need Rosetta. It produces the 9 mouth shapes (A–H and X). When the script text is known, it is passed as dialog text for better accuracy.
 - **Characters are layered SVG:** body, head, eyes, brows and mouth as separate parts. An expression swaps eyes, brows and the mouth set; a mouth set is 9 SVG mouths. Gestures are simple transforms (arm rotation, head tilt) with idle blinking and a subtle breathing bob.
 - **Script → voice:** each line is generated separately with Gemini TTS, so exact start and end times are known for every line and its expression. The voice is chosen from Gemini's prebuilt voices. The expression and delivery note go into the prompt.
 - **Uploaded audio → expressions:** speech-to-text with timestamps gives the lines and their times. Then the same Auto-tag step runs.
@@ -74,6 +74,7 @@ My calls (open to challenge):
 - ✨ AI character creation: generate a character, then its expressions and mouth sets, with an image model.
 - Timeline editor (layout B) to drag expressions and gestures.
 - Multiple characters having a conversation (Gemini TTS supports two speakers).
+- More character styles from [Open Peeps](https://www.openpeeps.com/), a free (CC0) hand-drawn library of mix-and-match faces, hair and bodies. This was suggested by the owner. The faces would need matching mouth sets for lip sync.
 - Hedra-style realistic mode via an open model such as MultiTalk or EchoMimicV2, on a rented GPU.
 
 ## Reference mockups
