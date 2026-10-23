@@ -65,6 +65,12 @@ export function createApp() {
     }
   });
 
+  app.use((err: { type?: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error('request error', err);
+    if (err?.type?.startsWith('entity.')) return res.status(400).json({ error: 'Invalid request' });
+    res.status(500).json({ error: 'Something went wrong' });
+  });
+
   return app;
 }
 

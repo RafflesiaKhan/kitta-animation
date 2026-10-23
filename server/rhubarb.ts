@@ -35,6 +35,14 @@ export async function rhubarbAvailable(): Promise<boolean> {
   }
 }
 
+/** Calls are serialised so the global console muting below can never overlap. */
+let queue: Promise<unknown> = Promise.resolve();
+function serialised<T>(fn: () => Promise<T>): Promise<T> {
+  const next = queue.then(fn, fn);
+  queue = next.catch(() => {});
+  return next;
+}
+
 /** The WASM package prints [DEBUG] lines; mute output while it runs. */
 async function quietly<T>(fn: () => Promise<T>): Promise<T> {
   const { log, error, info, debug } = console;
@@ -57,8 +65,8 @@ export async function runRhubarb(wavPath: string, dialogText?: string): Promise<
     { encoding: 'buffer', maxBuffer: 200 * 1024 * 1024 },
   );
   const { Rhubarb } = await loadRhubarb();
-  const result = await quietly(() =>
+  const result = await serialised(() => quietly(() =>
     Rhubarb.getLipSync(stdout, dialogText ? { dialogText } : {}) as Promise<{ mouthCues: RawCue[] }>,
-  );
+  ));
   return mapCues(result.mouthCues);
 }

@@ -34,11 +34,18 @@ describe('audio + lipsync API', () => {
     expect(r.body.error).toContain("couldn't read");
   });
 
-  it('404s unknown and 400s malformed audio ids', async () => {
+  it('404s unknown and malformed audio ids', async () => {
     const r = await request(app).post('/api/lipsync').send({ audioId: randomUUID() });
     expect(r.status).toBe(404);
     expect(r.body).toEqual({ error: 'Audio not found' });
     expect((await request(app).get('/api/audio/..%2Fx')).status).toBe(404);
+  });
+
+  it('returns clean JSON 400 for a malformed body', async () => {
+    const r = await request(app).post('/api/lipsync').set('Content-Type', 'application/json').send('{bad json');
+    expect(r.status).toBe(400);
+    expect(r.body).toEqual({ error: 'Invalid request' });
+    expect(r.text).not.toMatch(/ at |\/Users/);
   });
 
   it('reports health', async () => {
