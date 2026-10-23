@@ -1,10 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
-import { copyFileSync, readdirSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const generateContent = vi.fn();
+const made: string[] = []; // temp dirs created by audio.ts, recorded so each can be checked individually
+vi.mock('node:fs/promises', async (orig) => {
+  const real = await orig<typeof import('node:fs/promises')>();
+  return { ...real, mkdtemp: async (...a: Parameters<typeof real.mkdtemp>) => { const d = await real.mkdtemp(...a); made.push(d); return d; } };
+});
 vi.mock('@google/genai', () => ({ GoogleGenAI: class { models = { generateContent }; } }));
 import { autoTag, transcribe, GeminiError } from '../../server/gemini';
 import { createApp } from '../../server/index';
@@ -83,21 +89,34 @@ describe('transcribe', () => {
     expect(arg.config.responseMimeType).toBe('application/json');
   });
 
-  it('sends 16 kHz mono audio and cleans up its temp files', async () => {
-    const tmpCount = () => readdirSync(tmpdir()).filter((f) => f.startsWith('kitta-asr-')).length;
-    const before = tmpCount();
-    generateContent.mockResolvedValue(json([]));
-    await transcribe(wav);
-    const part = generateContent.mock.calls[0][0].contents[0].parts.find((p: any) => p.inlineData);
-    const head = Buffer.from(part.inlineData.data, 'base64');
-    expect(head.subarray(0, 4).toString()).toBe('RIFF');
-    expect(head.readUInt16LE(22)).toBe(1);
-    expect(head.readUInt32LE(24)).toBe(16000);
-    expect(head.readUInt16LE(34)).toBe(16);
-    expect(tmpCount()).toBe(before);
+  it('downsamples a 44.1 kHz upload to 16 kHz mono and removes its temp dir', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kitta-in-'));
+    const input = join(dir, 'upload.wav');
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', wav, '-ac', '1', '-ar', '44100', '-c:a', 'pcm_s16le', input]);
+    try {
+      expect(readFileSync(input).readUInt32LE(24)).toBe(44100);
+      generateContent.mockResolvedValue(json([]));
+      made.length = 0;
+      await transcribe(input);
+      const part = generateContent.mock.calls[0][0].contents[0].parts.find((p: any) => p.inlineData);
+      const sent = Buffer.from(part.inlineData.data, 'base64');
+      expect(sent.subarray(0, 4).toString()).toBe('RIFF');
+      expect(sent.readUInt16LE(22)).toBe(1);
+      expect(sent.readUInt32LE(24)).toBe(16000);
+      expect(sent.readUInt16LE(34)).toBe(16);
+      expect(sent.length).toBeLessThan(statSync(input).size);
+      expect(made).toHaveLength(1);
+      expect(existsSync(made[0])).toBe(false);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it('removes its temp dir when ffmpeg or the API fails', async () => {
+    made.length = 0;
+    await expect(transcribe(join(tmpdir(), 'does-not-exist.wav'))).rejects.toMatchObject({ code: 'failed' });
     generateContent.mockRejectedValue(new Error('boom'));
     await expect(transcribe(wav)).rejects.toMatchObject({ code: 'failed' });
-    expect(tmpCount()).toBe(before);
+    expect(made).toHaveLength(2);
+    for (const d of made) expect(existsSync(d)).toBe(false);
   });
 
   it('drops items whose end is not after start, and survives malformed JSON', async () => {
