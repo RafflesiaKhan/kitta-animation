@@ -39,6 +39,18 @@ export async function normalizeAudio(inputPath: string, id: string): Promise<{ p
   return { path, durationMs: Math.round(seconds * 1000) };
 }
 
+/** Runs fn with a 16 kHz mono 16-bit copy of the WAV (about 1.9 MB/min) in a temp dir that is removed afterwards. */
+export async function withSpeechWav<T>(wavPath: string, fn: (path: string) => Promise<T>): Promise<T> {
+  const dir = await mkdtemp(join(tmpdir(), 'kitta-asr-'));
+  try {
+    const out = join(dir, 'speech.wav');
+    await run('ffmpeg', ['-y', '-loglevel', 'error', '-i', wavPath, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', out]);
+    return await fn(out);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 /**
  * Joins WAV clips with silence between them (not after the last), saved like an upload.
  * spans[i] is where clip i sits in the joined audio.

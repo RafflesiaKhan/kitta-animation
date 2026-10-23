@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
-import { copyFileSync, rmSync } from 'node:fs';
+import { copyFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const generateContent = vi.fn();
@@ -80,6 +81,23 @@ describe('transcribe', () => {
     const part = arg.contents[0].parts.find((p: any) => p.inlineData);
     expect(part.inlineData.mimeType).toBe('audio/wav');
     expect(arg.config.responseMimeType).toBe('application/json');
+  });
+
+  it('sends 16 kHz mono audio and cleans up its temp files', async () => {
+    const tmpCount = () => readdirSync(tmpdir()).filter((f) => f.startsWith('kitta-asr-')).length;
+    const before = tmpCount();
+    generateContent.mockResolvedValue(json([]));
+    await transcribe(wav);
+    const part = generateContent.mock.calls[0][0].contents[0].parts.find((p: any) => p.inlineData);
+    const head = Buffer.from(part.inlineData.data, 'base64');
+    expect(head.subarray(0, 4).toString()).toBe('RIFF');
+    expect(head.readUInt16LE(22)).toBe(1);
+    expect(head.readUInt32LE(24)).toBe(16000);
+    expect(head.readUInt16LE(34)).toBe(16);
+    expect(tmpCount()).toBe(before);
+    generateContent.mockRejectedValue(new Error('boom'));
+    await expect(transcribe(wav)).rejects.toMatchObject({ code: 'failed' });
+    expect(tmpCount()).toBe(before);
   });
 
   it('drops items whose end is not after start, and survives malformed JSON', async () => {

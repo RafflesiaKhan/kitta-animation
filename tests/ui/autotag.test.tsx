@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { App } from '../../src/App';
+import { App, withTaggedLines } from '../../src/App';
 import * as api from '../../src/api';
 
 vi.mock('../../src/api');
@@ -43,6 +43,9 @@ it('script tab: Auto-tag fills chips, skips empty lines, and shows status', asyn
   fireEvent.click(btn('✨ Auto-tag expressions'));
   expect(screen.getByText('Tagging expressions…')).toBeTruthy();
   expect(api.autoTag).toHaveBeenCalledWith(['Hooray', 'Bye']);
+  expect((screen.getAllByLabelText('Line text')[0] as HTMLTextAreaElement).disabled).toBe(true);
+  expect(btn('+ Line').disabled).toBe(true);
+  expect((screen.getAllByRole('button', { name: 'Delete line' })[0] as HTMLButtonElement).disabled).toBe(true);
   await act(async () => { d.resolve([{ expression: 'happy', gesture: 'wave' }, { expression: 'sad', gesture: 'lookDown' }]); });
   const ex = screen.getAllByLabelText('Expression').map((s) => (s as HTMLSelectElement).value);
   const ge = screen.getAllByLabelText('Gesture').map((s) => (s as HTMLSelectElement).value);
@@ -110,4 +113,13 @@ it('upload tab: disabled with tooltip without a key; health fetched once', async
   expect(btn('✨ Add expressions').disabled).toBe(true);
   expect(btn('✨ Add expressions').title).toBe('Needs GEMINI_API_KEY');
   expect(api.health).toHaveBeenCalledTimes(1);
+});
+
+it('withTaggedLines discards results when the audio changed or the timeline is gone', () => {
+  const tl = { durationMs: 1, cues: [], lines: [] };
+  const base = { character: {} as any, timeline: tl, audioId: 'new' };
+  const lines = [{ text: 'x', startMs: 0, endMs: 1, expression: 'happy' as const, gesture: 'none' as const }];
+  expect(withTaggedLines(base, 'old', lines)).toBe(base);
+  expect(withTaggedLines({ ...base, timeline: null }, 'new', lines).timeline).toBeNull();
+  expect(withTaggedLines(base, 'new', lines).timeline).toEqual({ ...tl, lines });
 });

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { CharacterConfig, ScriptLineInput, Timeline } from '../shared/types';
+import type { CharacterConfig, Line, ScriptLineInput, Timeline } from '../shared/types';
 import { VOICES } from '../shared/voices';
 import { STARTERS } from '../shared/character/starters';
 import * as api from './api';
@@ -8,11 +8,16 @@ import { CharacterStep } from './steps/CharacterStep';
 import { VoiceoverStep } from './steps/VoiceoverStep';
 import { ExportStep } from './steps/ExportStep';
 
-interface State { character: CharacterConfig; timeline: Timeline | null; audioId: string | null }
+export interface State { character: CharacterConfig; timeline: Timeline | null; audioId: string | null }
 
 const NEW_LINE: ScriptLineInput = { text: '', voice: VOICES[0], expression: 'neutral', gesture: 'none' };
 const STEPS = ['1 Character', '2 Voiceover', '3 Export'];
 const { name: _name, ...KIT } = STARTERS.kit;
+
+/** Applies tagged lines only if the timeline still belongs to the audio the request started with. */
+export function withTaggedLines(s: State, startedAudioId: string, lines: Line[]): State {
+  return s.audioId === startedAudioId && s.timeline ? { ...s, timeline: { ...s.timeline, lines } } : s;
+}
 
 export function App() {
   const [step, setStep] = useState(0);
@@ -64,14 +69,14 @@ export function App() {
 
   // Transcribe the uploaded audio, then tag each sentence; same cues, audioId and duration.
   const addExpressions = () => run('Listening…', async () => {
-    const { audioId, timeline } = state;
-    if (!audioId || !timeline) return;
+    const { audioId } = state;
+    if (!audioId || !state.timeline) return;
     const heard = await api.transcribe(audioId);
     if (!heard.length) throw new Error("Couldn't find any speech to tag.");
     setStatus('Tagging expressions…');
     const tags = await api.autoTag(heard.map((l) => l.text));
     const lines = heard.map((l, i) => ({ ...l, expression: tags[i].expression, gesture: tags[i].gesture }));
-    setState((s) => ({ ...s, timeline: { ...timeline, lines } }));
+    setState((s) => withTaggedLines(s, audioId, lines));
   });
 
   const generate = async () => {

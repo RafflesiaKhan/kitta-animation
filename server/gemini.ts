@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import type { Schema } from '@google/genai';
 import { readFile } from 'node:fs/promises';
+import { withSpeechWav } from './audio';
 import { EXPRESSIONS, GESTURES } from '../shared/types';
 import type { Expression, Gesture, ScriptLineInput } from '../shared/types';
 
@@ -121,9 +122,10 @@ function toMs(v: unknown): number | null {
 /** Sentence-level transcript of a WAV with timings in ms, sorted and non-overlapping. */
 export async function transcribe(wavPath: string): Promise<{ text: string; startMs: number; endMs: number }[]> {
   const ai = client();
-  const data = (await readFile(wavPath)).toString('base64');
   let parsed: unknown;
   try {
+    // 16 kHz mono keeps 3 minutes (~5.8 MB) well under Gemini's ~20 MB inline limit
+    const data = await withSpeechWav(wavPath, async (p) => (await readFile(p)).toString('base64'));
     const res = await ai.models.generateContent({
       model: textModel(),
       contents: [{ role: 'user', parts: [

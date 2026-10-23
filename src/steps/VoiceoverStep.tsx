@@ -58,29 +58,29 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
     <div>
       {!geminiOk && <p className="hint">Add GEMINI_API_KEY to .env to generate voices.</p>}
       <label className="field">Voice{' '}
-        <select aria-label="Voice" value={voice} onChange={(e) => setLines(lines.map((l) => ({ ...l, voice: e.target.value })))}>
+        <select aria-label="Voice" disabled={busy} value={voice} onChange={(e) => setLines(lines.map((l) => ({ ...l, voice: e.target.value })))}>
           {VOICES.map((v) => <option key={v} value={v}>{v}</option>)}
         </select>
       </label>
       {lines.map((l, i) => (
         <div key={i} className="line-card" data-testid="script-line">
           <div className="line-chips">
-            <select aria-label="Expression" value={l.expression} onChange={(e) => update(i, { expression: e.target.value as ScriptLineInput['expression'] })}>
+            <select aria-label="Expression" disabled={busy} value={l.expression} onChange={(e) => update(i, { expression: e.target.value as ScriptLineInput['expression'] })}>
               {EXPRESSIONS.map((x) => <option key={x} value={x}>{x}</option>)}
             </select>
-            <select aria-label="Gesture" value={l.gesture} onChange={(e) => update(i, { gesture: e.target.value as ScriptLineInput['gesture'] })}>
+            <select aria-label="Gesture" disabled={busy} value={l.gesture} onChange={(e) => update(i, { gesture: e.target.value as ScriptLineInput['gesture'] })}>
               {GESTURES.map((x) => <option key={x} value={x}>{x}</option>)}
             </select>
-            <input aria-label="Delivery note" placeholder="Delivery note (optional)" value={l.note ?? ''} onChange={(e) => update(i, { note: e.target.value })} />
-            <button aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
-            <button aria-label="Move down" disabled={i === lines.length - 1} onClick={() => move(i, 1)}>↓</button>
-            <button aria-label="Delete line" disabled={lines.length === 1} onClick={() => setLines(lines.filter((_, j) => j !== i))}>✕</button>
+            <input aria-label="Delivery note" disabled={busy} placeholder="Delivery note (optional)" value={l.note ?? ''} onChange={(e) => update(i, { note: e.target.value })} />
+            <button aria-label="Move up" disabled={busy || i === 0} onClick={() => move(i, -1)}>↑</button>
+            <button aria-label="Move down" disabled={busy || i === lines.length - 1} onClick={() => move(i, 1)}>↓</button>
+            <button aria-label="Delete line" disabled={busy || lines.length === 1} onClick={() => setLines(lines.filter((_, j) => j !== i))}>✕</button>
           </div>
-          <textarea aria-label="Line text" rows={2} maxLength={500} placeholder="What should the character say?" value={l.text} onChange={(e) => update(i, { text: e.target.value })} />
+          <textarea aria-label="Line text" disabled={busy} rows={2} maxLength={500} placeholder="What should the character say?" value={l.text} onChange={(e) => update(i, { text: e.target.value })} />
         </div>
       ))}
       <div className="line-actions">
-        <button className="btn" disabled={lines.length >= 50} onClick={() => setLines([...lines, { text: '', voice, expression: 'neutral', gesture: 'none' }])}>+ Line</button>
+        <button className="btn" disabled={busy || lines.length >= 50} onClick={() => setLines([...lines, { text: '', voice, expression: 'neutral', gesture: 'none' }])}>+ Line</button>
         <button className="btn" disabled={busy} onClick={onGenerate}>▶ Generate voice</button>
         <button className="btn" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={onAutoTag}>✨ Auto-tag expressions</button>
       </div>
