@@ -2,6 +2,9 @@
 
 Local app that makes lip-synced cartoon character videos.
 
+[![alt text](/demo.png)](/demo.mov)
+
+
 ## Setup
 
 ```
