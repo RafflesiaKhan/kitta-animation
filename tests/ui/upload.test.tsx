@@ -4,7 +4,14 @@ import { App } from '../../src/App';
 import * as api from '../../src/api';
 
 vi.mock('../../src/api');
-afterEach(() => { cleanup(); vi.resetAllMocks(); });
+let lastProps: { timeline: unknown; audioUrl: string | null } | undefined;
+vi.mock('../../src/Preview', () => ({
+  Preview: (props: { timeline: unknown; audioUrl: string | null; status?: string }) => {
+    lastProps = props;
+    return <div data-testid="preview-stub">{props.status}</div>;
+  },
+}));
+afterEach(() => { lastProps = undefined; cleanup(); vi.resetAllMocks(); });
 
 const defer = <T,>() => {
   let resolve!: (v: T) => void;
@@ -19,7 +26,7 @@ it('shows progress and builds a one-line timeline on success', async () => {
   const lip = defer<typeof cues>();
   vi.mocked(api.uploadAudio).mockReturnValue(up.promise);
   vi.mocked(api.lipsync).mockReturnValue(lip.promise);
-  const { container } = render(<App />);
+  render(<App />);
   fireEvent.click(screen.getByRole('button', { name: '2 Voiceover' }));
   pick();
   expect(screen.getByText('Uploading…')).toBeTruthy();
@@ -28,16 +35,19 @@ it('shows progress and builds a one-line timeline on success', async () => {
   expect(api.lipsync).toHaveBeenCalledWith('abc');
   await act(async () => { lip.resolve(cues); });
   expect(screen.queryByText('Matching lips…')).toBeNull();
-  expect(container.querySelector('audio')!.getAttribute('src')).toBe('/api/audio/abc');
-  // timeline applied: the mouth follows the cue at t=0
-  expect(container.querySelector('[data-part=mouth]')).toBeTruthy();
+  expect(lastProps!.audioUrl).toBe('/api/audio/abc');
+  expect(lastProps!.timeline).toEqual({
+    durationMs: 1200,
+    cues,
+    lines: [{ text: '', startMs: 0, endMs: 1200, expression: 'neutral', gesture: 'none' }],
+  });
 });
 
 it('keeps the input disabled across step switches and applies the result once', async () => {
   const up = defer<{ audioId: string; durationMs: number }>();
   vi.mocked(api.uploadAudio).mockReturnValue(up.promise);
   vi.mocked(api.lipsync).mockResolvedValue(cues);
-  const { container } = render(<App />);
+  render(<App />);
   fireEvent.click(screen.getByRole('button', { name: '2 Voiceover' }));
   pick();
   fireEvent.click(screen.getByRole('button', { name: '3 Export' }));
@@ -46,5 +56,5 @@ it('keeps the input disabled across step switches and applies the result once', 
   await act(async () => { up.resolve({ audioId: 'first', durationMs: 1000 }); });
   expect((screen.getByLabelText('Upload voiceover') as HTMLInputElement).disabled).toBe(false);
   expect(vi.mocked(api.uploadAudio)).toHaveBeenCalledTimes(1);
-  expect(container.querySelector('audio')!.getAttribute('src')).toBe('/api/audio/first');
+  expect(lastProps!.audioUrl).toBe('/api/audio/first');
 });
