@@ -5,6 +5,7 @@ import * as api from './api';
 import { Preview } from './Preview';
 import { CharacterStep } from './steps/CharacterStep';
 import { VoiceoverStep } from './steps/VoiceoverStep';
+import { ExportStep } from './steps/ExportStep';
 
 interface State { character: CharacterConfig; timeline: Timeline | null; audioId: string | null }
 
@@ -49,7 +50,7 @@ export function App() {
         <section className="panel">
           {step === 0 && <CharacterStep character={state.character} onChange={(character) => setState((s) => ({ ...s, character }))} />}
           {step === 1 && <VoiceoverStep busy={busy} error={error} onUpload={upload} />}
-          {step === 2 && <div><h2>Export</h2><p className="hint">Export comes next.</p></div>}
+          {step === 2 && <ExportStep character={state.character} timeline={state.timeline} audioId={state.audioId} />}
         </section>
         <Preview character={state.character} timeline={state.timeline} audioUrl={state.audioId ? `/api/audio/${state.audioId}` : null} status={status} />
       </main>

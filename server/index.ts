@@ -7,9 +7,13 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { normalizeAudio, AudioError, AUDIO_DIR } from './audio';
 import { runRhubarb, rhubarbAvailable } from './rhubarb';
+import { renderVideo } from './render';
+import { validateExport } from './validate';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UPLOAD_DIR = join('data', 'uploads');
+const EXPORT_DIR = join('data', 'exports');
+const EXPORT_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(mp4|webm)$/i;
 
 export function createApp() {
   const app = express();
@@ -63,6 +67,43 @@ export function createApp() {
       console.error('lipsync failed', e);
       res.status(500).json({ error: 'Lip sync failed. Please try again.' });
     }
+  });
+
+  app.post('/api/export', async (req, res) => {
+    const p = audioPath(req.body?.audioId);
+    if (!p || !existsSync(p)) return res.status(404).json({ error: 'Audio not found' });
+    const input = validateExport(req.body);
+    if (!input) return res.status(400).json({ error: 'Invalid request' });
+    const ext = input.format.transparent ? 'webm' : 'mp4';
+    const file = `${randomUUID()}.${ext}`;
+    await mkdir(EXPORT_DIR, { recursive: true });
+    res.type('application/x-ndjson');
+    const send = (o: object) => res.write(`${JSON.stringify(o)}\n`);
+    let lastSent = -1;
+    try {
+      await renderVideo({
+        ...input,
+        audioPath: p,
+        outPath: join(EXPORT_DIR, file),
+        onProgress: (frame, total) => {
+          const step = Math.floor((frame / total) * 20); // at most ~20 progress lines
+          if (step > lastSent && frame < total) { lastSent = step; send({ progress: frame / total }); }
+        },
+      });
+      send({ done: true, url: `/api/exports/${file}` });
+    } catch (e) {
+      console.error('export failed', e);
+      await rm(join(EXPORT_DIR, file), { force: true });
+      send({ error: 'Export failed. Please try again.' });
+    }
+    res.end();
+  });
+
+  app.get('/api/exports/:file', (req, res) => {
+    if (!EXPORT_FILE_RE.test(req.params.file)) return res.status(404).json({ error: 'Export not found' });
+    const p = join(EXPORT_DIR, req.params.file);
+    if (!existsSync(p)) return res.status(404).json({ error: 'Export not found' });
+    res.download(p, `kitta-animation.${req.params.file.split('.')[1]}`, { root: process.cwd() });
   });
 
   app.use((err: { type?: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

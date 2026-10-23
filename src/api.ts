@@ -1,4 +1,4 @@
-import type { MouthCue } from '../shared/types';
+import type { CharacterConfig, ExportFormat, MouthCue, Timeline } from '../shared/types';
 
 async function post<T>(url: string, init: RequestInit): Promise<T> {
   let res: Response;
@@ -24,4 +24,42 @@ export async function lipsync(audioId: string, dialog?: string): Promise<MouthCu
     body: JSON.stringify({ audioId, dialog }),
   });
   return cues;
+}
+
+export interface ExportBody { character: CharacterConfig; timeline: Timeline; audioId: string; format: ExportFormat }
+
+/** Starts an export and resolves with the download URL, reporting 0..1 progress from the NDJSON stream. */
+export async function exportVideo(body: ExportBody, onProgress: (p: number) => void): Promise<string> {
+  let res: Response;
+  try {
+    res = await fetch('/api/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } catch {
+    throw new Error('Could not reach the server. Is it running?');
+  }
+  if (!res.ok || !res.body) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(typeof err.error === 'string' ? err.error : `Request failed (${res.status})`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let url: string | null = null;
+  const handle = (line: string) => {
+    if (!line.trim()) return;
+    const msg = JSON.parse(line);
+    if (typeof msg.error === 'string') throw new Error(msg.error);
+    if (msg.done && typeof msg.url === 'string') url = msg.url;
+    else if (typeof msg.progress === 'number') onProgress(msg.progress);
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    lines.forEach(handle);
+  }
+  handle(buffer);
+  if (!url) throw new Error('Export failed. Please try again.');
+  return url;
 }
