@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { withSpeechWav } from './audio';
 import { EXPRESSIONS, GESTURES } from '../shared/types';
 import type { Expression, Gesture, ScriptLineInput } from '../shared/types';
+import { TONES } from '../shared/character/expressions';
 
 export { VOICES } from '../shared/voices';
 
@@ -58,7 +59,7 @@ export async function tts(line: ScriptLineInput): Promise<Buffer> {
   try {
     const res = await ai.models.generateContent({
       model: process.env.GEMINI_TTS_MODEL || 'gemini-3.8-flash-tts',
-      contents: `Say in a ${line.expression} tone${line.note ? ', ' + line.note : ''}: ${line.text}`,
+      contents: `Say in a ${TONES[line.expression]} tone${line.note ? ', ' + line.note : ''}: ${line.text}`,
       config: {
         responseModalities: ['AUDIO'],
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: line.voice } } },

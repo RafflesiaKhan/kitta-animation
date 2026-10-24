@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
-import type { CharacterConfig, Expression, FrameState, StarterId } from '../types';
+import type { CharacterConfig, FrameState, StarterId } from '../types';
+import { FACES, mixFaces, type BrowParams, type FaceParams, type MouthMood } from './expressions';
 import { mouthDetail, mouthPath } from './mouth';
 
 // Pure props → SVG. No hooks, no CSS, no browser APIs: this is also rendered
@@ -93,26 +94,40 @@ function Hair({ style, color, layout }: { style: string; color: string; layout: 
 }
 
 // ---------- eyes & brows ----------
-function Eye({ side, x, y, r, style, expression, blink, lookDown, skin }: {
-  side: 'left' | 'right'; x: number; y: number; r: number; style: string; expression: Expression; blink: boolean; lookDown: boolean; skin: string;
+// lid: upper lid 0 open .. 1 shut; squint: lower-lid smile 0..1; lookX/lookY: pupil offset -1..1.
+function Eye({ side, x, y, r, style, scale, lid, squint, lookX, lookY, blink, lookDown, skin }: {
+  side: 'left' | 'right'; x: number; y: number; r: number; style: string; scale: number; lid: number; squint: number;
+  lookX: number; lookY: number; blink: boolean; lookDown: boolean; skin: string;
 }) {
-  const R = expression === 'surprised' ? r * 1.2 : r;
-  const py = y + (lookDown ? 8 : 0);
+  const R = r * scale;
   const dot = style === 'dot';
+  const px = x + lookX * R * 0.35;
+  const py = y + lookY * R * 0.3 + (lookDown ? 8 : 0);
   let eye: ReactElement;
-  if (blink) {
+  if (blink || lid >= 0.92) {
     eye = <path d={`M${n(x - R)} ${n(y)} Q${n(x)} ${n(y + R * 0.6)} ${n(x + R)} ${n(y)}`} fill="none" stroke={INK} strokeWidth={SW + 2} strokeLinecap="round" />;
   } else {
     const pr = dot ? R * 0.55 : R * 0.48;
+    const pcy = dot ? py : py + R * 0.15;
+    // Skin-coloured lids drawn over the eye; the upper lid edge moves down with lid, the lower one up with squint.
+    const top = y - R * 1.15, lidY = top + R * 2.1 * lid;
+    const sq = (k0: number, k1: number) => y + R * (k0 + (k1 - k0) * squint);
+    const sqEdge = sq(1.3, 0.45), sqCtrl = sq(1.3, -0.25);
     eye = (
       <g>
         {!dot && <ellipse cx={x} cy={y} rx={n(R)} ry={n(R * 1.15)} fill="#ffffff" stroke={INK} strokeWidth={SW} />}
-        <ellipse data-part="pupil" cx={x} cy={n(dot ? y + (lookDown ? 8 : 0) : py + R * 0.15)} rx={n(pr)} ry={n(dot ? pr * 1.3 : pr)} fill={INK} />
-        <circle cx={n(x + pr * 0.35)} cy={n((dot ? py : py + R * 0.15) - pr * 0.4)} r={n(pr * 0.3)} fill="#ffffff" />
-        {expression === 'happy' && (
-          <g>
-            <path d={`M${n(x - R - 8)} ${n(y + R * 1.4)} L${n(x - R - 8)} ${n(y + R * 0.45)} Q${n(x)} ${n(y - R * 0.25)} ${n(x + R + 8)} ${n(y + R * 0.45)} L${n(x + R + 8)} ${n(y + R * 1.4)} Z`} fill={skin} />
-            <path d={`M${n(x - R - 4)} ${n(y + R * 0.47)} Q${n(x)} ${n(y - R * 0.2)} ${n(x + R + 4)} ${n(y + R * 0.47)}`} fill="none" stroke={INK} strokeWidth={SW} strokeLinecap="round" />
+        <ellipse data-part="pupil" cx={n(px)} cy={n(pcy)} rx={n(pr)} ry={n(dot ? pr * 1.3 : pr)} fill={INK} />
+        <circle cx={n(px + pr * 0.35)} cy={n(pcy - pr * 0.4)} r={n(pr * 0.3)} fill="#ffffff" />
+        {lid > 0.02 && (
+          <g data-part="lid">
+            <path d={`M${n(x - R - 8)} ${n(top - 10)} L${n(x + R + 8)} ${n(top - 10)} L${n(x + R + 8)} ${n(lidY)} Q${n(x)} ${n(lidY + R * 0.2)} ${n(x - R - 8)} ${n(lidY)} Z`} fill={skin} />
+            <path d={`M${n(x - R - 4)} ${n(lidY)} Q${n(x)} ${n(lidY + R * 0.2)} ${n(x + R + 4)} ${n(lidY)}`} fill="none" stroke={INK} strokeWidth={SW} strokeLinecap="round" />
+          </g>
+        )}
+        {squint > 0.02 && (
+          <g data-part="squint">
+            <path d={`M${n(x - R - 8)} ${n(y + R * 1.4)} L${n(x - R - 8)} ${n(sqEdge)} Q${n(x)} ${n(sqCtrl)} ${n(x + R + 8)} ${n(sqEdge)} L${n(x + R + 8)} ${n(y + R * 1.4)} Z`} fill={skin} />
+            <path d={`M${n(x - R - 4)} ${n(sqEdge + R * 0.02)} Q${n(x)} ${n(sqCtrl + R * 0.05)} ${n(x + R + 4)} ${n(sqEdge + R * 0.02)}`} fill="none" stroke={INK} strokeWidth={SW} strokeLinecap="round" />
           </g>
         )}
       </g>
@@ -121,16 +136,7 @@ function Eye({ side, x, y, r, style, expression, blink, lookDown, skin }: {
   return <g data-part={`eye-${side}`}>{eye}</g>;
 }
 
-const BROWS: Record<Expression, { raise: number; inner: number; outer: number; arch: number }> = {
-  neutral: { raise: 0, inner: 0, outer: 0, arch: 6 },
-  happy: { raise: 10, inner: 0, outer: 2, arch: 12 },
-  sad: { raise: 0, inner: -18, outer: 8, arch: 0 },
-  angry: { raise: -8, inner: 18, outer: -10, arch: 0 },
-  surprised: { raise: 26, inner: 0, outer: 0, arch: 14 },
-};
-
-function Brow({ side, x, y, expression }: { side: 'left' | 'right'; x: number; y: number; expression: Expression }) {
-  const b = BROWS[expression];
+function Brow({ side, x, y, brow: b }: { side: 'left' | 'right'; x: number; y: number; brow: BrowParams }) {
   const dir = side === 'left' ? 1 : -1; // direction towards the face centre
   const by = y - b.raise;
   const ix = x + 32 * dir, ox = x - 32 * dir;
@@ -142,13 +148,16 @@ function Brow({ side, x, y, expression }: { side: 'left' | 'right'; x: number; y
 }
 
 // ---------- mouth ----------
-function Mouth({ frame, x, y, scale }: { frame: FrameState; x: number; y: number; scale: number }) {
-  const d = mouthPath(frame.mouth, frame.expression);
-  const det = mouthDetail(frame.mouth, frame.expression);
+// Short stable hash of the path, so the clip id follows the geometry even mid-blend.
+const hash = (s: string) => { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33) ^ s.charCodeAt(i); return (h >>> 0).toString(36); };
+
+function Mouth({ shape, mood, x, y, scale }: { shape: FrameState['mouth']; mood: MouthMood; x: number; y: number; scale: number }) {
+  const d = mouthPath(shape, mood);
+  const det = mouthDetail(shape, mood);
   // Same id ⇔ same local geometry, so duplicate ids across several characters on one page are harmless.
-  const clipId = `kitta-mouth-${frame.mouth}-${frame.expression}`;
+  const clipId = `kitta-mouth-${hash(d)}`;
   return (
-    <g data-part="mouth" data-shape={frame.mouth} transform={`translate(${n(x)} ${n(y)}) scale(${scale})`}>
+    <g data-part="mouth" data-shape={shape} transform={`translate(${n(x)} ${n(y)}) scale(${scale})`}>
       <defs><clipPath id={clipId}><path d={d} /></clipPath></defs>
       <path d={d} fill={MOUTH_IN} />
       <g clipPath={`url(#${clipId})`}>
@@ -267,6 +276,10 @@ export interface CharacterProps { config: CharacterConfig; frame: FrameState; wi
 export function Character({ config, frame, width = 1000, height = 1000 }: CharacterProps) {
   const L = LAYOUTS[config.starter] ?? LAYOUTS.kit;
   const h = L.head;
+  const f: FaceParams = frame.fromExpression !== undefined && frame.blend !== undefined
+    ? mixFaces(FACES[frame.fromExpression] ?? FACES.neutral, FACES[frame.expression] ?? FACES.neutral, frame.blend)
+    : FACES[frame.expression] ?? FACES.neutral;
+  const lookX = Math.max(-1, Math.min(1, f.lookX + (frame.glance ?? 0) * 0.8));
   const p = frame.gestureProgress;
   const lookDown = frame.gesture === 'lookDown';
   const headY = (frame.gesture === 'nod' ? Math.sin(p * 2 * Math.PI) * 12 : 0) + (lookDown ? 6 : 0);
@@ -274,20 +287,30 @@ export function Character({ config, frame, width = 1000, height = 1000 }: Charac
   const lift = frame.gesture === 'wave' ? Math.max(0, Math.min(1, p / 0.1, (1 - p) / 0.1)) : 0;
   const waveRaise = -lift * 112;
   const waveBend = frame.gesture === 'wave' ? -lift * 50 + Math.sin(p * 4 * Math.PI) * 25 : 0;
+  // celebrate: both arms up and three little hops; shrug: forearms turn out, palms up. Same 10% ease in/out.
+  const ease = Math.max(0, Math.min(1, p / 0.1, (1 - p) / 0.1));
+  const cheer = frame.gesture === 'celebrate' ? ease : 0;
+  const shrug = frame.gesture === 'shrug' ? ease : 0;
+  const hop = -Math.abs(Math.sin(p * 3 * Math.PI)) * 30 * cheer;
+  const raiseR = waveRaise - cheer * 140 - shrug * 30;
+  const bendR = waveBend - cheer * 10 - shrug * 75;
+  const raiseL = cheer * 140 + shrug * 30;
+  const bendL = cheer * 10 + shrug * 75;
+  const blushK = Math.max(0, Math.min(1, f.blush));
   const eyeR = L.eye.r;
-  const browY = L.eye.y - eyeR * (frame.expression === 'surprised' ? 1.2 : 1) - 40 - (config.eyeStyle === 'glasses' ? 22 : 0);
+  const browY = L.eye.y - eyeR * f.eyeScale - 40 - (config.eyeStyle === 'glasses' ? 22 : 0);
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width={width} height={height}>
-      <g data-part="character" transform={`translate(0 ${n(frame.bob)})`}>
+      <g data-part="character" transform={`translate(0 ${n(frame.bob + hop)})`}>
         <Body config={config} layout={L} />
-        <Arm side="left" layout={L} config={config} raise={0} bend={0} />
+        <Arm side="left" layout={L} config={config} raise={raiseL} bend={bendL} />
         <g data-part="head-group" transform={`translate(0 ${n(headY)})`}>
           <Ears layout={L} skin={config.skin} />
           <ellipse data-part="head" cx={h.cx} cy={h.cy} rx={h.rx} ry={h.ry} fill={config.skin} stroke={INK} strokeWidth={SW} />
-          {L.cheeks && (
+          {(L.cheeks || blushK > 0.02) && (
             <g data-part="cheeks">
-              <ellipse cx={h.cx - L.eye.dx - 45} cy={L.eye.y + 75} rx={30} ry={18} fill={CHEEK} fillOpacity={0.55} />
-              <ellipse cx={h.cx + L.eye.dx + 45} cy={L.eye.y + 75} rx={30} ry={18} fill={CHEEK} fillOpacity={0.55} />
+              <ellipse cx={h.cx - L.eye.dx - 45} cy={L.eye.y + 75} rx={30} ry={18} fill={CHEEK} fillOpacity={n(L.cheeks ? 0.55 + 0.4 * blushK : 0.6 * blushK)} />
+              <ellipse cx={h.cx + L.eye.dx + 45} cy={L.eye.y + 75} rx={30} ry={18} fill={CHEEK} fillOpacity={n(L.cheeks ? 0.55 + 0.4 * blushK : 0.6 * blushK)} />
             </g>
           )}
           {L.ears === 'animal' && (
@@ -297,14 +320,16 @@ export function Character({ config, frame, width = 1000, height = 1000 }: Charac
             </g>
           )}
           <Hair style={config.hairStyle} color={config.hairColor} layout={L} />
-          <Eye side="left" x={h.cx - L.eye.dx} y={L.eye.y} r={eyeR} style={config.eyeStyle} expression={frame.expression} blink={frame.blink} lookDown={lookDown} skin={config.skin} />
-          <Eye side="right" x={h.cx + L.eye.dx} y={L.eye.y} r={eyeR} style={config.eyeStyle} expression={frame.expression} blink={frame.blink} lookDown={lookDown} skin={config.skin} />
+          <Eye side="left" x={h.cx - L.eye.dx} y={L.eye.y} r={eyeR} style={config.eyeStyle} scale={f.eyeScale} lid={f.lidL} squint={f.squint}
+            lookX={lookX} lookY={f.lookY} blink={frame.blink} lookDown={lookDown} skin={config.skin} />
+          <Eye side="right" x={h.cx + L.eye.dx} y={L.eye.y} r={eyeR} style={config.eyeStyle} scale={f.eyeScale} lid={f.lidR} squint={f.squint}
+            lookX={lookX} lookY={f.lookY} blink={frame.blink} lookDown={lookDown} skin={config.skin} />
           {config.eyeStyle === 'glasses' && <Glasses layout={L} r={eyeR} />}
-          <Brow side="left" x={h.cx - L.eye.dx} y={browY} expression={frame.expression} />
-          <Brow side="right" x={h.cx + L.eye.dx} y={browY} expression={frame.expression} />
-          <Mouth frame={frame} x={h.cx} y={L.mouth.y} scale={L.mouth.scale} />
+          <Brow side="left" x={h.cx - L.eye.dx} y={browY} brow={f.browL} />
+          <Brow side="right" x={h.cx + L.eye.dx} y={browY} brow={f.browR} />
+          <Mouth shape={frame.mouth} mood={f.mouth} x={h.cx} y={L.mouth.y} scale={L.mouth.scale} />
         </g>
-        <Arm side="right" layout={L} config={config} raise={waveRaise} bend={waveBend} />
+        <Arm side="right" layout={L} config={config} raise={raiseR} bend={bendR} />
       </g>
     </svg>
   );

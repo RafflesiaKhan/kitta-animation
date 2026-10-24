@@ -1,4 +1,5 @@
 import type { Expression, MouthShape } from '../types';
+import { FACES, type MouthMood } from './expressions';
 
 // Mouth geometry is centred on (0,0); the Character translates/scales it into place.
 // w = half-width, up = opening above the corner line, down = opening below it,
@@ -16,20 +17,12 @@ const SHAPES: Record<MouthShape, ShapeParams> = {
   X: { w: 44, up: 0, down: 3, round: 0, teeth: 0, tongue: 'none' },     // rest
 };
 
-// lift > 0 turns corners up (smile), < 0 down (frown).
-const EXPR: Record<Expression, { lift: number; ws: number; hs: number; round: number }> = {
-  neutral: { lift: 0, ws: 1, hs: 1, round: 0 },
-  happy: { lift: 18, ws: 1.1, hs: 1, round: 0 },
-  sad: { lift: -16, ws: 0.95, hs: 0.9, round: 0 },
-  surprised: { lift: 0, ws: 0.75, hs: 1.4, round: 0.5 },
-  angry: { lift: -4, ws: 1.15, hs: 0.7, round: 0 },
-};
-
 const n = (v: number) => String(Math.round(v * 10) / 10);
 
-function geometry(shape: MouthShape, expression: Expression) {
+// The mood is an expression name or a mixed MouthMood (while one expression blends into the next).
+function geometry(shape: MouthShape, mood: Expression | MouthMood) {
   const p = SHAPES[shape];
-  const e = EXPR[expression];
+  const e = typeof mood === 'string' ? FACES[mood].mouth : mood;
   const w = p.w * e.ws;
   const cy = -e.lift * (p.w / 55); // corner y; smaller mouths bend less
   const r = Math.min(1, p.round + e.round);
@@ -40,14 +33,14 @@ function geometry(shape: MouthShape, expression: Expression) {
 }
 
 /** One closed path: the mouth outline (upper lip left→right, lower lip right→left). */
-export function mouthPath(shape: MouthShape, expression: Expression): string {
-  const { w, cy, k, uy, ly } = geometry(shape, expression);
+export function mouthPath(shape: MouthShape, mood: Expression | MouthMood): string {
+  const { w, cy, k, uy, ly } = geometry(shape, mood);
   return `M${n(-w)} ${n(cy)} C${n(-k)} ${n(uy)} ${n(k)} ${n(uy)} ${n(w)} ${n(cy)} C${n(k)} ${n(ly)} ${n(-k)} ${n(ly)} ${n(-w)} ${n(cy)} Z`;
 }
 
 /** Extra detail the Character draws inside the mouth (clipped to mouthPath). */
-export function mouthDetail(shape: MouthShape, expression: Expression) {
-  const { p, w, upperMid, lowerMid } = geometry(shape, expression);
+export function mouthDetail(shape: MouthShape, mood: Expression | MouthMood) {
+  const { p, w, upperMid, lowerMid } = geometry(shape, mood);
   const open = lowerMid - upperMid;
   const teethBottom = p.teeth === 0 ? null : Math.min(upperMid + p.teeth, lowerMid - (p.teeth === 99 ? 3 : 0));
   const tongue =

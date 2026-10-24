@@ -1,3 +1,4 @@
+import { EXPRESSIONS } from '../../shared/types';
 import type { CharacterConfig, FrameState, StarterId } from '../../shared/types';
 import { Character } from '../../shared/character/Character';
 import { OPTIONS, STARTERS } from '../../shared/character/starters';
@@ -45,6 +46,16 @@ export function CharacterStep({ character, onChange }: Props) {
         {select('Hair style', 'hairStyle', OPTIONS.hairStyles)}
         {select('Eyes', 'eyeStyle', OPTIONS.eyeStyles)}
         {select('Outfit', 'outfit', OPTIONS.outfits)}
+      </div>
+      <h3>Expressions</h3>
+      <p className="hint">Your character's expression set. Pick one per line in the Voiceover step; faces morph smoothly from line to line.</p>
+      <div className="expressions" data-testid="expression-sheet">
+        {EXPRESSIONS.map((x) => (
+          <figure key={x} className="expression">
+            <Character config={character} frame={{ ...REST, expression: x }} width={64} height={64} />
+            <figcaption>{x}</figcaption>
+          </figure>
+        ))}
       </div>
     </div>
   );

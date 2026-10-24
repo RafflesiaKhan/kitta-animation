@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { frameAt, frameCount, FPS } from '../../shared/timeline';
+import { frameAt, frameCount, FPS, TRANSITION_MS } from '../../shared/timeline';
 import type { Timeline } from '../../shared/types';
 
 const t: Timeline = {
@@ -36,6 +36,30 @@ describe('frameAt expression', () => {
     expect(frameAt(t, 1500).expression).toBe('happy');
     expect(frameAt(t, 2500).expression).toBe('sad');
     expect(frameAt(t, 3500).expression).toBe('sad');
+  });
+});
+
+describe('frameAt expression transition', () => {
+  it('morphs from the previous line over TRANSITION_MS, then holds', () => {
+    expect(frameAt(t, 100)).toMatchObject({ fromExpression: 'neutral', expression: 'happy', blend: 0 });
+    const mid = frameAt(t, 100 + TRANSITION_MS / 2);
+    expect(mid.blend).toBeGreaterThan(0);
+    expect(mid.blend).toBeLessThan(1);
+    expect(frameAt(t, 100 + TRANSITION_MS).blend).toBe(1);
+    expect(frameAt(t, 2000)).toMatchObject({ fromExpression: 'happy', expression: 'sad', blend: 0 });
+    expect(frameAt(t, 50).blend).toBe(1);
+  });
+});
+
+describe('idle glance', () => {
+  const idle: Timeline = { durationMs: 0, cues: [], lines: [] };
+  it('looks to alternating sides between lines and stays ahead while speaking', () => {
+    expect(frameAt(idle, 1000).glance).toBe(0);
+    expect(frameAt(idle, 5800).glance).toBe(1);
+    expect(frameAt(idle, 9000 + 5800).glance).toBe(-1);
+    for (let ms = 0; ms < 20000; ms += 50) expect(Math.abs(frameAt(idle, ms).glance!)).toBeLessThanOrEqual(1);
+    const long: Timeline = { ...idle, lines: [{ text: 'x', startMs: 0, endMs: 9000, expression: 'neutral', gesture: 'none' }] };
+    expect(frameAt(long, 5800).glance).toBe(0);
   });
 });
 

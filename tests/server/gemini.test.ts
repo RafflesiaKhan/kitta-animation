@@ -36,6 +36,12 @@ describe('tts', () => {
     expect(generateContent.mock.calls[0][0].contents).toBe('Say in a happy tone: Hi <short pause> there');
   });
 
+  it('maps expressions to a speakable tone', async () => {
+    generateContent.mockResolvedValue(reply(Buffer.alloc(100)));
+    await tts({ ...line, expression: 'wink' });
+    expect(generateContent.mock.calls[0][0].contents).toBe('Say in a playful tone: Hello there');
+  });
+
   it('throws no_key without an env key', async () => {
     delete process.env.GEMINI_API_KEY;
     await expect(tts(line)).rejects.toMatchObject({ name: 'GeminiError', code: 'no_key' });
