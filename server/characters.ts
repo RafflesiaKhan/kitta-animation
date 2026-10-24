@@ -4,9 +4,10 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ART_POSES } from '../shared/types';
-import type { ArtCharacter, ArtPose } from '../shared/types';
+import type { ArtCharacter, ArtPose, ImageProvider } from '../shared/types';
 import { basePrompt, posePrompt } from '../shared/character/art';
-import { findMouth, generateImage, GeminiError, type ImageInput } from './gemini';
+import type { ImageInput } from './gemini';
+import { imageProviders, locateMouth, paint } from './images';
 
 // The library of AI-created characters: data/characters/<id>/meta.json plus one transparent PNG per pose,
 // and source.png, the base image with its magenta backdrop, which every later pose is edited from.
@@ -64,9 +65,8 @@ async function readMeta(id: string): Promise<ArtCharacter> {
 /** Mouth lookup is best effort: without it the character still works, it just doesn't move its lips. */
 async function mouthOf(png: Buffer) {
   try {
-    return await findMouth(png);
-  } catch (e) {
-    if (e instanceof GeminiError && e.code === 'no_key') throw e;
+    return await locateMouth(png);
+  } catch {
     return null;
   }
 }
@@ -91,26 +91,29 @@ export async function listCharacters(): Promise<ArtCharacter[]> {
 
 export const getCharacter = readMeta;
 
-export interface CreateInput { description: string; name: string; style: string; reference?: ImageInput }
+export interface CreateInput { description: string; name: string; style: string; provider: ImageProvider; reference?: ImageInput }
 
 /** Paints the base character (its neutral pose) and saves it as a new library entry. */
-export async function createCharacter({ description, name, style, reference }: CreateInput): Promise<ArtCharacter> {
-  const raw = await generateImage(basePrompt(description, style, Boolean(reference)), reference ? [reference] : []);
+export async function createCharacter({ description, name, style, provider, reference }: CreateInput): Promise<ArtCharacter> {
+  const raw = await paint(provider, basePrompt(description, style, Boolean(reference)), reference ? [reference] : []);
   const [source, png] = await Promise.all([toPng(raw, false), toPng(raw, true)]);
   const id = randomUUID();
   const dir = dirOf(id);
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'source.png'), source);
-  const c: ArtCharacter = { kind: 'art', id, name, prompt: description, style, images: {} };
+  const c: ArtCharacter = { kind: 'art', id, name, prompt: description, style, provider, images: {} };
   return withLock(id, () => savePose(c, 'neutral', png));
 }
 
 /** Paints (or repaints) one expression, the blink frame or an action, as an edit of the base image. */
 export async function generatePose(id: string, pose: ArtPose): Promise<ArtCharacter> {
   if (!ART_POSES.includes(pose) || pose === 'neutral') throw new CharacterError('bad_pose');
-  await readMeta(id); // 404 before spending an image call
+  const meta = await readMeta(id); // 404 before spending an image call
   const source = await readFile(join(dirOf(id), 'source.png')).catch(() => { throw new CharacterError('not_found'); });
-  const png = await toPng(await generateImage(posePrompt(pose), [{ data: source, mimeType: 'image/png' }]), true);
+  // Same provider as the base picture; if its key is gone, any configured one (paint reports a missing key).
+  const own = meta.provider ?? 'gemini';
+  const provider = imageProviders().includes(own) ? own : imageProviders()[0] ?? own;
+  const png = await toPng(await paint(provider, posePrompt(pose), [{ data: source, mimeType: 'image/png' }]), true);
   return withLock(id, async () => savePose(await readMeta(id), pose, png));
 }
 

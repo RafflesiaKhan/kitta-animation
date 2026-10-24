@@ -23,7 +23,10 @@ export const ART_POSES: ArtPose[] = [...EXPRESSIONS, 'blink', ...ART_ACTIONS];
 /** Where the painted mouth is, as fractions of the square image (x, y = centre; w = width), plus the skin colour around it. */
 export interface MouthBox { x: number; y: number; w: number; skin: string }
 export interface ArtImage { file: string; mouth: MouthBox | null }
-export interface ArtCharacter { kind: 'art'; id: string; name: string; prompt: string; style: string; images: Partial<Record<ArtPose, ArtImage>> }
+export type ImageProvider = 'gemini' | 'openai';
+export const IMAGE_PROVIDERS: ImageProvider[] = ['gemini', 'openai'];
+/** provider: the model family that painted it; its later poses use the same one (absent = gemini, for older characters). */
+export interface ArtCharacter { kind: 'art'; id: string; name: string; prompt: string; style: string; provider?: ImageProvider; images: Partial<Record<ArtPose, ArtImage>> }
 /** Whatever the user picked in the Character step: a customised SVG starter or an AI-created character. */
 export type AnyCharacter = CharacterConfig | ArtCharacter;
 export const isArt = (c: AnyCharacter): c is ArtCharacter => (c as ArtCharacter).kind === 'art';

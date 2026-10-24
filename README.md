@@ -31,7 +31,8 @@ Works like [Masko](https://masko.ai/): describe a character (or upload a referen
 - The image model draws on a magenta backdrop, which ffmpeg removes to make transparent PNGs (needed for transparent export).
 - Lip sync: Gemini finds the mouth in each picture; while the character talks, the app's cartoon mouth shapes are drawn over it. Pictures stay mouth-closed.
 - Animation: expressions crossfade, the blink frame is shown during blinks, action poses fade in for the line's gesture; nod and the breathing bob move the whole picture. An expression that isn't drawn yet shows the neutral picture.
-- Needs `GEMINI_API_KEY` and an image model (`GEMINI_IMAGE_MODEL`, see `.env.example`). Image generation may not be in Gemini's free tier; a full set is 16 pictures plus one mouth lookup each.
+- Providers: Gemini (`GEMINI_API_KEY`, `GEMINI_IMAGE_MODEL`) or OpenAI (`OPENAI_API_KEY`, `OPENAI_IMAGE_MODEL`, default `gpt-image-2`); see `.env.example`. Set either or both. With both, the Create form has a "Drawn by" choice, and each character keeps drawing its poses with the provider that painted it. The mouth lookup uses Gemini when its key is set, otherwise an OpenAI vision model (`OPENAI_VISION_MODEL`).
+- Image generation is usually paid (Gemini's free tier may not include it); a full set is 16 pictures plus one mouth lookup each. Voice, auto-tag and transcription still use Gemini.
 
 ## How expressions work
 

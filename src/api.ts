@@ -1,4 +1,4 @@
-import type { AnyCharacter, ArtCharacter, ArtPose, Expression, ExportFormat, Gesture, Line, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
+import type { AnyCharacter, ArtCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
 
 async function post<T>(url: string, init: RequestInit): Promise<T> {
   let res: Response;
@@ -26,7 +26,7 @@ export async function lipsync(audioId: string, dialog?: string): Promise<MouthCu
   return cues;
 }
 
-export async function health(): Promise<{ rhubarb: boolean; gemini: boolean }> {
+export async function health(): Promise<{ rhubarb: boolean; gemini: boolean; imageProviders?: ImageProvider[] }> {
   const res = await fetch('/api/health');
   return res.json();
 }
@@ -58,10 +58,11 @@ export async function listCharacters(): Promise<ArtCharacter[]> {
   }
 }
 
-export interface CreateCharacterInput { description: string; name: string; style: string; reference?: File }
+export interface CreateCharacterInput { description: string; name: string; style: string; provider: ImageProvider; reference?: File }
 
-export function createCharacter({ description, name, style, reference }: CreateCharacterInput): Promise<ArtCharacter> {
+export function createCharacter({ description, name, style, provider, reference }: CreateCharacterInput): Promise<ArtCharacter> {
   const form = new FormData();
+  form.append('provider', provider);
   form.append('description', description);
   form.append('name', name);
   form.append('style', style);

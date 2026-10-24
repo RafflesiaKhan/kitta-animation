@@ -7,6 +7,8 @@ import { basename, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { normalizeAudio, concatWithGaps, AudioError, AUDIO_DIR } from './audio';
 import { tts, autoTag, transcribe, GeminiError } from './gemini';
+import { OpenAIError } from './openai';
+import { imageProviders } from './images';
 import { EXPRESSIONS, GESTURES } from '../shared/types';
 import type { Line, ScriptLineInput } from '../shared/types';
 import { runRhubarb, rhubarbAvailable } from './rhubarb';
@@ -22,8 +24,20 @@ const EXPORT_DIR = join('data', 'exports');
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const EXPORT_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(mp4|webm)$/i;
 
-/** Sends the standard JSON error for a Gemini failure; `failed` is the 502 message. */
+/** Sends the standard JSON error for an OpenAI failure; `failed` is the 502 message. */
+function sendOpenAIError(res: express.Response, e: OpenAIError, failed: string) {
+  if (e.code === 'no_key') res.status(400).json({ error: 'OpenAI key missing: add OPENAI_API_KEY to .env' });
+  else if (e.code === 'bad_key') res.status(400).json({ error: 'OpenAI key looks invalid: check OPENAI_API_KEY in .env' });
+  else if (e.code === 'rate_limited') res.status(429).json({ error: 'OpenAI limit or quota reached, try again later' });
+  else if (e.code === 'busy') res.status(503).json({ error: 'OpenAI is busy right now. Please try again in a minute.' });
+  else if (e.code === 'timed_out') res.status(504).json({ error: 'OpenAI took too long to answer. Please try again.' });
+  else if (e.code === 'no_image') res.status(422).json({ error: "OpenAI didn't draw a picture for that. Try rewording the description." });
+  else res.status(502).json({ error: failed });
+}
+
+/** Sends the standard JSON error for a Gemini (or OpenAI) failure; `failed` is the 502 message. */
 function sendGeminiError(res: express.Response, e: unknown, failed: string): boolean {
+  if (e instanceof OpenAIError) { sendOpenAIError(res, e, failed); return true; }
   if (!(e instanceof GeminiError)) return false;
   if (e.code === 'no_key') res.status(400).json({ error: 'Gemini key missing — add GEMINI_API_KEY to .env' });
   else if (e.code === 'bad_key') res.status(400).json({ error: 'Gemini key looks invalid — check GEMINI_API_KEY in .env' });
@@ -56,7 +70,7 @@ export function createApp() {
     typeof id === 'string' && UUID_RE.test(id) ? join(AUDIO_DIR, `${id}.wav`) : null;
 
   app.get('/api/health', async (_req, res) => {
-    res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(process.env.GEMINI_API_KEY) });
+    res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(process.env.GEMINI_API_KEY), imageProviders: imageProviders() });
   });
 
   app.post('/api/audio', async (req, res) => {
@@ -167,11 +181,15 @@ export function createApp() {
       const description = typeof req.body?.description === 'string' ? req.body.description.trim() : '';
       const style = req.body?.style;
       const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+      const providers = imageProviders();
+      const provider = req.body?.provider || providers[0];
+      if (!providers.length) return res.status(400).json({ error: 'Add GEMINI_API_KEY or OPENAI_API_KEY to .env to create characters.' });
+      if (!providers.includes(provider)) return res.status(400).json({ error: 'Invalid request' });
       if (err || (ref && !IMAGE_TYPES.includes(ref.mimetype))) return res.status(400).json({ error: 'Reference must be a PNG, JPEG or WebP image up to 10 MB.' });
       if ((!description && !ref) || description.length > 400 || name.length > 40 || !ART_STYLES.includes(style)) return res.status(400).json({ error: 'Invalid request' });
       try {
         const character = await createCharacter({
-          description, style,
+          description, style, provider,
           name: name || description.split(/\s+/).slice(0, 3).join(' ') || 'My character',
           reference: ref ? { data: ref.buffer, mimeType: ref.mimetype } : undefined,
         });

@@ -26,7 +26,8 @@ it('creates a character from a description and selects it', async () => {
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Robo' } });
   fireEvent.change(screen.getByLabelText('Style'), { target: { value: 'anime' } });
   await act(async () => { fireEvent.click(create); });
-  expect(api.createCharacter).toHaveBeenCalledWith({ description: 'a robot', name: 'Robo', style: 'anime', reference: undefined });
+  expect(api.createCharacter).toHaveBeenCalledWith({ description: 'a robot', name: 'Robo', style: 'anime', provider: 'gemini', reference: undefined });
+  expect(screen.queryByLabelText('Drawn by')).toBeNull(); // only one provider configured
   await waitFor(() => expect(screen.getByTestId('stage').getAttribute('data-starter')).toBe(`art:${robo.id}`));
   expect(screen.getByRole('button', { name: /Robo/, pressed: true })).toBeTruthy();
   expect(screen.getByTestId('pose-happy').textContent).toContain('not drawn');
@@ -62,11 +63,31 @@ it('shows a drawing error and keeps the poses drawn before it', async () => {
   expect(screen.getByRole('button', { name: /Draw all 14 missing poses/ })).toBeTruthy();
 });
 
-it('disables creation without a Gemini key', async () => {
-  vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: false });
+it('lets you pick OpenAI when both providers have keys, and works with only OpenAI', async () => {
+  vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: true, imageProviders: ['gemini', 'openai'] });
+  vi.mocked(api.createCharacter).mockResolvedValue({ ...robo, provider: 'openai' });
   render(<App />);
   fireEvent.click(screen.getByRole('button', { name: /Create with AI/ }));
-  await screen.findByText('Add GEMINI_API_KEY to .env to create characters.');
+  fireEvent.change(await screen.findByLabelText('Drawn by'), { target: { value: 'openai' } });
+  fireEvent.change(screen.getByLabelText('Describe your character'), { target: { value: 'a robot' } });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: '✨ Create character' })); });
+  expect(vi.mocked(api.createCharacter).mock.calls[0][0].provider).toBe('openai');
+  await waitFor(() => expect(screen.getByText(/anime · OpenAI · a robot/)).toBeTruthy());
+});
+
+it('enables creation with only an OpenAI key', async () => {
+  vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: false, imageProviders: ['openai'] });
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: /Create with AI/ }));
+  fireEvent.change(screen.getByLabelText('Describe your character'), { target: { value: 'a robot' } });
+  await waitFor(() => expect((screen.getByRole('button', { name: '✨ Create character' }) as HTMLButtonElement).disabled).toBe(false));
+});
+
+it('disables creation without any image key', async () => {
+  vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: false, imageProviders: [] });
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: /Create with AI/ }));
+  await screen.findByText('Add GEMINI_API_KEY or OPENAI_API_KEY to .env to create characters.');
   fireEvent.change(screen.getByLabelText('Describe your character'), { target: { value: 'a robot' } });
   expect((screen.getByRole('button', { name: '✨ Create character' }) as HTMLButtonElement).disabled).toBe(true);
 });

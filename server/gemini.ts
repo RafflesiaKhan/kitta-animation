@@ -204,6 +204,8 @@ export async function generateImage(prompt: string, refs: ImageInput[] = []): Pr
 }
 
 const HEX_RE = /^#[0-9a-f]{6}$/i;
+export const MOUTH_PROMPT = "Find the character's mouth. Give its bounding box as box_2d [ymin, xmin, ymax, xmax] scaled 0-1000, " +
+  'and the skin colour right around the mouth as #rrggbb. Set found to false if the character has no visible mouth.';
 
 /** Finds the character's mouth in a PNG; null when there is no clear mouth (lip sync then just shows the art). */
 export async function findMouth(png: Buffer): Promise<MouthBox | null> {
@@ -214,8 +216,7 @@ export async function findMouth(png: Buffer): Promise<MouthBox | null> {
       model: textModel(),
       contents: [{ role: 'user', parts: [
         { inlineData: { mimeType: 'image/png', data: png.toString('base64') } },
-        { text: "Find the character's mouth. Give its bounding box as box_2d [ymin, xmin, ymax, xmax] scaled 0-1000, " +
-          'and the skin colour right around the mouth as #rrggbb. Set found to false if the character has no visible mouth.' },
+        { text: MOUTH_PROMPT },
       ] }],
       config: {
         abortSignal: AbortSignal.timeout(AUTOTAG_TIMEOUT_MS),
@@ -232,6 +233,11 @@ export async function findMouth(png: Buffer): Promise<MouthBox | null> {
   } catch (e) {
     throw toGeminiError(e, 'mouth');
   }
+  return parseMouthBox(parsed);
+}
+
+/** Validates a mouth reply ({found, box_2d: [ymin, xmin, ymax, xmax] on 0-1000, skin}) from any vision model. */
+export function parseMouthBox(parsed: unknown): MouthBox | null {
   const r = parsed as { found?: unknown; box_2d?: unknown; skin?: unknown } | null;
   const box = Array.isArray(r?.box_2d) && r!.box_2d.length === 4 && r!.box_2d.every((v) => typeof v === 'number' && v >= 0 && v <= 1000) ? (r!.box_2d as number[]) : null;
   if (r?.found !== true || !box) return null;
