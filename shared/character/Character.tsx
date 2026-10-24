@@ -151,7 +151,7 @@ function Brow({ side, x, y, brow: b }: { side: 'left' | 'right'; x: number; y: n
 // Short stable hash of the path, so the clip id follows the geometry even mid-blend.
 const hash = (s: string) => { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33) ^ s.charCodeAt(i); return (h >>> 0).toString(36); };
 
-function Mouth({ shape, mood, x, y, scale }: { shape: FrameState['mouth']; mood: MouthMood; x: number; y: number; scale: number }) {
+export function Mouth({ shape, mood, x, y, scale }: { shape: FrameState['mouth']; mood: MouthMood; x: number; y: number; scale: number }) {
   const d = mouthPath(shape, mood);
   const det = mouthDetail(shape, mood);
   // Same id ⇔ same local geometry, so duplicate ids across several characters on one page are harmless.

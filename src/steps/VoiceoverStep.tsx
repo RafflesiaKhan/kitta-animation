@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { EXPRESSIONS, GESTURES } from '../../shared/types';
 import type { Expression, Gesture, Line, ScriptLineInput } from '../../shared/types';
 import { VOICES } from '../../shared/voices';
-import * as api from '../api';
 
 interface Props {
+  geminiOk: boolean;
   busy: boolean;
   error: string | null;
   onUpload: (file: File) => void;
@@ -17,7 +17,7 @@ interface Props {
   onEditUploadLine: (i: number, patch: Pick<Line, 'expression'> | Pick<Line, 'gesture'>) => void;
 }
 
-type TabProps = Props & { geminiOk: boolean };
+type TabProps = Props;
 const NEEDS_KEY = 'Needs GEMINI_API_KEY';
 
 const mmss = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
@@ -120,10 +120,6 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
 
 export function VoiceoverStep(props: Props) {
   const [tab, setTab] = useState<'upload' | 'script'>('upload');
-  const [geminiOk, setGeminiOk] = useState(true); // fetched once, shared by both tabs
-  useEffect(() => {
-    Promise.resolve(api.health()).then((h) => setGeminiOk(h?.gemini !== false), () => {});
-  }, []);
   return (
     <div>
       <h2>Add a voiceover</h2>
@@ -131,7 +127,7 @@ export function VoiceoverStep(props: Props) {
         <button className={`tab${tab === 'upload' ? ' active' : ''}`} onClick={() => setTab('upload')}>⬆ Upload</button>
         <button className={`tab${tab === 'script' ? ' active' : ''}`} onClick={() => setTab('script')}>✍ Write script</button>
       </div>
-      {tab === 'upload' ? <UploadTab {...props} geminiOk={geminiOk} /> : <ScriptTab {...props} geminiOk={geminiOk} />}
+      {tab === 'upload' ? <UploadTab {...props} /> : <ScriptTab {...props} />}
     </div>
   );
 }

@@ -15,6 +15,17 @@ main { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: 
 .tile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px; border-radius: 12px; border: 2px solid #e6e2f5; background: var(--stage); cursor: pointer; font-size: 13px; }
 .tile.selected { border-color: var(--accent); }
 .expressions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.tile.create { justify-content: center; border-style: dashed; color: var(--accent); }
+.tile .plus { font-size: 34px; line-height: 1; }
+.tile img, .expression img { object-fit: contain; }
+.create-form textarea { width: 100%; font: inherit; border-radius: 8px; border: 1px solid #ccc; padding: 8px; margin-bottom: 8px; }
+.create-form select, .create-form input:not([type=file]) { width: 100%; min-width: 0; }
+.create-form input:not([type=file]) { height: 32px; border-radius: 8px; border: 1px solid #ccc; padding: 0 8px; }
+.btn.secondary { background: #fff; color: var(--accent); border: 1px solid var(--accent); }
+button.btn { border: 0; }
+.art-head { display: flex; align-items: center; justify-content: space-between; }
+.mini { margin-top: 2px; padding: 1px 8px; border-radius: 8px; border: 1px solid #ccc; background: #fff; font-size: 11px; cursor: pointer; }
+.pose-missing { width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; border: 1px dashed #ccc; border-radius: 8px; color: #999; font-size: 10px; }
 .expression { margin: 0; display: flex; flex-direction: column; align-items: center; padding: 4px; border-radius: 10px; background: var(--stage); font-size: 11px; }
 .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }

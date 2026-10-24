@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import type { CharacterConfig, FrameState, Timeline } from '../shared/types';
-import { Character } from '../shared/character/Character';
+import { isArt } from '../shared/types';
+import type { AnyCharacter, FrameState, Timeline } from '../shared/types';
+import { CharacterView } from '../shared/character/CharacterView';
 import { frameAt } from '../shared/timeline';
 
 const IDLE: Timeline = { durationMs: 0, cues: [], lines: [] };
 
 export interface PreviewProps {
-  character: CharacterConfig;
+  character: AnyCharacter;
   timeline: Timeline | null;
   audioUrl: string | null;
   status?: string;
@@ -36,10 +37,16 @@ export function Preview({ character, timeline, audioUrl, status }: PreviewProps)
     return () => cancelAnimationFrame(raf);
   }, [timeline]);
 
+  // Warm the browser cache with every pose of an AI character, so the first blink or gesture doesn't flash empty.
+  useEffect(() => {
+    if (!isArt(character)) return;
+    for (const im of Object.values(character.images)) if (im) new Image().src = `/api/characters/${character.id}/${im.file}`;
+  }, [character]);
+
   return (
     <div className="preview">
-      <div className="stage" data-testid="stage" data-starter={character.starter}>
-        <Character config={character} frame={frame} width={420} height={420} />
+      <div className="stage" data-testid="stage" data-starter={isArt(character) ? `art:${character.id}` : character.starter}>
+        <CharacterView config={character} frame={frame} width={420} height={420} />
         {status && <div className="status">{status}</div>}
       </div>
       {audioUrl && <audio ref={audioRef} src={audioUrl} controls />}

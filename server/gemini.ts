@@ -3,13 +3,13 @@ import type { Schema } from '@google/genai';
 import { readFile } from 'node:fs/promises';
 import { withSpeechWav } from './audio';
 import { EXPRESSIONS, GESTURES } from '../shared/types';
-import type { Expression, Gesture, ScriptLineInput } from '../shared/types';
+import type { Expression, Gesture, MouthBox, ScriptLineInput } from '../shared/types';
 import { TONES } from '../shared/character/expressions';
 
 export { VOICES } from '../shared/voices';
 
 export class GeminiError extends Error {
-  constructor(public code: 'no_key' | 'bad_key' | 'rate_limited' | 'busy' | 'timed_out' | 'failed') {
+  constructor(public code: 'no_key' | 'bad_key' | 'rate_limited' | 'busy' | 'timed_out' | 'no_image' | 'failed') {
     super(code);
     this.name = 'GeminiError';
   }
@@ -24,6 +24,7 @@ function client(): GoogleGenAI {
 // Upper bounds for one AI call, so an overloaded model (the SDK retries 503s) can't hang the UI for minutes
 const AUTOTAG_TIMEOUT_MS = 30_000;
 const TRANSCRIBE_TIMEOUT_MS = 90_000;
+const IMAGE_TIMEOUT_MS = 120_000;
 // One quick retry instead of the SDK default (5 attempts, backoff up to 60 s), so a busy model is reported in seconds
 const QUICK_RETRY = { retryOptions: { attempts: 2, initialDelay: 1, maxDelay: 2 } };
 
@@ -41,6 +42,7 @@ function toGeminiError(e: unknown, what: string): GeminiError {
 }
 
 const textModel = () => process.env.GEMINI_TEXT_MODEL || 'gemini-3.8-flash';
+const imageModel = () => process.env.GEMINI_IMAGE_MODEL || 'gemini-nano-banana-2.1';
 
 const SAMPLE_RATE = 24000; // Gemini TTS: 24 kHz, 16-bit, mono
 
@@ -171,4 +173,71 @@ export async function transcribe(wavPath: string): Promise<{ text: string; start
   return items
     .map((l, i) => ({ ...l, endMs: Math.min(l.endMs, items[i + 1]?.startMs ?? Infinity) }))
     .filter((l) => l.endMs > l.startMs);
+}
+
+export interface ImageInput { data: Buffer; mimeType: string }
+
+/** Paints one square image from a prompt, optionally editing/redrawing the given reference images. */
+export async function generateImage(prompt: string, refs: ImageInput[] = []): Promise<Buffer> {
+  const ai = client();
+  let data: string | undefined;
+  try {
+    const res = await ai.models.generateContent({
+      model: imageModel(),
+      contents: [{ role: 'user', parts: [
+        ...refs.map((r) => ({ inlineData: { mimeType: r.mimeType, data: r.data.toString('base64') } })),
+        { text: prompt },
+      ] }],
+      config: {
+        abortSignal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
+        httpOptions: QUICK_RETRY,
+        responseModalities: ['IMAGE'],
+        imageConfig: { aspectRatio: '1:1' },
+      },
+    });
+    data = res.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data && p.inlineData.mimeType?.startsWith('image/'))?.inlineData?.data;
+  } catch (e) {
+    throw toGeminiError(e, 'image');
+  }
+  if (!data) throw new GeminiError('no_image'); // usually a safety refusal
+  return Buffer.from(data, 'base64');
+}
+
+const HEX_RE = /^#[0-9a-f]{6}$/i;
+
+/** Finds the character's mouth in a PNG; null when there is no clear mouth (lip sync then just shows the art). */
+export async function findMouth(png: Buffer): Promise<MouthBox | null> {
+  const ai = client();
+  let parsed: unknown;
+  try {
+    const res = await ai.models.generateContent({
+      model: textModel(),
+      contents: [{ role: 'user', parts: [
+        { inlineData: { mimeType: 'image/png', data: png.toString('base64') } },
+        { text: "Find the character's mouth. Give its bounding box as box_2d [ymin, xmin, ymax, xmax] scaled 0-1000, " +
+          'and the skin colour right around the mouth as #rrggbb. Set found to false if the character has no visible mouth.' },
+      ] }],
+      config: {
+        abortSignal: AbortSignal.timeout(AUTOTAG_TIMEOUT_MS),
+        httpOptions: QUICK_RETRY,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: { found: { type: 'BOOLEAN' }, box_2d: { type: 'ARRAY', items: { type: 'NUMBER' } }, skin: { type: 'STRING' } },
+          required: ['found'],
+        } as unknown as Schema,
+      },
+    });
+    parsed = parseJson(res.text);
+  } catch (e) {
+    throw toGeminiError(e, 'mouth');
+  }
+  const r = parsed as { found?: unknown; box_2d?: unknown; skin?: unknown } | null;
+  const box = Array.isArray(r?.box_2d) && r!.box_2d.length === 4 && r!.box_2d.every((v) => typeof v === 'number' && v >= 0 && v <= 1000) ? (r!.box_2d as number[]) : null;
+  if (r?.found !== true || !box) return null;
+  const [y0, x0, y1, x1] = box;
+  const w = (x1 - x0) / 1000;
+  if (w <= 0.005 || w > 0.6 || y1 <= y0) return null;
+  const round = (v: number) => Math.round(v * 1000) / 1000;
+  return { x: round((x0 + x1) / 2000), y: round((y0 + y1) / 2000), w: round(w), skin: typeof r.skin === 'string' && HEX_RE.test(r.skin) ? r.skin : '#f2c9a0' };
 }

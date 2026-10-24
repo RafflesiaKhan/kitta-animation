@@ -82,3 +82,19 @@ describe('renderVideo', () => {
     err.mockRestore();
   }, 60_000);
 });
+
+describe('renderVideo with an AI character', () => {
+  it('rasterizes the painted image (via data URI) with the talking mouth on top', async () => {
+    const png = execFileSync('ffmpeg', ['-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=0x3a86ff:s=64x64', '-frames:v', '1', '-f', 'image2pipe', '-vcodec', 'png', 'pipe:1']);
+    const art = {
+      kind: 'art' as const, id: '11111111-2222-3333-4444-555555555555', name: 'Robo', prompt: '', style: 'flat cartoon',
+      images: { neutral: { file: 'neutral-a.png', mouth: { x: 0.5, y: 0.6, w: 0.1, skin: '#3a86ff' } } },
+    };
+    const outPath = join(tmp, 'art.mp4');
+    await renderVideo({ character: art, images: { 'neutral-a.png': `data:image/png;base64,${png.toString('base64')}` }, timeline, audioPath: wav, format: { aspect: '16:9', transparent: false }, outPath });
+    // One frame from the middle: the centre of the character box should be the painted blue, not the white background.
+    const raw = execFileSync('ffmpeg', ['-loglevel', 'error', '-ss', '0.2', '-i', outPath, '-frames:v', '1', '-vf', 'crop=2:2:960:400', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1']);
+    expect(raw[2]).toBeGreaterThan(200);
+    expect(raw[0]).toBeLessThan(120);
+  }, 60000);
+});

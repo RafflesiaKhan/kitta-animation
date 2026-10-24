@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import type { CharacterConfig, ExportFormat, Timeline } from '../../shared/types';
+import type { AnyCharacter, ExportFormat, Timeline } from '../../shared/types';
 import * as api from '../api';
 
-interface Props { character: CharacterConfig; timeline: Timeline | null; audioId: string | null }
+interface Props { character: AnyCharacter; timeline: Timeline | null; audioId: string | null }
 
 export function ExportStep({ character, timeline, audioId }: Props) {
   const [aspect, setAspect] = useState<ExportFormat['aspect']>('16:9');

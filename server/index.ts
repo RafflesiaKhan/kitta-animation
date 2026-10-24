@@ -12,10 +12,14 @@ import type { Line, ScriptLineInput } from '../shared/types';
 import { runRhubarb, rhubarbAvailable } from './rhubarb';
 import { renderVideo } from './render';
 import { validateExport } from './validate';
+import { CharacterError, createCharacter, deleteCharacter, generatePose, getCharacter, imageDataUris, imagePath, listCharacters } from './characters';
+import { ART_STYLES } from '../shared/character/art';
+import { isArt, type ArtPose } from '../shared/types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UPLOAD_DIR = join('data', 'uploads');
 const EXPORT_DIR = join('data', 'exports');
+const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const EXPORT_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(mp4|webm)$/i;
 
 /** Sends the standard JSON error for a Gemini failure; `failed` is the 502 message. */
@@ -26,6 +30,7 @@ function sendGeminiError(res: express.Response, e: unknown, failed: string): boo
   else if (e.code === 'rate_limited') res.status(429).json({ error: 'Free Gemini limit reached, try again later' });
   else if (e.code === 'busy') res.status(503).json({ error: 'Gemini is busy right now. Please try again in a minute.' });
   else if (e.code === 'timed_out') res.status(504).json({ error: 'Gemini took too long to answer. Please try again.' });
+  else if (e.code === 'no_image') res.status(422).json({ error: "Gemini didn't draw a picture for that. Try rewording the description." });
   else res.status(502).json({ error: failed });
   return true;
 }
@@ -34,6 +39,18 @@ export function createApp() {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
   const upload = multer({ dest: UPLOAD_DIR, limits: { fileSize: 100 * 1024 * 1024 } });
+  const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
+
+  /** Standard replies for character-library failures; false when e is something else. */
+  const sendCharacterError = (res: express.Response, e: unknown, failed: string) => {
+    if (e instanceof CharacterError) {
+      if (e.code === 'not_found') res.status(404).json({ error: 'Character not found' });
+      else if (e.code === 'bad_pose') res.status(400).json({ error: 'Invalid request' });
+      else res.status(502).json({ error: failed });
+      return true;
+    }
+    return sendGeminiError(res, e, failed);
+  };
 
   const audioPath = (id: unknown) =>
     typeof id === 'string' && UUID_RE.test(id) ? join(AUDIO_DIR, `${id}.wav`) : null;
@@ -139,11 +156,76 @@ export function createApp() {
     }
   });
 
+  // ---------- AI character library ----------
+  app.get('/api/characters', async (_req, res) => {
+    res.json({ characters: await listCharacters() });
+  });
+
+  app.post('/api/characters', (req, res) => {
+    imageUpload.single('reference')(req, res, async (err) => {
+      const ref = req.file;
+      const description = typeof req.body?.description === 'string' ? req.body.description.trim() : '';
+      const style = req.body?.style;
+      const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+      if (err || (ref && !IMAGE_TYPES.includes(ref.mimetype))) return res.status(400).json({ error: 'Reference must be a PNG, JPEG or WebP image up to 10 MB.' });
+      if ((!description && !ref) || description.length > 400 || name.length > 40 || !ART_STYLES.includes(style)) return res.status(400).json({ error: 'Invalid request' });
+      try {
+        const character = await createCharacter({
+          description, style,
+          name: name || description.split(/\s+/).slice(0, 3).join(' ') || 'My character',
+          reference: ref ? { data: ref.buffer, mimeType: ref.mimetype } : undefined,
+        });
+        res.json({ character });
+      } catch (e) {
+        if (!sendCharacterError(res, e, 'Character creation failed. Please try again.')) {
+          console.error('create character failed', e);
+          res.status(502).json({ error: 'Character creation failed. Please try again.' });
+        }
+      }
+    });
+  });
+
+  app.post('/api/characters/:id/poses/:pose', async (req, res) => {
+    try {
+      res.json({ character: await generatePose(req.params.id, req.params.pose as ArtPose) });
+    } catch (e) {
+      if (!sendCharacterError(res, e, 'Drawing failed. Please try again.')) {
+        console.error('generate pose failed', e);
+        res.status(502).json({ error: 'Drawing failed. Please try again.' });
+      }
+    }
+  });
+
+  app.delete('/api/characters/:id', async (req, res) => {
+    try {
+      await deleteCharacter(req.params.id);
+      res.status(204).end();
+    } catch (e) {
+      if (!sendCharacterError(res, e, 'Delete failed.')) res.status(500).json({ error: 'Delete failed.' });
+    }
+  });
+
+  app.get('/api/characters/:id/:file', (req, res) => {
+    const p = imagePath(req.params.id, req.params.file);
+    if (!p) return res.status(404).json({ error: 'Image not found' });
+    res.type('image/png').sendFile(p, { root: process.cwd() });
+  });
+
   app.post('/api/export', async (req, res) => {
     const p = audioPath(req.body?.audioId);
     if (!p || !existsSync(p)) return res.status(404).json({ error: 'Audio not found' });
     const input = validateExport(req.body);
     if (!input) return res.status(400).json({ error: 'Invalid request' });
+    // An AI character is always drawn from the library on disk, never from images named by the client.
+    let images: Record<string, string> | undefined;
+    if (isArt(input.character)) {
+      try {
+        input.character = await getCharacter(input.character.id);
+        images = await imageDataUris(input.character);
+      } catch {
+        return res.status(404).json({ error: 'Character not found' });
+      }
+    }
     const ext = input.format.transparent ? 'webm' : 'mp4';
     const file = `${randomUUID()}.${ext}`;
     await mkdir(EXPORT_DIR, { recursive: true });
@@ -153,6 +235,7 @@ export function createApp() {
     try {
       await renderVideo({
         ...input,
+        images,
         audioPath: p,
         outPath: join(EXPORT_DIR, file),
         onProgress: (frame, total) => {
