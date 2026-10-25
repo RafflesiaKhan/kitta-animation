@@ -119,6 +119,27 @@ describe('AI characters', () => {
     expect(r.body.character.images.neutral.mouth).toBeNull();
   }, 30000);
 
+  it('finds missing mouths again without repainting', async () => {
+    generateContent.mockImplementation(async (req: any) => {
+      if (req.config?.responseModalities) return imageReply;
+      throw Object.assign(new Error('RESOURCE_EXHAUSTED'), { status: 429 });
+    });
+    const c = (await create()).body.character;
+    created.push(c.id);
+    expect(c.images.neutral.mouth).toBeNull();
+    gemini();
+    generateContent.mockClear();
+    const r = await request(app).post(`/api/characters/${c.id}/mouths`);
+    expect(r.status).toBe(200);
+    expect(r.body.character.images.neutral).toEqual({ file: c.images.neutral.file, mouth: { x: 0.5, y: 0.575, w: 0.1, skin: '#3A86FF' } });
+    expect(generateContent.mock.calls.some(([req]) => req.config?.responseModalities)).toBe(false); // no image calls
+    expect((await request(app).get('/api/characters')).body.characters.find((x: any) => x.id === c.id).images.neutral.mouth).not.toBeNull();
+    generateContent.mockClear();
+    await request(app).post(`/api/characters/${c.id}/mouths`); // nothing missing any more
+    expect(generateContent).not.toHaveBeenCalled();
+    expect((await request(app).post('/api/characters/11111111-2222-3333-4444-555555555555/mouths')).status).toBe(404);
+  }, 30000);
+
   it('deletes a character', async () => {
     gemini();
     const c = (await create()).body.character;

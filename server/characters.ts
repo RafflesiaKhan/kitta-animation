@@ -66,7 +66,8 @@ async function readMeta(id: string): Promise<ArtCharacter> {
 async function mouthOf(png: Buffer) {
   try {
     return await locateMouth(png);
-  } catch {
+  } catch (e) {
+    console.warn(`mouth lookup failed: ${(e as Error)?.message}`);
     return null;
   }
 }
@@ -115,6 +116,22 @@ export async function generatePose(id: string, pose: ArtPose): Promise<ArtCharac
   const provider = imageProviders().includes(own) ? own : imageProviders()[0] ?? own;
   const png = await toPng(await paint(provider, posePrompt(pose), [{ data: source, mimeType: 'image/png' }]), true);
   return withLock(id, async () => savePose(await readMeta(id), pose, png));
+}
+
+/** Runs the mouth lookup again for every picture that has no mouth yet (e.g. the lookup failed when it was drawn). */
+export async function findMissingMouths(id: string): Promise<ArtCharacter> {
+  return withLock(id, async () => {
+    const c = await readMeta(id);
+    const images = { ...c.images };
+    for (const [pose, im] of Object.entries(images) as [ArtPose, NonNullable<ArtCharacter['images'][ArtPose]>][]) {
+      if (im.mouth) continue;
+      const p = imagePath(id, im.file);
+      if (p) images[pose] = { ...im, mouth: await mouthOf(await readFile(p)) };
+    }
+    const next = { ...c, images };
+    await writeFile(join(dirOf(id), 'meta.json'), JSON.stringify(next, null, 2));
+    return next;
+  });
 }
 
 export async function deleteCharacter(id: string): Promise<void> {

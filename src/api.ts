@@ -86,6 +86,10 @@ export function generatePose(id: string, pose: ArtPose): Promise<ArtCharacter> {
   return post<{ character: ArtCharacter }>(`/api/characters/${id}/poses/${pose}`, {}).then((r) => r.character);
 }
 
+export function findMissingMouths(id: string): Promise<ArtCharacter> {
+  return post<{ character: ArtCharacter }>(`/api/characters/${id}/mouths`, {}).then((r) => r.character);
+}
+
 export async function deleteCharacter(id: string): Promise<void> {
   let res: Response;
   try {

@@ -9,8 +9,9 @@ const mouth = { x: 0.5, y: 0.6, w: 0.1, skin: '#ffcc99' };
 const art: ArtCharacter = {
   kind: 'art', id: '11111111-2222-3333-4444-555555555555', name: 'Robo', prompt: 'a robot', style: 'flat cartoon',
   images: {
-    neutral: { file: 'neutral-a.png', mouth }, happy: { file: 'happy-a.png', mouth },
+    neutral: { file: 'neutral-a.png', mouth }, happy: { file: 'happy-a.png', mouth: { ...mouth, y: 0.4 } },
     blink: { file: 'blink-a.png', mouth }, wave: { file: 'wave-a.png', mouth: null },
+    lookDown: { file: 'lookDown-a.png', mouth: { ...mouth, y: 0.7 } },
   },
 };
 const frame = (over: Partial<FrameState> = {}): FrameState => ({ expression: 'neutral', mouth: 'X', gesture: 'none', gestureProgress: 0, blink: false, bob: 0, ...over });
@@ -36,7 +37,14 @@ describe('ArtCharacterView', () => {
   });
   it('fades an action pose in and out around its gesture', () => {
     expect(render(frame({ gesture: 'wave', gestureProgress: 0.5 }))).toMatch(/data-part="action" href="img\/wave-a.png"/);
-    expect(render(frame({ gesture: 'wave', gestureProgress: 0.06 }))).toMatch(/data-part="action"[^>]*opacity="0.5"/);
+    expect(render(frame({ gesture: 'wave', gestureProgress: 0.03 }))).toMatch(/data-part="action"[^>]*opacity="0.5"/);
+    expect(render(frame({ gesture: 'wave', gestureProgress: 0.03 }))).not.toMatch(/data-part="under" opacity/); // picture under it still solid
+  });
+  it('hides the picture under a fully shown action pose, so it does not show through', () => {
+    expect(render(frame({ gesture: 'wave', gestureProgress: 0.09 }))).toMatch(/data-part="under" opacity="0.5"/);
+    const html = render(frame({ gesture: 'wave', gestureProgress: 0.5 }));
+    expect(html).not.toContain('data-part="under"');
+    expect(html).not.toContain('img/neutral-a.png');
     expect(render(frame({ gesture: 'shrug', gestureProgress: 0.5 }))).not.toContain('data-part="action"'); // not drawn yet
   });
   it('draws a talking mouth over the painted one only for open shapes', () => {
@@ -45,8 +53,12 @@ describe('ArtCharacterView', () => {
     expect(html).toContain('data-part="talk"');
     expect(html).toContain('fill="#ffcc99"');
     expect(html).toMatch(/data-part="mouth"[^>]*translate\(500 600\)/);
-    // the wave pose has no mouth box, so mid-gesture there is nothing to animate
-    expect(render(frame({ mouth: 'D', gesture: 'wave', gestureProgress: 0.5 }))).not.toContain('data-part="talk"');
+  });
+  it("talks at the neutral picture's mouth in every pose, and not while looking down", () => {
+    // happy's own box is off and wave has none: both talk where the neutral mouth is
+    expect(render(frame({ mouth: 'D', expression: 'happy' }))).toMatch(/data-part="mouth"[^>]*translate\(500 600\)/);
+    expect(render(frame({ mouth: 'D', gesture: 'wave', gestureProgress: 0.5 }))).toMatch(/data-part="mouth"[^>]*translate\(500 600\)/);
+    expect(render(frame({ mouth: 'D', gesture: 'lookDown', gestureProgress: 0.5 }))).not.toContain('data-part="talk"');
   });
 });
 

@@ -19,6 +19,7 @@ interface Props {
   error: string | null;
   onCreate: (input: api.CreateCharacterInput) => void;
   onDraw: (id: string, poses: ArtPose[]) => void;
+  onFindMouths: (id: string) => void;
   onDelete: (id: string) => void;
 }
 
@@ -27,7 +28,7 @@ const imgUrl = (c: ArtCharacter, pose: ArtPose) => {
   return im ? `/api/characters/${c.id}/${im.file}` : null;
 };
 
-export function CharacterStep({ character, onChange, library, imageProviders, busy, error, onCreate, onDraw, onDelete }: Props) {
+export function CharacterStep({ character, onChange, library, imageProviders, busy, error, onCreate, onDraw, onFindMouths, onDelete }: Props) {
   const [creating, setCreating] = useState(false);
   const aiOk = imageProviders.length > 0;
   // A finished creation selects the new character; leave the form then.
@@ -66,7 +67,7 @@ export function CharacterStep({ character, onChange, library, imageProviders, bu
       {creating
         ? <CreateForm busy={busy} providers={imageProviders} onCreate={onCreate} onCancel={() => setCreating(false)} />
         : isArt(character)
-          ? <ArtSheet character={character} busy={busy} geminiOk={aiOk} onDraw={onDraw} onDelete={onDelete} />
+          ? <ArtSheet character={character} busy={busy} geminiOk={aiOk} onDraw={onDraw} onFindMouths={onFindMouths} onDelete={onDelete} />
           : <Customize character={character} onChange={onChange} />}
       {error && <p role="alert" className="error">{error}</p>}
     </div>
@@ -119,10 +120,11 @@ function CreateForm({ busy, providers, onCreate, onCancel }: { busy: boolean; pr
   );
 }
 
-function ArtSheet({ character: c, busy, geminiOk, onDraw, onDelete }: {
-  character: ArtCharacter; busy: boolean; geminiOk: boolean; onDraw: Props['onDraw']; onDelete: Props['onDelete'];
+function ArtSheet({ character: c, busy, geminiOk, onDraw, onFindMouths, onDelete }: {
+  character: ArtCharacter; busy: boolean; geminiOk: boolean; onDraw: Props['onDraw']; onFindMouths: Props['onFindMouths']; onDelete: Props['onDelete'];
 }) {
   const missing = ([...EXPRESSIONS, 'blink', ...ART_ACTIONS] as ArtPose[]).filter((p) => !c.images[p]);
+  const noMouth = Object.values(c.images).filter((im) => im && !im.mouth).length;
   const tile = (pose: ArtPose, label: string = pose) => {
     const url = imgUrl(c, pose);
     return (
@@ -143,7 +145,12 @@ function ArtSheet({ character: c, busy, geminiOk, onDraw, onDelete }: {
         <button className="mini" disabled={busy} onClick={() => { if (confirm(`Delete ${c.name}?`)) onDelete(c.id); }}>Delete</button>
       </div>
       <p className="hint">{c.style} · {PROVIDER_NAMES[c.provider ?? 'gemini']} · {c.prompt || 'from a reference picture'}</p>
-      {!c.images.neutral?.mouth && <p className="hint">No mouth was found in this picture, so this character won't move its lips.</p>}
+      {noMouth > 0 && (
+        <p className="hint">
+          {noMouth === 1 ? '1 picture has' : `${noMouth} pictures have`} no mouth found, so the character won't move its lips in {noMouth === 1 ? 'it' : 'them'}.{' '}
+          <button className="mini" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={() => onFindMouths(c.id)}>Find mouths again</button>
+        </p>
+      )}
       {missing.length > 0 && (
         <button className="btn" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={() => onDraw(c.id, missing)}>
           ✨ Draw {missing.length === 1 ? 'the missing pose' : `all ${missing.length} missing poses`}

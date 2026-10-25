@@ -91,3 +91,15 @@ it('disables creation without any image key', async () => {
   fireEvent.change(screen.getByLabelText('Describe your character'), { target: { value: 'a robot' } });
   expect((screen.getByRole('button', { name: '✨ Create character' }) as HTMLButtonElement).disabled).toBe(true);
 });
+
+it('finds missing mouths again from the character sheet', async () => {
+  const noMouth = { ...robo, images: { neutral: { file: 'neutral-a.png', mouth: null }, wave: { file: 'wave-a.png', mouth: null } } };
+  vi.mocked(api.listCharacters).mockResolvedValue([noMouth]);
+  vi.mocked(api.findMissingMouths).mockResolvedValue({ ...noMouth, images: { ...noMouth.images, neutral: robo.images.neutral } });
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: /Robo/ }));
+  expect(screen.getByText(/2 pictures have no mouth found/)).toBeTruthy();
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Find mouths again' })); });
+  expect(api.findMissingMouths).toHaveBeenCalledWith(robo.id);
+  await waitFor(() => expect(screen.getByText(/1 picture has no mouth found/)).toBeTruthy());
+});

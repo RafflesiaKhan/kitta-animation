@@ -106,6 +106,15 @@ describe('AI characters with OpenAI', () => {
     expect(fetchMock.mock.calls.every(([url]) => String(url).includes('/images/'))).toBe(true);
   }, 30000);
 
+  it('falls back to OpenAI for the mouth when Gemini fails', async () => {
+    openai();
+    process.env.GEMINI_API_KEY = 'g-key';
+    generateContent.mockRejectedValue(Object.assign(new Error('RESOURCE_EXHAUSTED'), { status: 429 }));
+    const r = await request(app).post('/api/characters').field('description', 'a robot').field('style', 'anime').field('provider', 'openai');
+    created.push(r.body.character.id);
+    expect(r.body.character.images.neutral.mouth.skin).toBe('#112233');
+  }, 30000);
+
   it('rejects a provider without a key and explains a missing key', async () => {
     expect((await request(app).post('/api/characters').field('description', 'a robot').field('style', 'anime').field('provider', 'gemini')).status).toBe(400);
     delete process.env.OPENAI_API_KEY;
