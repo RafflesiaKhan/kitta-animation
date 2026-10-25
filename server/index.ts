@@ -6,8 +6,10 @@ import { mkdir, rm } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { normalizeAudio, concatWithGaps, AudioError, AUDIO_DIR } from './audio';
-import { tts, autoTag, transcribe, GeminiError } from './gemini';
-import { OpenAIError } from './openai';
+import { autoTag, transcribe, GeminiError } from './gemini';
+import { OpenAIError, voiceStudioUrl, voiceStudioVoices } from './openai';
+import { isTransient, speakLine, ttsProviders } from './speech';
+import { TTS_PROVIDERS, TTS_PROVIDER_NAMES, type TtsProvider } from '../shared/voices';
 import { imageProviders } from './images';
 import { EXPRESSIONS, GESTURES } from '../shared/types';
 import type { Line, ScriptLineInput } from '../shared/types';
@@ -26,12 +28,15 @@ const EXPORT_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 
 /** Sends the standard JSON error for an OpenAI failure; `failed` is the 502 message. */
 function sendOpenAIError(res: express.Response, e: OpenAIError, failed: string) {
-  if (e.code === 'no_key') res.status(400).json({ error: 'OpenAI key missing: add OPENAI_API_KEY to .env' });
+  const who = e.service;
+  if (e.code === 'no_key' && who === 'VoiceStudio') res.status(400).json({ error: 'VoiceStudio asked for an API key: set VOICESTUDIO_API_KEY in .env' });
+  else if (e.code === 'no_key') res.status(400).json({ error: 'OpenAI key missing: add OPENAI_API_KEY to .env' });
   else if (e.code === 'bad_key') res.status(400).json({ error: 'OpenAI key looks invalid: check OPENAI_API_KEY in .env' });
-  else if (e.code === 'rate_limited') res.status(429).json({ error: 'OpenAI limit or quota reached, try again later' });
-  else if (e.code === 'busy') res.status(503).json({ error: 'OpenAI is busy right now. Please try again in a minute.' });
-  else if (e.code === 'timed_out') res.status(504).json({ error: 'OpenAI took too long to answer. Please try again.' });
-  else if (e.code === 'no_image') res.status(422).json({ error: "OpenAI didn't draw a picture for that. Try rewording the description." });
+  else if (e.code === 'unreachable') res.status(503).json({ error: `VoiceStudio isn't running at ${voiceStudioUrl()}. Start it, then try again.` });
+  else if (e.code === 'rate_limited') res.status(429).json({ error: `${who} limit or quota reached, try again later` });
+  else if (e.code === 'busy') res.status(503).json({ error: `${who} is busy right now. Please try again in a minute.` });
+  else if (e.code === 'timed_out') res.status(504).json({ error: `${who} took too long to answer. Please try again.` });
+  else if (e.code === 'no_image') res.status(422).json({ error: `${who} didn't draw a picture for that. Try rewording the description.` });
   else res.status(502).json({ error: failed });
 }
 
@@ -70,7 +75,12 @@ export function createApp() {
     typeof id === 'string' && UUID_RE.test(id) ? join(AUDIO_DIR, `${id}.wav`) : null;
 
   app.get('/api/health', async (_req, res) => {
-    res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(process.env.GEMINI_API_KEY), imageProviders: imageProviders() });
+    res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(process.env.GEMINI_API_KEY), imageProviders: imageProviders(), ttsProviders: ttsProviders() });
+  });
+
+  // VoiceStudio's voices come from the running app (its saved and built-in voices).
+  app.get('/api/voices/voicestudio', async (_req, res) => {
+    res.json({ voices: await voiceStudioVoices() });
   });
 
   app.post('/api/audio', async (req, res) => {
@@ -120,19 +130,27 @@ export function createApp() {
     const isLine = (l: any) =>
       l && typeof l.text === 'string' && l.text.length <= 500 && typeof l.voice === 'string' && l.voice &&
       EXPRESSIONS.includes(l.expression) && GESTURES.includes(l.gesture) && (l.note === undefined || (typeof l.note === 'string' && l.note.length <= 200));
-    if (!Array.isArray(raw) || raw.length < 1 || raw.length > 50 || !raw.every(isLine)) return res.status(400).json({ error: 'Invalid request' });
+    const provider: TtsProvider = req.body?.provider ?? ttsProviders()[0] ?? 'gemini';
+    if (!Array.isArray(raw) || raw.length < 1 || raw.length > 50 || !raw.every(isLine) || !TTS_PROVIDERS.includes(provider)) return res.status(400).json({ error: 'Invalid request' });
     const lines = raw as ScriptLineInput[];
     const emptyAt = lines.findIndex((l) => !l.text.trim());
     if (emptyAt >= 0) return res.status(400).json({ error: `Line ${emptyAt + 1} is empty` });
     try {
       const wavs: Buffer[] = [];
-      for (const l of lines) wavs.push(await tts(l)); // sequential: kinder to free-tier limits
+      for (const l of lines) wavs.push(await speakLine(provider, l)); // sequential: kinder to free-tier limits
       const { path, durationMs, spans } = await concatWithGaps(wavs);
       const dialog = lines.map((l) => l.text.replace(/<[^>]*>/g, ' ')).join(' ').replace(/\s+/g, ' ').trim();
       const cues = await runRhubarb(path, dialog || undefined);
       const out: Line[] = lines.map((l, i) => ({ text: l.text, expression: l.expression, gesture: l.gesture, ...spans[i] }));
       res.json({ audioId: basename(path, '.wav'), durationMs, lines: out, cues });
     } catch (e) {
+      // Still busy after the retries: point at the other voice providers that are set up.
+      const others = ttsProviders().filter((p) => p !== provider);
+      if (isTransient(e) && others.length) {
+        const name = TTS_PROVIDER_NAMES[provider].split(' ')[0];
+        const status = (e as { code: string }).code === 'busy' ? 503 : 429;
+        return res.status(status).json({ error: `${name} is ${status === 503 ? 'busy' : 'at its limit'} right now. Try again in a minute, or switch "Voice by" to ${others.map((p) => TTS_PROVIDER_NAMES[p]).join(' or ')}.` });
+      }
       if (sendGeminiError(res, e, 'Voice generation failed. Please try again.')) return;
       if (e instanceof AudioError && e.code === 'too_long') res.status(400).json({ error: 'Script is longer than 3 minutes. Please shorten it.' });
       else {

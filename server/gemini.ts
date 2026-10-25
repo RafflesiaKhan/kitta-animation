@@ -32,11 +32,13 @@ const QUICK_RETRY = { retryOptions: { attempts: 2, initialDelay: 1, maxDelay: 2 
 function toGeminiError(e: unknown, what: string): GeminiError {
   if (e instanceof GeminiError) return e;
   const err = e as { name?: string; status?: number; code?: number; message?: string };
-  if (err?.name === 'TimeoutError' || err?.name === 'AbortError') return new GeminiError('timed_out');
-  if (err?.status === 429 || err?.code === 429 || /RESOURCE_EXHAUSTED/.test(err?.message ?? '')) return new GeminiError('rate_limited');
+  // Every mapped failure is logged with Google's own words, so the terminal shows why ("busy" alone says little).
+  const log = (code: string) => console.warn(`gemini ${what}: ${code}`, err?.status ?? err?.code ?? '', (err?.message ?? 'unknown error').slice(0, 300));
+  if (err?.name === 'TimeoutError' || err?.name === 'AbortError') { log('timed_out'); return new GeminiError('timed_out'); }
+  if (err?.status === 429 || err?.code === 429 || /RESOURCE_EXHAUSTED/.test(err?.message ?? '')) { log('rate_limited'); return new GeminiError('rate_limited'); }
   const status = err?.status ?? err?.code;
-  if (status === 503 || /UNAVAILABLE|high demand|overloaded/i.test(err?.message ?? '')) return new GeminiError('busy');
-  if ((status === 400 || status === 403) && /API key|API_KEY_INVALID|PERMISSION_DENIED/i.test(err?.message ?? '')) return new GeminiError('bad_key');
+  if (status === 503 || /UNAVAILABLE|high demand|overloaded/i.test(err?.message ?? '')) { log('busy'); return new GeminiError('busy'); }
+  if ((status === 400 || status === 403) && /API key|API_KEY_INVALID|PERMISSION_DENIED/i.test(err?.message ?? '')) { log('bad_key'); return new GeminiError('bad_key'); }
   console.error(`gemini ${what} failed`, err?.status ?? '', err?.message ?? 'unknown error');
   return new GeminiError('failed');
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { isArt } from '../shared/types';
 import type { AnyCharacter, ArtCharacter, ArtPose, ImageProvider, Line, ScriptLineInput, Timeline } from '../shared/types';
-import { VOICES } from '../shared/voices';
+import { VOICES, type TtsProvider } from '../shared/voices';
 import { STARTERS } from '../shared/character/starters';
 import * as api from './api';
 import { Preview } from './Preview';
@@ -31,11 +31,16 @@ export function App() {
   // Fetched once, shared by the Character and Voiceover steps.
   const [geminiOk, setGeminiOk] = useState(true);
   const [imageProviders, setImageProviders] = useState<ImageProvider[]>(['gemini']);
+  const [ttsProviders, setTtsProviders] = useState<TtsProvider[]>(['gemini']);
+  const [ttsProvider, setTtsProvider] = useState<TtsProvider>('gemini'); // who speaks the script
   useEffect(() => {
     Promise.resolve(api.listCharacters()).then((l) => setLibrary(l ?? []), () => {});
     Promise.resolve(api.health()).then((h) => {
       setGeminiOk(h?.gemini !== false);
       setImageProviders(h?.imageProviders ?? (h?.gemini === false ? [] : ['gemini'])); // older servers only report gemini
+      const voices = h?.ttsProviders ?? (h?.gemini === false ? [] : ['gemini']);
+      setTtsProviders(voices);
+      if (voices.length) setTtsProvider(voices[0]);
     }, () => {});
   }, []);
 
@@ -126,7 +131,7 @@ export function App() {
     setError(null);
     try {
       setStatus('Generating voice…');
-      const { audioId, durationMs, cues, lines } = await api.tts(scriptLines.map((l) => (l.note?.trim() ? l : { ...l, note: undefined })));
+      const { audioId, durationMs, cues, lines } = await api.tts(scriptLines.map((l) => (l.note?.trim() ? l : { ...l, note: undefined })), ttsProvider);
       setState((s) => ({ ...s, audioId, timeline: { durationMs, cues, lines }, source: 'script' }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -149,7 +154,7 @@ export function App() {
         <section className="panel">
           {step === 0 && <CharacterStep character={state.character} onChange={(character) => setState((s) => ({ ...s, character }))}
             library={library} imageProviders={imageProviders} busy={busy} error={error} onCreate={createArt} onDraw={drawPoses} onDelete={deleteArt} />}
-          {step === 1 && <VoiceoverStep geminiOk={geminiOk} busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} onAutoTag={autoTagScript} onAddExpressions={addExpressions} uploadLines={state.source === 'upload' ? state.timeline?.lines ?? null : null} onEditUploadLine={editUploadLine} />}
+          {step === 1 && <VoiceoverStep geminiOk={geminiOk} ttsProviders={ttsProviders} ttsProvider={ttsProvider} onTtsProvider={setTtsProvider} busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} onAutoTag={autoTagScript} onAddExpressions={addExpressions} uploadLines={state.source === 'upload' ? state.timeline?.lines ?? null : null} onEditUploadLine={editUploadLine} />}
           {step === 2 && <ExportStep character={state.character} timeline={state.timeline} audioId={state.audioId} />}
         </section>
         <Preview character={state.character} timeline={state.timeline} audioUrl={state.audioId ? `/api/audio/${state.audioId}` : null} status={status} />
