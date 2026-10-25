@@ -3,7 +3,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { mouthPath } from '../../shared/character/mouth';
 import { STARTERS, OPTIONS } from '../../shared/character/starters';
 import { Character } from '../../shared/character/Character';
-import { EXPRESSIONS, type FrameState, type MouthShape } from '../../shared/types';
+import { FACES, TONES, mixFaces } from '../../shared/character/expressions';
+import { EXPRESSIONS, GESTURES, type FrameState, type MouthShape } from '../../shared/types';
 
 const SHAPES: MouthShape[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'X'];
 const frame = (over: Partial<FrameState> = {}): FrameState => ({
@@ -65,5 +66,45 @@ describe('Character', () => {
     const rot = m![0].match(/rotate\((-?[\d.]+)/);
     expect(rot).not.toBeNull();
     expect(Math.abs(parseFloat(rot![1]))).toBeGreaterThan(1);
+  });
+  it('celebrate raises both arms', () => {
+    const html = render(STARTERS.kit, frame({ gesture: 'celebrate', gestureProgress: 0.5 }));
+    for (const side of ['left', 'right']) {
+      const rot = html.match(new RegExp(`data-part="arm-${side}"[^>]*rotate\\((-?[\\d.]+)`));
+      expect(Math.abs(parseFloat(rot![1]))).toBeGreaterThan(100);
+    }
+  });
+  it('renders every gesture mid-way without NaN', () => {
+    for (const g of GESTURES) expect(render(STARTERS.pip, frame({ gesture: g, gestureProgress: 0.4 }))).not.toMatch(/NaN/);
+  });
+  it('wink shuts one eye only', () => {
+    const html = render(STARTERS.kit, frame({ expression: 'wink' }));
+    expect(html.match(/data-part="pupil"/g)?.length).toBe(1);
+  });
+  it('draws a mid-blend face that differs from both ends', () => {
+    const at = (blend: number) => render(STARTERS.kit, frame({ fromExpression: 'sad', expression: 'excited', blend }));
+    expect(at(0)).toBe(render(STARTERS.kit, frame({ expression: 'sad' })));
+    expect(at(1)).toBe(render(STARTERS.kit, frame({ expression: 'excited' })));
+    expect(at(0.5)).not.toBe(at(0));
+    expect(at(0.5)).not.toBe(at(1));
+    expect(at(0.5)).not.toMatch(/NaN/);
+  });
+  it('a glance moves the pupils', () => {
+    expect(render(STARTERS.milo, frame({ glance: 1 }))).not.toBe(render(STARTERS.milo, frame()));
+  });
+});
+
+describe('expression library', () => {
+  it('has a face preset and a TTS tone for every expression', () => {
+    for (const e of EXPRESSIONS) {
+      expect(FACES[e]).toBeDefined();
+      expect(TONES[e]).toMatch(/^[a-z]+$/);
+    }
+  });
+  it('mixFaces interpolates every parameter', () => {
+    const m = mixFaces(FACES.neutral, FACES.surprised, 0.5);
+    expect(m.eyeScale).toBeCloseTo(1.1);
+    expect(m.browL.raise).toBeCloseTo(13);
+    expect(m.mouth.hs).toBeCloseTo(1.2);
   });
 });

@@ -17,11 +17,26 @@ Open http://localhost:5173. Lip sync uses Rhubarb, which is bundled as a WASM pa
 
 ## How to use
 
-1. **Character**: pick a starter and customise it.
+1. **Character**: pick a starter and customise it, or **＋ Create with AI** (see below).
 2. **Voiceover**: either upload audio (up to 3 minutes), or write a script and click "Generate voice". "✨ Add expressions" (after an upload) and "✨ Auto-tag expressions" (in the script) let Gemini pick the expression and gesture per line; you can change any of them afterwards, for uploads too (each line of an uploaded clip is listed under the upload button).
+   Expressions: neutral, happy, sad, surprised, angry, excited, thinking, confused, worried, wink, sleepy. Gestures: wave, nod, look down, celebrate, shrug. The Character step shows your character's whole expression set.
 3. **Export**: choose 16:9 or 9:16, or transparent, and download the MP4/WebM.
 
 Upload, lip sync and export work without a Gemini key. Voice generation, "Add expressions" and "Auto-tag" need `GEMINI_API_KEY`; without one those buttons are disabled (you can still set the expression and gesture by hand). Gemini has a free tier with rate limits; if it is hit, the app shows "Free Gemini limit reached, try again later".
+
+## Creating characters with AI
+
+Works like [Masko](https://masko.ai/): describe a character (or upload a reference picture to redraw), pick a style, and Gemini paints it. Then press "✨ Draw all missing poses" (or draw them one by one) to get its expressions, a blink frame and its actions (wave, look down, celebrate, shrug). Each pose is an edit of the first picture, so it stays the same character. Poses are saved as they arrive in `data/characters/`, so a failure halfway keeps what was drawn.
+
+- The image model draws on a magenta backdrop, which ffmpeg removes to make transparent PNGs (needed for transparent export).
+- Lip sync: Gemini finds the mouth in each picture; while the character talks, the app's cartoon mouth shapes are drawn over it. Pictures stay mouth-closed.
+- Animation: expressions crossfade, the blink frame is shown during blinks, action poses fade in for the line's gesture; nod and the breathing bob move the whole picture. An expression that isn't drawn yet shows the neutral picture.
+- Providers: Gemini (`GEMINI_API_KEY`, `GEMINI_IMAGE_MODEL`) or OpenAI (`OPENAI_API_KEY`, `OPENAI_IMAGE_MODEL`, default `gpt-image-2`); see `.env.example`. Set either or both. With both, the Create form has a "Drawn by" choice, and each character keeps drawing its poses with the provider that painted it. The mouth lookup uses Gemini when its key is set, otherwise an OpenAI vision model (`OPENAI_VISION_MODEL`).
+- Image generation is usually paid (Gemini's free tier may not include it); a full set is 16 pictures plus one mouth lookup each. Voice, auto-tag and transcription still use Gemini.
+
+## How expressions work
+
+Each expression is a preset of face parameters (brows, eyelids, smile squint, pupil direction, blush, mouth mood) in `shared/character/expressions.ts`, not a separate drawing, so every starter and every customisation gets the full set. When a new line starts, the face morphs from the previous line's expression over 250 ms. Between lines the character idles: it blinks, breathes and now and then glances to the side. To add an expression, add one entry to `FACES` and `TONES` and to `EXPRESSIONS` in `shared/types.ts`; validation, auto-tag and the dropdowns pick it up from there.
 
 ## Gemini features (optional)
 

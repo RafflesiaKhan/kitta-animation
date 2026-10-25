@@ -26,3 +26,10 @@ it('shows API upload errors in the Upload tab', async () => {
   fireEvent.change(screen.getByLabelText('Upload voiceover'), { target: { files: [file] } });
   await waitFor(() => expect(screen.getByRole('alert').textContent).toBe("Couldn't read this audio file."));
 });
+
+it('shows the expression sheet with every expression', () => {
+  render(<App />);
+  const sheet = screen.getByTestId('expression-sheet');
+  expect(sheet.querySelectorAll('svg').length).toBe(11);
+  expect(sheet.textContent).toContain('thinking');
+});

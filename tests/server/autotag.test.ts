@@ -36,7 +36,7 @@ describe('autoTag', () => {
   });
 
   it('coerces values outside the lists to neutral/none', async () => {
-    generateContent.mockResolvedValue(json([{ expression: 'excited', gesture: 'jump' }, null, { expression: 'angry' }]));
+    generateContent.mockResolvedValue(json([{ expression: 'ecstatic', gesture: 'jump' }, null, { expression: 'angry' }]));
     expect(await autoTag(['a', 'b', 'c'])).toEqual([
       { expression: 'neutral', gesture: 'none' }, { expression: 'neutral', gesture: 'none' }, { expression: 'angry', gesture: 'none' },
     ]);

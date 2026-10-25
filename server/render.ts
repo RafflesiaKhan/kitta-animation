@@ -2,12 +2,14 @@ import { spawn } from 'node:child_process';
 import { createElement } from 'react';
 import { Resvg } from '@resvg/resvg-js';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { Character } from '../shared/character/Character';
+import { CharacterView } from '../shared/character/CharacterView';
 import { FPS, frameAt, frameCount } from '../shared/timeline';
-import type { CharacterConfig, ExportFormat, Timeline } from '../shared/types';
+import type { AnyCharacter, ExportFormat, Timeline } from '../shared/types';
 
 export interface RenderOptions {
-  character: CharacterConfig;
+  character: AnyCharacter;
+  /** Data URIs by file name for an AI character's images (resvg can't fetch URLs). */
+  images?: Record<string, string>;
   timeline: Timeline;
   audioPath: string;
   format: ExportFormat;
@@ -16,11 +18,11 @@ export interface RenderOptions {
 }
 
 /** The character's square box is 80% of the frame height, centred horizontally and anchored to the bottom edge (portrait-style crop). */
-function frameSvg(character: CharacterConfig, frame: ReturnType<typeof frameAt>, w: number, h: number) {
+function frameSvg(character: AnyCharacter, frame: ReturnType<typeof frameAt>, w: number, h: number, images: Record<string, string>) {
   const size = Math.round(h * 0.8);
   const x = Math.round((w - size) / 2);
   const y = h - size;
-  const inner = renderToStaticMarkup(createElement(Character, { config: character, frame, width: size, height: size }));
+  const inner = renderToStaticMarkup(createElement(CharacterView, { config: character, frame, width: size, height: size, resolve: (f: string) => images[f] ?? '' }));
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><g transform="translate(${x} ${y})">${inner}</g></svg>`;
 }
 
@@ -35,7 +37,7 @@ function unpremultiply(px: Buffer) {
   }
 }
 
-export async function renderVideo({ character, timeline, audioPath, format, outPath, onProgress }: RenderOptions): Promise<void> {
+export async function renderVideo({ character, images = {}, timeline, audioPath, format, outPath, onProgress }: RenderOptions): Promise<void> {
   const [w, h] = format.aspect === '16:9' ? [1920, 1080] : [1080, 1920];
   const total = frameCount(timeline.durationMs);
   const codec = format.transparent
@@ -68,7 +70,7 @@ export async function renderVideo({ character, timeline, audioPath, format, outP
       const frame = frameAt(timeline, (i * 1000) / FPS);
       const key = JSON.stringify(frame);
       if (!rgba || key !== lastKey) {
-        rgba = Buffer.from(new Resvg(frameSvg(character, frame, w, h), { background: format.transparent ? undefined : '#ffffff', font: { loadSystemFonts: false } }).render().pixels);
+        rgba = Buffer.from(new Resvg(frameSvg(character, frame, w, h, images), { background: format.transparent ? undefined : '#ffffff', font: { loadSystemFonts: false } }).render().pixels);
         if (format.transparent) unpremultiply(rgba);
         lastKey = key;
       }

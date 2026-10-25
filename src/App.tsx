@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import type { CharacterConfig, Line, ScriptLineInput, Timeline } from '../shared/types';
+import { useEffect, useState } from 'react';
+import { isArt } from '../shared/types';
+import type { AnyCharacter, ArtCharacter, ArtPose, ImageProvider, Line, ScriptLineInput, Timeline } from '../shared/types';
 import { VOICES } from '../shared/voices';
 import { STARTERS } from '../shared/character/starters';
 import * as api from './api';
@@ -8,7 +9,7 @@ import { CharacterStep } from './steps/CharacterStep';
 import { VoiceoverStep } from './steps/VoiceoverStep';
 import { ExportStep } from './steps/ExportStep';
 
-export interface State { character: CharacterConfig; timeline: Timeline | null; audioId: string | null; source: 'upload' | 'script' | null }
+export interface State { character: AnyCharacter; timeline: Timeline | null; audioId: string | null; source: 'upload' | 'script' | null }
 
 const NEW_LINE: ScriptLineInput = { text: '', voice: VOICES[0], expression: 'neutral', gesture: 'none' };
 const STEPS = ['1 Character', '2 Voiceover', '3 Export'];
@@ -26,6 +27,17 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [scriptLines, setScriptLines] = useState<ScriptLineInput[]>([NEW_LINE]); // draft survives step switches
   const busy = status !== '';
+  const [library, setLibrary] = useState<ArtCharacter[]>([]); // saved AI characters
+  // Fetched once, shared by the Character and Voiceover steps.
+  const [geminiOk, setGeminiOk] = useState(true);
+  const [imageProviders, setImageProviders] = useState<ImageProvider[]>(['gemini']);
+  useEffect(() => {
+    Promise.resolve(api.listCharacters()).then((l) => setLibrary(l ?? []), () => {});
+    Promise.resolve(api.health()).then((h) => {
+      setGeminiOk(h?.gemini !== false);
+      setImageProviders(h?.imageProviders ?? (h?.gemini === false ? [] : ['gemini'])); // older servers only report gemini
+    }, () => {});
+  }, []);
 
   // Upload state lives here (not in the tab) so it survives switching steps.
   const upload = async (file: File) => {
@@ -83,6 +95,33 @@ export function App() {
   const editUploadLine = (i: number, patch: Pick<Line, 'expression'> | Pick<Line, 'gesture'>) =>
     setState((s) => (s.timeline ? { ...s, timeline: { ...s.timeline, lines: s.timeline.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) } } : s));
 
+  // ---------- AI characters ----------
+  // Stores a created/updated AI character in the library and, if it is the one in use, in the state too.
+  const putArt = (c: ArtCharacter) => {
+    setLibrary((l) => [...l.filter((x) => x.id !== c.id), c].sort((a, b) => a.name.localeCompare(b.name)));
+    setState((s) => (isArt(s.character) && s.character.id === c.id ? { ...s, character: c } : s));
+  };
+
+  const createArt = (input: api.CreateCharacterInput) => run('Drawing your character…', async () => {
+    const c = await api.createCharacter(input);
+    putArt(c);
+    setState((s) => ({ ...s, character: c }));
+  });
+
+  // One pose at a time (kinder to rate limits); each is saved as it arrives, so a failure keeps the rest.
+  const drawPoses = (id: string, poses: ArtPose[]) => run('Drawing…', async () => {
+    for (const [i, pose] of poses.entries()) {
+      setStatus(`Drawing ${pose}${poses.length > 1 ? ` (${i + 1}/${poses.length})` : ''}…`);
+      putArt(await api.generatePose(id, pose));
+    }
+  });
+
+  const deleteArt = (id: string) => run('Deleting…', async () => {
+    await api.deleteCharacter(id);
+    setLibrary((l) => l.filter((x) => x.id !== id));
+    setState((s) => (isArt(s.character) && s.character.id === id ? { ...s, character: KIT } : s));
+  });
+
   const generate = async () => {
     setError(null);
     try {
@@ -108,8 +147,9 @@ export function App() {
       </header>
       <main>
         <section className="panel">
-          {step === 0 && <CharacterStep character={state.character} onChange={(character) => setState((s) => ({ ...s, character }))} />}
-          {step === 1 && <VoiceoverStep busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} onAutoTag={autoTagScript} onAddExpressions={addExpressions} uploadLines={state.source === 'upload' ? state.timeline?.lines ?? null : null} onEditUploadLine={editUploadLine} />}
+          {step === 0 && <CharacterStep character={state.character} onChange={(character) => setState((s) => ({ ...s, character }))}
+            library={library} imageProviders={imageProviders} busy={busy} error={error} onCreate={createArt} onDraw={drawPoses} onDelete={deleteArt} />}
+          {step === 1 && <VoiceoverStep geminiOk={geminiOk} busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} onAutoTag={autoTagScript} onAddExpressions={addExpressions} uploadLines={state.source === 'upload' ? state.timeline?.lines ?? null : null} onEditUploadLine={editUploadLine} />}
           {step === 2 && <ExportStep character={state.character} timeline={state.timeline} audioId={state.audioId} />}
         </section>
         <Preview character={state.character} timeline={state.timeline} audioUrl={state.audioId ? `/api/audio/${state.audioId}` : null} status={status} />

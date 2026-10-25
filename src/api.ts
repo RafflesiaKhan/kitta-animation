@@ -1,4 +1,4 @@
-import type { CharacterConfig, Expression, ExportFormat, Gesture, Line, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
+import type { AnyCharacter, ArtCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
 
 async function post<T>(url: string, init: RequestInit): Promise<T> {
   let res: Response;
@@ -26,7 +26,7 @@ export async function lipsync(audioId: string, dialog?: string): Promise<MouthCu
   return cues;
 }
 
-export async function health(): Promise<{ rhubarb: boolean; gemini: boolean }> {
+export async function health(): Promise<{ rhubarb: boolean; gemini: boolean; imageProviders?: ImageProvider[] }> {
   const res = await fetch('/api/health');
   return res.json();
 }
@@ -47,7 +47,44 @@ export function transcribe(audioId: string): Promise<{ text: string; startMs: nu
   }).then((r) => r.lines);
 }
 
-export interface ExportBody { character: CharacterConfig; timeline: Timeline; audioId: string; format: ExportFormat }
+/** The saved AI characters; an empty list if the server can't be reached. */
+export async function listCharacters(): Promise<ArtCharacter[]> {
+  try {
+    const res = await fetch('/api/characters');
+    const body = res.ok ? await res.json() : null;
+    return Array.isArray(body?.characters) ? body.characters : [];
+  } catch {
+    return [];
+  }
+}
+
+export interface CreateCharacterInput { description: string; name: string; style: string; provider: ImageProvider; reference?: File }
+
+export function createCharacter({ description, name, style, provider, reference }: CreateCharacterInput): Promise<ArtCharacter> {
+  const form = new FormData();
+  form.append('provider', provider);
+  form.append('description', description);
+  form.append('name', name);
+  form.append('style', style);
+  if (reference) form.append('reference', reference);
+  return post<{ character: ArtCharacter }>('/api/characters', { body: form }).then((r) => r.character);
+}
+
+export function generatePose(id: string, pose: ArtPose): Promise<ArtCharacter> {
+  return post<{ character: ArtCharacter }>(`/api/characters/${id}/poses/${pose}`, {}).then((r) => r.character);
+}
+
+export async function deleteCharacter(id: string): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/characters/${id}`, { method: 'DELETE' });
+  } catch {
+    throw new Error('Could not reach the server. Is it running?');
+  }
+  if (!res.ok && res.status !== 404) throw new Error('Delete failed.');
+}
+
+export interface ExportBody { character: AnyCharacter; timeline: Timeline; audioId: string; format: ExportFormat }
 
 /** Starts an export and resolves with the download URL, reporting 0..1 progress from the NDJSON stream. */
 export async function exportVideo(body: ExportBody, onProgress: (p: number) => void): Promise<string> {
