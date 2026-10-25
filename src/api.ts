@@ -1,4 +1,5 @@
-import type { TtsProvider } from '../shared/voices';
+import type { TtsProvider, VoiceStudioInfo } from '../shared/voices';
+import type { UsageReport } from '../shared/usage';
 import type { AnyCharacter, ArtCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
 
 async function post<T>(url: string, init: RequestInit): Promise<T> {
@@ -32,18 +33,17 @@ export async function health(): Promise<{ rhubarb: boolean; gemini: boolean; ima
   return res.json();
 }
 
-export function tts(lines: ScriptLineInput[], provider?: TtsProvider): Promise<{ audioId: string; durationMs: number; lines: Line[]; cues: MouthCue[] }> {
-  return post('/api/tts', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines, provider }) });
+export function tts(lines: ScriptLineInput[], provider?: TtsProvider, engine?: string): Promise<{ audioId: string; durationMs: number; lines: Line[]; cues: MouthCue[] }> {
+  return post('/api/tts', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines, provider, engine: engine || undefined }) });
 }
 
-/** Voices of the running VoiceStudio app; empty if it can't be reached. */
-export async function voiceStudioVoices(): Promise<string[]> {
+/** Status, engines and voices of the local VoiceStudio; null if our server can't be reached. */
+export async function voiceStudio(): Promise<VoiceStudioInfo | null> {
   try {
-    const res = await fetch('/api/voices/voicestudio');
-    const body = res.ok ? await res.json() : null;
-    return Array.isArray(body?.voices) ? body.voices : [];
+    const res = await fetch('/api/voicestudio');
+    return res.ok ? await res.json() : null;
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -132,4 +132,18 @@ export async function exportVideo(body: ExportBody, onProgress: (p: number) => v
   handle(buffer);
   if (!url) throw new Error('Export failed. Please try again.');
   return url;
+}
+
+/** Token telemetry from the server; null if it can't be reached. */
+export async function usage(): Promise<UsageReport | null> {
+  try {
+    const res = await fetch('/api/usage');
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function resetUsage(): Promise<void> {
+  await fetch('/api/usage', { method: 'DELETE' }).catch(() => {});
 }

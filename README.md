@@ -28,11 +28,19 @@ Upload, lip sync and export work without a Gemini key. Voice generation, "Add ex
 
 The "Write script" tab can speak with three providers ("Voice by" appears when more than one is set up):
 
-- **Gemini TTS** (`GEMINI_API_KEY`): the default.
+- **Gemini TTS** (`GEMINI_API_KEY`): the default. A neutral line with no delivery note is sent as just its text; otherwise the expression and note go in separate director's notes, so they shape the delivery without being read out.
 - **OpenAI** (`OPENAI_API_KEY`, `OPENAI_TTS_MODEL`, default `gpt-4o-mini-tts`): the line's expression and delivery note become speaking instructions.
-- **VoiceStudio (local, free)**: [VoiceStudio](https://github.com/debpalash/VoiceStudio) runs open voice models on your own machine (voice cloning, 600+ languages). Start it, then set `VOICESTUDIO_URL=http://localhost:3900`. The app uses its OpenAI-compatible `/v1/audio/speech` and lists your VoiceStudio voices, cloned ones included.
+- **VoiceStudio (local, free)**: [VoiceStudio](https://github.com/debpalash/VoiceStudio) runs open voice models on your own machine (voice cloning, 600+ languages). Start it, then set `VOICESTUDIO_URL=http://localhost:3900`. The script tab then shows whether it is running, an **Engine** picker (the engines installed in VoiceStudio, e.g. OmniVoice, KittenTTS, MLX-Audio) and your saved and cloned voices by name. Lines can use VoiceStudio's `[laughter]` and `[sigh]`; `<short pause>` becomes its `[pause]`, and a delivery note containing "whisper" makes it whisper. Clone or design new voices in VoiceStudio itself; they appear here automatically. With VoiceStudio running, "Add expressions" on an upload transcribes locally (free, offline); without a Gemini key the lines arrive untagged, ready to tag by hand.
+
+## Natural movement
+
+While the character talks it nods slightly and moves its hands on stressed syllables, lifts its brows at the start of a phrase, tilts and sways a little, and blinks at uneven intervals and at the end of phrases. The amount follows the expression (sad slumps and moves less, excited bounces, confused tilts, worried clasps the hands). Gestures: wave, nod, look down, celebrate, shrug, think (hand on chin), point and explain (open palms). All of it comes from the lip-sync timing, so it works with every voice source and the exported video matches the preview.
 
 When a provider is overloaded or rate-limited, each line is retried for about 25 seconds before giving up; the error then suggests the other providers you have set up. The server terminal logs the provider's own error message for every failure.
+
+## Token usage
+
+The 🔢 button in the header shows how many tokens Gemini and OpenAI used this session; click it for a breakdown per provider and model (calls, input, output, total), all-time totals and the latest calls. The counts are the ones each provider reports. OpenAI speech and VoiceStudio report none, so they show as calls only. Every call is also logged in the server terminal (`[usage] gemini gemini-3.8-flash-tts voice: 42 in + 1210 out = 1252 tokens`) and kept in `data/usage.jsonl`. "Reset" clears it.
 
 ## Creating characters with AI
 

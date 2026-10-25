@@ -42,10 +42,10 @@ it('draws all missing poses one at a time and shows them', async () => {
   });
   render(<App />);
   fireEvent.click(await screen.findByRole('button', { name: /Robo/ }));
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Draw all 15 missing poses/ })); });
-  await waitFor(() => expect(api.generatePose).toHaveBeenCalledTimes(15));
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Draw all 18 missing poses/ })); });
+  await waitFor(() => expect(api.generatePose).toHaveBeenCalledTimes(18));
   expect(vi.mocked(api.generatePose).mock.calls.map((c) => c[1])).toEqual(
-    ['happy', 'sad', 'surprised', 'angry', 'excited', 'thinking', 'confused', 'worried', 'wink', 'sleepy', 'blink', 'wave', 'lookDown', 'celebrate', 'shrug']);
+    ['happy', 'sad', 'surprised', 'angry', 'excited', 'thinking', 'confused', 'worried', 'wink', 'sleepy', 'blink', 'wave', 'lookDown', 'celebrate', 'shrug', 'think', 'point', 'explain']);
   await waitFor(() => expect(screen.getByRole('img', { name: 'celebrate' }).getAttribute('src')).toBe(`/api/characters/${robo.id}/celebrate-b.png`));
   expect(screen.queryByRole('button', { name: /missing pose/ })).toBeNull();
 });
@@ -57,10 +57,10 @@ it('shows a drawing error and keeps the poses drawn before it', async () => {
     .mockRejectedValueOnce(new Error('Free Gemini limit reached, try again later'));
   render(<App />);
   fireEvent.click(await screen.findByRole('button', { name: /Robo/ }));
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Draw all 15 missing poses/ })); });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Draw all 18 missing poses/ })); });
   await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Free Gemini limit reached, try again later'));
   expect(screen.getByRole('img', { name: 'happy' })).toBeTruthy();
-  expect(screen.getByRole('button', { name: /Draw all 14 missing poses/ })).toBeTruthy();
+  expect(screen.getByRole('button', { name: /Draw all 17 missing poses/ })).toBeTruthy();
 });
 
 it('lets you pick OpenAI when both providers have keys, and works with only OpenAI', async () => {

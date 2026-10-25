@@ -25,7 +25,7 @@ describe('tts', () => {
     expect(wav.subarray(0, 4).toString()).toBe('RIFF');
     expect(wav.length).toBe(44 + 48000);
     const arg = generateContent.mock.calls[0][0];
-    expect(arg.contents).toBe('Say in a happy tone, whispering: Hello there');
+    expect(arg.contents).toBe("### DIRECTOR'S NOTES\nStyle: happy tone, whispering. Keep it natural and conversational. Only the transcript is spoken; never read these notes aloud.\n\n### TRANSCRIPT\nHello there");
     expect(arg.config.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName).toBe('Kore');
     expect(VOICES.length).toBeGreaterThanOrEqual(6);
   });
@@ -33,13 +33,19 @@ describe('tts', () => {
   it('omits the note and passes tags through', async () => {
     generateContent.mockResolvedValue(reply(Buffer.alloc(100)));
     await tts({ ...line, text: 'Hi <short pause> there' });
-    expect(generateContent.mock.calls[0][0].contents).toBe('Say in a happy tone: Hi <short pause> there');
+    expect(generateContent.mock.calls[0][0].contents).toMatch(/Style: happy tone\. [\s\S]*### TRANSCRIPT\nHi <short pause> there$/);
   });
 
   it('maps expressions to a speakable tone', async () => {
     generateContent.mockResolvedValue(reply(Buffer.alloc(100)));
     await tts({ ...line, expression: 'wink' });
-    expect(generateContent.mock.calls[0][0].contents).toBe('Say in a playful tone: Hello there');
+    expect(generateContent.mock.calls[0][0].contents).toMatch(/Style: playful tone\./);
+  });
+
+  it('sends a plain neutral line as just its text, with no instructions to read out', async () => {
+    generateContent.mockResolvedValue(reply(Buffer.alloc(100)));
+    await tts({ ...line, expression: 'neutral' });
+    expect(generateContent.mock.calls[0][0].contents).toBe('Hello there');
   });
 
   it('throws no_key without an env key', async () => {

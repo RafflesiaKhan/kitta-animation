@@ -30,6 +30,9 @@ const ACTION: Record<Exclude<ArtPose, Expression | 'blink'>, string> = {
   lookDown: 'looking down at the ground, head tilted down slightly',
   celebrate: 'celebrating with both arms raised high in the air',
   shrug: 'shrugging, palms up and shoulders raised',
+  think: 'thinking, with one hand on the chin',
+  point: 'pointing to the side with one arm outstretched',
+  explain: 'explaining something, both hands open in front, palms up',
 };
 
 /** Prompt for the base (neutral) image; with a reference picture the model redraws that character instead. */

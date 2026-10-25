@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
-import type { Schema } from '@google/genai';
+import type { GenerateContentParameters, Schema } from '@google/genai';
+import { recordGemini, type UsageKind } from './usage';
 import { readFile } from 'node:fs/promises';
 import { withSpeechWav } from './audio';
 import { EXPRESSIONS, GESTURES } from '../shared/types';
@@ -19,6 +20,13 @@ function client(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new GeminiError('no_key');
   return new GoogleGenAI({ apiKey });
+}
+
+/** One generateContent call, with its token usage recorded for the telemetry panel. */
+async function generate(ai: GoogleGenAI, kind: UsageKind, req: GenerateContentParameters) {
+  const res = await ai.models.generateContent(req);
+  recordGemini(kind, req.model, res.usageMetadata);
+  return res;
 }
 
 // Upper bounds for one AI call, so an overloaded model (the SDK retries 503s) can't hang the UI for minutes
@@ -57,13 +65,24 @@ function wrapPcm(pcm: Buffer): Buffer {
   return Buffer.concat([h, pcm]);
 }
 
+/**
+ * What Gemini TTS is sent. A plain neutral line is just its text (the most natural read). Otherwise the direction
+ * goes in director's notes, kept apart from a marked transcript: an inline "Say in a … tone:" prefix was
+ * sometimes read out loud.
+ */
+export function ttsPrompt(line: Pick<ScriptLineInput, 'text' | 'expression' | 'note'>): string {
+  const style = [line.expression !== 'neutral' && `${TONES[line.expression]} tone`, line.note?.trim()].filter(Boolean).join(', ');
+  if (!style) return line.text;
+  return `### DIRECTOR'S NOTES\nStyle: ${style}. Keep it natural and conversational. Only the transcript is spoken; never read these notes aloud.\n\n### TRANSCRIPT\n${line.text}`;
+}
+
 /** Speaks one line with Gemini TTS and returns a WAV buffer. */
 export async function tts(line: ScriptLineInput): Promise<Buffer> {
   const ai = client();
   try {
-    const res = await ai.models.generateContent({
+    const res = await generate(ai, 'voice', {
       model: process.env.GEMINI_TTS_MODEL || 'gemini-3.8-flash-tts',
-      contents: `Say in a ${TONES[line.expression]} tone${line.note ? ', ' + line.note : ''}: ${line.text}`,
+      contents: ttsPrompt(line),
       config: {
         responseModalities: ['AUDIO'],
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: line.voice } } },
@@ -91,7 +110,7 @@ export async function autoTag(texts: string[]): Promise<Tag[]> {
   const ai = client();
   let parsed: unknown;
   try {
-    const res = await ai.models.generateContent({
+    const res = await generate(ai, 'auto-tag', {
       model: textModel(),
       contents: 'Tag each numbered line with the single best expression and an optional gesture for a cartoon character saying it. ' +
         "Use gesture 'none' unless a gesture clearly fits. Reply with a JSON array with one item per line, in order.\n\n" +
@@ -143,7 +162,7 @@ export async function transcribe(wavPath: string): Promise<{ text: string; start
   try {
     // 16 kHz mono keeps 3 minutes (~5.8 MB) well under Gemini's ~20 MB inline limit
     const data = await withSpeechWav(wavPath, async (p) => (await readFile(p)).toString('base64'));
-    const res = await ai.models.generateContent({
+    const res = await generate(ai, 'transcribe', {
       model: textModel(),
       contents: [{ role: 'user', parts: [
         { text: 'Transcribe this audio into sentences. For each give the text and start and end times in seconds.' },
@@ -184,7 +203,7 @@ export async function generateImage(prompt: string, refs: ImageInput[] = []): Pr
   const ai = client();
   let data: string | undefined;
   try {
-    const res = await ai.models.generateContent({
+    const res = await generate(ai, 'image', {
       model: imageModel(),
       contents: [{ role: 'user', parts: [
         ...refs.map((r) => ({ inlineData: { mimeType: r.mimeType, data: r.data.toString('base64') } })),
@@ -214,7 +233,7 @@ export async function findMouth(png: Buffer): Promise<MouthBox | null> {
   const ai = client();
   let parsed: unknown;
   try {
-    const res = await ai.models.generateContent({
+    const res = await generate(ai, 'mouth', {
       model: textModel(),
       contents: [{ role: 'user', parts: [
         { inlineData: { mimeType: 'image/png', data: png.toString('base64') } },

@@ -7,8 +7,9 @@ import { basename, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { normalizeAudio, concatWithGaps, AudioError, AUDIO_DIR } from './audio';
 import { autoTag, transcribe, GeminiError } from './gemini';
-import { OpenAIError, voiceStudioUrl, voiceStudioVoices } from './openai';
+import { OpenAIError, voiceStudioInfo, voiceStudioTranscribe, voiceStudioUrl } from './openai';
 import { isTransient, speakLine, ttsProviders } from './speech';
+import { resetUsage, usageReport } from './usage';
 import { TTS_PROVIDERS, TTS_PROVIDER_NAMES, type TtsProvider } from '../shared/voices';
 import { imageProviders } from './images';
 import { EXPRESSIONS, GESTURES } from '../shared/types';
@@ -78,9 +79,18 @@ export function createApp() {
     res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(process.env.GEMINI_API_KEY), imageProviders: imageProviders(), ttsProviders: ttsProviders() });
   });
 
-  // VoiceStudio's voices come from the running app (its saved and built-in voices).
-  app.get('/api/voices/voicestudio', async (_req, res) => {
-    res.json({ voices: await voiceStudioVoices() });
+  // Token telemetry for the usage panel.
+  app.get('/api/usage', async (_req, res) => {
+    res.json(await usageReport());
+  });
+  app.delete('/api/usage', async (_req, res) => {
+    await resetUsage();
+    res.status(204).end();
+  });
+
+  // VoiceStudio status, installed engines and voices (saved and cloned), read from the running app.
+  app.get('/api/voicestudio', async (_req, res) => {
+    res.json(await voiceStudioInfo());
   });
 
   app.post('/api/audio', async (req, res) => {
@@ -131,13 +141,15 @@ export function createApp() {
       l && typeof l.text === 'string' && l.text.length <= 500 && typeof l.voice === 'string' && l.voice &&
       EXPRESSIONS.includes(l.expression) && GESTURES.includes(l.gesture) && (l.note === undefined || (typeof l.note === 'string' && l.note.length <= 200));
     const provider: TtsProvider = req.body?.provider ?? ttsProviders()[0] ?? 'gemini';
+    const engine = req.body?.engine;
+    if (engine !== undefined && (typeof engine !== 'string' || !/^[\w.-]{1,64}$/.test(engine))) return res.status(400).json({ error: 'Invalid request' });
     if (!Array.isArray(raw) || raw.length < 1 || raw.length > 50 || !raw.every(isLine) || !TTS_PROVIDERS.includes(provider)) return res.status(400).json({ error: 'Invalid request' });
     const lines = raw as ScriptLineInput[];
     const emptyAt = lines.findIndex((l) => !l.text.trim());
     if (emptyAt >= 0) return res.status(400).json({ error: `Line ${emptyAt + 1} is empty` });
     try {
       const wavs: Buffer[] = [];
-      for (const l of lines) wavs.push(await speakLine(provider, l)); // sequential: kinder to free-tier limits
+      for (const l of lines) wavs.push(await speakLine(provider, l, engine)); // sequential: kinder to free-tier limits
       const { path, durationMs, spans } = await concatWithGaps(wavs);
       const dialog = lines.map((l) => l.text.replace(/<[^>]*>/g, ' ')).join(' ').replace(/\s+/g, ' ').trim();
       const cues = await runRhubarb(path, dialog || undefined);
@@ -179,7 +191,9 @@ export function createApp() {
     const p = audioPath(req.body?.audioId);
     if (!p || !existsSync(p)) return res.status(404).json({ error: 'Audio not found' });
     try {
-      res.json({ lines: await transcribe(p) });
+      // VoiceStudio's local Whisper when it is set up (free, offline); otherwise Gemini.
+      const local = ttsProviders().includes('voicestudio') && (await voiceStudioInfo()).running;
+      res.json({ lines: local ? await voiceStudioTranscribe(p) : await transcribe(p) });
     } catch (e) {
       if (!sendGeminiError(res, e, 'AI tagging failed. Please try again.')) {
         console.error('transcribe failed', e);

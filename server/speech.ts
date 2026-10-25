@@ -18,7 +18,7 @@ export const isTransient = (e: unknown) =>
   (e instanceof GeminiError || e instanceof OpenAIError) && (e.code === 'busy' || e.code === 'rate_limited');
 
 /** Speaks one line with the chosen provider, riding out short overloads with patient retries. */
-export function speakLine(provider: TtsProvider, line: ScriptLineInput): Promise<Buffer> {
-  const once = () => (provider === 'gemini' ? tts(line) : speak(provider === 'openai' ? 'OpenAI' : 'VoiceStudio', line));
+export function speakLine(provider: TtsProvider, line: ScriptLineInput, engine?: string): Promise<Buffer> {
+  const once = () => (provider === 'gemini' ? tts(line) : speak(provider === 'openai' ? 'OpenAI' : 'VoiceStudio', line, engine));
   return withRetries(once, isTransient, `tts ${provider}`);
 }

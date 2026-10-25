@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   test: {
+    env: { KITTA_USAGE_FILE: 'off' }, // token telemetry stays in memory during tests
     projects: [
       {
         extends: true,
