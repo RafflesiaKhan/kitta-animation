@@ -24,6 +24,16 @@ Open http://localhost:5173. Lip sync uses Rhubarb, which is bundled as a WASM pa
 
 Upload, lip sync and export work without a Gemini key. Voice generation, "Add expressions" and "Auto-tag" need `GEMINI_API_KEY`; without one those buttons are disabled (you can still set the expression and gesture by hand). Gemini has a free tier with rate limits; if it is hit, the app shows "Free Gemini limit reached, try again later".
 
+## Voices
+
+The "Write script" tab can speak with three providers ("Voice by" appears when more than one is set up):
+
+- **Gemini TTS** (`GEMINI_API_KEY`): the default.
+- **OpenAI** (`OPENAI_API_KEY`, `OPENAI_TTS_MODEL`, default `gpt-4o-mini-tts`): the line's expression and delivery note become speaking instructions.
+- **VoiceStudio (local, free)**: [VoiceStudio](https://github.com/debpalash/VoiceStudio) runs open voice models on your own machine (voice cloning, 600+ languages). Start it, then set `VOICESTUDIO_URL=http://localhost:3900`. The app uses its OpenAI-compatible `/v1/audio/speech` and lists your VoiceStudio voices, cloned ones included.
+
+When a provider is overloaded or rate-limited, each line is retried for about 25 seconds before giving up; the error then suggests the other providers you have set up. The server terminal logs the provider's own error message for every failure.
+
 ## Creating characters with AI
 
 Works like [Masko](https://masko.ai/): describe a character (or upload a reference picture to redraw), pick a style, and Gemini paints it. Then press "✨ Draw all missing poses" (or draw them one by one) to get its expressions, a blink frame and its actions (wave, look down, celebrate, shrug). Each pose is an edit of the first picture, so it stays the same character. Poses are saved as they arrive in `data/characters/`, so a failure halfway keeps what was drawn.

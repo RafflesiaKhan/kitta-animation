@@ -1,3 +1,4 @@
+import type { TtsProvider } from '../shared/voices';
 import type { AnyCharacter, ArtCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
 
 async function post<T>(url: string, init: RequestInit): Promise<T> {
@@ -26,13 +27,24 @@ export async function lipsync(audioId: string, dialog?: string): Promise<MouthCu
   return cues;
 }
 
-export async function health(): Promise<{ rhubarb: boolean; gemini: boolean; imageProviders?: ImageProvider[] }> {
+export async function health(): Promise<{ rhubarb: boolean; gemini: boolean; imageProviders?: ImageProvider[]; ttsProviders?: TtsProvider[] }> {
   const res = await fetch('/api/health');
   return res.json();
 }
 
-export function tts(lines: ScriptLineInput[]): Promise<{ audioId: string; durationMs: number; lines: Line[]; cues: MouthCue[] }> {
-  return post('/api/tts', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines }) });
+export function tts(lines: ScriptLineInput[], provider?: TtsProvider): Promise<{ audioId: string; durationMs: number; lines: Line[]; cues: MouthCue[] }> {
+  return post('/api/tts', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines, provider }) });
+}
+
+/** Voices of the running VoiceStudio app; empty if it can't be reached. */
+export async function voiceStudioVoices(): Promise<string[]> {
+  try {
+    const res = await fetch('/api/voices/voicestudio');
+    const body = res.ok ? await res.json() : null;
+    return Array.isArray(body?.voices) ? body.voices : [];
+  } catch {
+    return [];
+  }
 }
 
 export function autoTag(texts: string[]): Promise<{ expression: Expression; gesture: Gesture }[]> {

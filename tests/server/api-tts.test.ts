@@ -6,14 +6,15 @@ import { join } from 'node:path';
 const generateContent = vi.fn();
 vi.mock('@google/genai', () => ({ GoogleGenAI: class { models = { generateContent }; } }));
 import { createApp } from '../../server/index';
+import { RETRY } from '../../server/retry';
 
 const fixture = readFileSync(join(__dirname, '../fixtures/hello.wav'));
 const app = createApp();
 const L = (text: string, extra = {}) => ({ text, voice: 'Kore', expression: 'happy', gesture: 'wave', ...extra });
 
 const speech = { candidates: [{ content: { parts: [{ inlineData: { data: fixture.toString('base64') } }] } }] };
-beforeEach(() => { generateContent.mockReset(); process.env.GEMINI_API_KEY = 'test-key'; });
-afterEach(() => { delete process.env.GEMINI_API_KEY; });
+beforeEach(() => { generateContent.mockReset(); process.env.GEMINI_API_KEY = 'test-key'; RETRY.delaysMs = []; vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+afterEach(() => { delete process.env.GEMINI_API_KEY; delete process.env.OPENAI_API_KEY; delete process.env.VOICESTUDIO_URL; vi.unstubAllGlobals(); vi.mocked(console.warn).mockRestore(); });
 
 describe('POST /api/tts', () => {
   it('generates two lines with ordered timings and lipsync cues', async () => {
@@ -81,5 +82,84 @@ describe('POST /api/tts', () => {
     expect(r.body).toEqual({ error: 'Voice generation failed. Please try again.' });
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+});
+
+describe('POST /api/tts retries and providers', () => {
+  const busy = Object.assign(new Error('The model is overloaded. Please try again later.'), { status: 503 });
+  const realFetch = globalThis.fetch;
+  /** Routes OpenAI and VoiceStudio calls to fake, leaving supertest's own requests alone. */
+  const stubApis = (fake: (url: string, init: any) => Promise<Response>) =>
+    vi.stubGlobal('fetch', (url: any, init?: any) => (/api\.openai\.com|localhost:3900/.test(String(url)) ? fake(String(url), init) : realFetch(url, init)));
+
+  it('rides out a busy model with retries and logs what Google said', async () => {
+    RETRY.delaysMs = [5, 5, 5];
+    generateContent.mockRejectedValueOnce(busy).mockRejectedValueOnce(busy).mockResolvedValue(speech);
+    const r = await request(app).post('/api/tts').send({ lines: [L('hi')] });
+    expect(r.status).toBe(200);
+    expect(generateContent).toHaveBeenCalledTimes(3);
+    expect(console.warn).toHaveBeenCalledWith('gemini tts: busy', 503, 'The model is overloaded. Please try again later.');
+    rmSync(join('data/audio', `${r.body.audioId}.wav`), { force: true });
+  }, 30000);
+
+  it('gives up after the retries, pointing at the other providers that are set up', async () => {
+    RETRY.delaysMs = [5, 5];
+    process.env.OPENAI_API_KEY = 'sk-test';
+    generateContent.mockRejectedValue(busy);
+    const r = await request(app).post('/api/tts').send({ lines: [L('hi')] });
+    expect(generateContent).toHaveBeenCalledTimes(3);
+    expect(r.status).toBe(503);
+    expect(r.body.error).toBe('Gemini is busy right now. Try again in a minute, or switch "Voice by" to OpenAI.');
+  });
+
+  it('does not retry errors that will not go away', async () => {
+    RETRY.delaysMs = [5, 5];
+    generateContent.mockRejectedValue(Object.assign(new Error('API key not valid'), { status: 400 }));
+    await request(app).post('/api/tts').send({ lines: [L('hi')] });
+    expect(generateContent).toHaveBeenCalledTimes(1);
+  });
+
+  it('speaks with OpenAI: tone as instructions, pause tags not read out', async () => {
+    process.env.OPENAI_API_KEY = 'sk-test';
+    const calls: any[] = [];
+    stubApis(async (url, init) => { calls.push({ url, body: JSON.parse(init.body) }); return new Response(fixture); });
+    const r = await request(app).post('/api/tts').send({ provider: 'openai', lines: [L('Hi <short pause> there', { voice: 'coral', expression: 'wink', note: 'whispering' })] });
+    expect(r.status).toBe(200);
+    expect(calls[0].url).toBe('https://api.openai.com/v1/audio/speech');
+    expect(calls[0].body).toMatchObject({ model: 'gpt-4o-mini-tts', voice: 'coral', input: 'Hi ... there', response_format: 'wav', instructions: 'Speak in a playful tone, whispering.' });
+    expect(generateContent).not.toHaveBeenCalled();
+    rmSync(join('data/audio', `${r.body.audioId}.wav`), { force: true });
+  }, 30000);
+
+  it('speaks with a local VoiceStudio through its OpenAI-compatible API', async () => {
+    process.env.VOICESTUDIO_URL = 'http://localhost:3900/';
+    const calls: any[] = [];
+    stubApis(async (url, init) => { calls.push({ url, init }); return new Response(fixture); });
+    const r = await request(app).post('/api/tts').send({ provider: 'voicestudio', lines: [L('Hello', { voice: 'My clone' })] });
+    expect(r.status).toBe(200);
+    expect(calls[0].url).toBe('http://localhost:3900/v1/audio/speech');
+    expect(calls[0].init.headers.Authorization).toBeUndefined(); // local: no key
+    expect(JSON.parse(calls[0].init.body)).toEqual({ model: 'tts-1', voice: 'My clone', input: 'Hello', response_format: 'wav' });
+    rmSync(join('data/audio', `${r.body.audioId}.wav`), { force: true });
+  }, 30000);
+
+  it("says when VoiceStudio isn't running", async () => {
+    process.env.VOICESTUDIO_URL = 'http://localhost:3900';
+    stubApis(async () => { throw new TypeError('fetch failed'); });
+    const r = await request(app).post('/api/tts').send({ provider: 'voicestudio', lines: [L('Hello')] });
+    expect(r.status).toBe(503);
+    expect(r.body.error).toBe("VoiceStudio isn't running at http://localhost:3900. Start it, then try again.");
+  });
+
+  it('lists VoiceStudio voices in whatever shape it returns, and reports providers', async () => {
+    process.env.VOICESTUDIO_URL = 'http://localhost:3900';
+    process.env.OPENAI_API_KEY = 'sk-test';
+    stubApis(async () => new Response(JSON.stringify({ voices: [{ id: 'Narrator' }, { name: 'My clone' }, 'alloy', 42] })));
+    expect((await request(app).get('/api/voices/voicestudio')).body).toEqual({ voices: ['Narrator', 'My clone', 'alloy'] });
+    expect((await request(app).get('/api/health')).body.ttsProviders).toEqual(['gemini', 'openai', 'voicestudio']);
+  });
+
+  it('rejects an unknown provider', async () => {
+    expect((await request(app).post('/api/tts').send({ provider: 'acme', lines: [L('hi')] })).status).toBe(400);
   });
 });

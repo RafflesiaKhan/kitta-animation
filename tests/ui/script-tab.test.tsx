@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from '../../src/App';
 import * as api from '../../src/api';
@@ -45,10 +45,10 @@ it('expression dropdown lists EXPRESSIONS', async () => {
 it('shows the notice and disables Generate when gemini is not configured', async () => {
   vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: false });
   await open();
-  expect(screen.getByText('Add GEMINI_API_KEY to .env to generate voices.')).toBeTruthy();
+  expect(screen.getByText('Add GEMINI_API_KEY, OPENAI_API_KEY or VOICESTUDIO_URL to .env to generate voices.')).toBeTruthy();
   const gen = screen.getByRole('button', { name: '▶ Generate voice' }) as HTMLButtonElement;
   expect(gen.disabled).toBe(true);
-  expect(gen.title).toBe('Needs GEMINI_API_KEY');
+  expect(gen.title).toBe('Needs GEMINI_API_KEY, OPENAI_API_KEY or VOICESTUDIO_URL');
 });
 
 it('delivery note input is capped at 200 characters', async () => {
@@ -74,7 +74,7 @@ it('generates, sets the timeline, and keeps the draft across steps', async () =>
   fireEvent.change(screen.getByLabelText('Delivery note'), { target: { value: 'softly' } });
   fireEvent.click(screen.getByRole('button', { name: '▶ Generate voice' }));
   expect(screen.getByText('Generating voice…')).toBeTruthy();
-  expect(api.tts).toHaveBeenCalledWith([expect.objectContaining({ text: 'hi', expression: 'sad', gesture: 'nod', note: 'softly', voice: expect.any(String) })]);
+  expect(api.tts).toHaveBeenCalledWith([expect.objectContaining({ text: 'hi', expression: 'sad', gesture: 'nod', note: 'softly', voice: expect.any(String) })], 'gemini');
   await act(async () => { resolve(result); });
   expect(lastProps!.audioUrl).toBe('/api/audio/zzz');
   expect(lastProps!.timeline).toEqual({ durationMs: 2000, cues: result.cues, lines: result.lines });
@@ -83,4 +83,22 @@ it('generates, sets the timeline, and keeps the draft across steps', async () =>
   fireEvent.click(screen.getByRole('button', { name: '2 Voiceover' }));
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: '✍ Write script' })); });
   expect(textOf()).toEqual(['hi']);
+});
+
+it('switches the voice provider and its voices', async () => {
+  vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: true, ttsProviders: ['gemini', 'openai', 'voicestudio'] });
+  vi.mocked(api.voiceStudioVoices).mockResolvedValue(['Narrator', 'My clone']);
+  vi.mocked(api.tts).mockReturnValue(new Promise(() => {}));
+  await open();
+  const voice = () => screen.getByLabelText('Voice') as HTMLSelectElement;
+  expect(voice().value).toBe('Kore');
+  fireEvent.change(await screen.findByLabelText('Voice by'), { target: { value: 'openai' } });
+  await waitFor(() => expect(voice().value).toBe('coral'));
+  fireEvent.change(screen.getByLabelText('Voice by'), { target: { value: 'voicestudio' } });
+  await waitFor(() => expect([...voice().options].map((o) => o.value)).toEqual(['Narrator', 'My clone']));
+  fireEvent.change(voice(), { target: { value: 'My clone' } });
+  fireEvent.change(screen.getByLabelText('Line text'), { target: { value: 'hi' } });
+  fireEvent.click(screen.getByRole('button', { name: '▶ Generate voice' }));
+  expect(api.tts).toHaveBeenCalledWith([expect.objectContaining({ text: 'hi', voice: 'My clone' })], 'voicestudio');
+  expect(screen.getByText(/Powered by VoiceStudio \(local\)/)).toBeTruthy();
 });

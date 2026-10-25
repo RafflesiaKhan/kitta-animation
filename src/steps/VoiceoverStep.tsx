@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { EXPRESSIONS, GESTURES } from '../../shared/types';
 import type { Expression, Gesture, Line, ScriptLineInput } from '../../shared/types';
-import { VOICES } from '../../shared/voices';
+import { OPENAI_VOICES, TTS_PROVIDER_NAMES, VOICES, type TtsProvider } from '../../shared/voices';
+import * as api from '../api';
 
 interface Props {
-  geminiOk: boolean;
+  geminiOk: boolean; // auto-tag and transcription
+  ttsProviders: TtsProvider[]; // voice providers set up on the server
+  ttsProvider: TtsProvider;
+  onTtsProvider: (p: TtsProvider) => void;
   busy: boolean;
   error: string | null;
   onUpload: (file: File) => void;
@@ -19,6 +23,7 @@ interface Props {
 
 type TabProps = Props;
 const NEEDS_KEY = 'Needs GEMINI_API_KEY';
+const NEEDS_VOICE = 'Needs GEMINI_API_KEY, OPENAI_API_KEY or VOICESTUDIO_URL';
 
 const mmss = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
 
@@ -77,21 +82,53 @@ function UploadTab({ busy, error, onUpload, onAddExpressions, uploadLines, onEdi
   );
 }
 
-function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, onGenerate, onAutoTag, geminiOk }: TabProps) {
+/** The voices a provider offers; VoiceStudio's are read from the running app. */
+function useVoices(provider: TtsProvider): string[] | null {
+  const [studio, setStudio] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (provider !== 'voicestudio' || studio) return;
+    let live = true;
+    Promise.resolve(api.voiceStudioVoices()).then((v) => { if (live) setStudio(v ?? []); }, () => { if (live) setStudio([]); });
+    return () => { live = false; };
+  }, [provider, studio]);
+  if (provider === 'openai') return OPENAI_VOICES;
+  if (provider === 'voicestudio') return studio;
+  return VOICES;
+}
+
+function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, onGenerate, onAutoTag, geminiOk, ttsProviders, ttsProvider, onTtsProvider }: TabProps) {
+  const voiceOk = ttsProviders.length > 0;
+  const loaded = useVoices(ttsProvider);
+  // A VoiceStudio that lists nothing still gets one voice to try (its OpenAI-compatible default).
+  const voices = loaded === null ? [] : loaded.length ? loaded : ['alloy'];
   const update = (i: number, patch: Partial<ScriptLineInput>) => setLines(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   const move = (i: number, d: number) => {
     const next = [...lines];
     [next[i], next[i + d]] = [next[i + d], next[i]];
     setLines(next);
   };
-  const voice = lines[0]?.voice ?? VOICES[0];
+  const voice = lines[0]?.voice && voices.includes(lines[0].voice) ? lines[0].voice : voices[0] ?? VOICES[0];
+  // Switching provider (or VoiceStudio's list arriving) moves every line to a voice that provider has.
+  useEffect(() => {
+    if (voices.length && lines.some((l) => l.voice !== voice)) setLines(lines.map((l) => ({ ...l, voice })));
+  }, [voice, voices.length]);
 
   return (
     <div>
-      {!geminiOk && <p className="hint">Add GEMINI_API_KEY to .env to generate voices.</p>}
+      {!voiceOk && <p className="hint">Add GEMINI_API_KEY, OPENAI_API_KEY or VOICESTUDIO_URL to .env to generate voices.</p>}
+      {ttsProviders.length > 1 && (
+        <label className="field">Voice by{' '}
+          <select aria-label="Voice by" disabled={busy} value={ttsProvider} onChange={(e) => onTtsProvider(e.target.value as TtsProvider)}>
+            {ttsProviders.map((p) => <option key={p} value={p}>{TTS_PROVIDER_NAMES[p]}</option>)}
+          </select>
+        </label>
+      )}
+      {ttsProvider === 'voicestudio' && loaded !== null && loaded.length === 0 && (
+        <p className="hint">Couldn't list VoiceStudio's voices. Is it running? Trying its default voice.</p>
+      )}
       <label className="field">Voice{' '}
         <select aria-label="Voice" disabled={busy} value={voice} onChange={(e) => setLines(lines.map((l) => ({ ...l, voice: e.target.value })))}>
-          {VOICES.map((v) => <option key={v} value={v}>{v}</option>)}
+          {voices.map((v) => <option key={v} value={v}>{v}</option>)}
         </select>
       </label>
       {lines.map((l, i) => (
@@ -109,10 +146,10 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
       ))}
       <div className="line-actions">
         <button className="btn" disabled={busy || lines.length >= 50} onClick={() => setLines([...lines, { text: '', voice, expression: 'neutral', gesture: 'none' }])}>+ Line</button>
-        <button className="btn" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={onGenerate}>▶ Generate voice</button>
+        <button className="btn" disabled={busy || !voiceOk || !voices.length} title={voiceOk ? undefined : NEEDS_VOICE} onClick={onGenerate}>▶ Generate voice</button>
         <button className="btn" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={onAutoTag}>✨ Auto-tag expressions</button>
       </div>
-      <p className="hint">Tip: add tags like &lt;short pause&gt; inside a line. Powered by Gemini TTS.</p>
+      <p className="hint">Tip: add tags like &lt;short pause&gt; inside a line. Powered by {TTS_PROVIDER_NAMES[ttsProvider]}{ttsProvider === 'gemini' ? ' TTS' : ''}.</p>
       {error && <p role="alert" className="error">{error}</p>}
     </div>
   );
