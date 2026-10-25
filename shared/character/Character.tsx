@@ -270,8 +270,31 @@ function Glasses({ layout, r }: { layout: Layout; r: number }) {
   );
 }
 
+// ---------- arm posing ----------
+interface ArmPose { raise: number; bend: number }
+const REST_POSE: ArmPose = { raise: 0, bend: 0 };
+const mixPose = (a: ArmPose, b: ArmPose, t: number): ArmPose => ({ raise: a.raise + (b.raise - a.raise) * t, bend: a.bend + (b.bend - a.bend) * t });
+const wrap = (deg: number) => ((((deg + 180) % 360) + 360) % 360) - 180;
+
+/** Two-joint reach: the arm pose that puts the hand at (tx, ty), the elbow kept to the outside (or hanging down). */
+export function reach(L: Layout, side: 'left' | 'right', tx: number, ty: number, elbow: 'out' | 'down' = 'out'): ArmPose {
+  const dir = side === 'right' ? 1 : -1;
+  const { len, w } = L.arm;
+  const sx = L.head.cx + dir * (L.shoulderW - w * 0.55), sy = L.shoulderY + w * 0.8;
+  const dx = tx - sx, dy = ty - sy;
+  const d = Math.min(Math.hypot(dx, dy), len * 1.99);
+  const aim = Math.atan2(dy, dx), bendA = Math.acos(d / (2 * len));
+  // Of the two elbow positions, take the one further out to the character's side (or the lower one).
+  const score = (a: number) => (elbow === 'out' ? Math.cos(a) * dir : Math.sin(a));
+  const [upper, fore] = score(aim + bendA) > score(aim - bendA) ? [aim + bendA, aim - bendA] : [aim - bendA, aim + bendA];
+  const rest = side === 'right' ? 82 : 98;
+  return { raise: wrap((upper * 180) / Math.PI - rest), bend: wrap(((fore - upper) * 180) / Math.PI) };
+}
+
 // ---------- Character ----------
 export interface CharacterProps { config: CharacterConfig; frame: FrameState; width?: number; height?: number }
+
+const ARM_GESTURES = new Set(['wave', 'celebrate', 'shrug', 'think', 'point', 'explain']);
 
 export function Character({ config, frame, width = 1000, height = 1000 }: CharacterProps) {
   const L = LAYOUTS[config.starter] ?? LAYOUTS.kit;
@@ -281,30 +304,64 @@ export function Character({ config, frame, width = 1000, height = 1000 }: Charac
     : FACES[frame.expression] ?? FACES.neutral;
   const lookX = Math.max(-1, Math.min(1, f.lookX + (frame.glance ?? 0) * 0.8));
   const p = frame.gestureProgress;
-  const lookDown = frame.gesture === 'lookDown';
-  const headY = (frame.gesture === 'nod' ? Math.sin(p * 2 * Math.PI) * 12 : 0) + (lookDown ? 6 : 0);
-  // wave: raise the arm (eased in/out over the first/last 10%), then swing the forearm by sin(p·4π)·25°
-  const lift = frame.gesture === 'wave' ? Math.max(0, Math.min(1, p / 0.1, (1 - p) / 0.1)) : 0;
-  const waveRaise = -lift * 112;
-  const waveBend = frame.gesture === 'wave' ? -lift * 50 + Math.sin(p * 4 * Math.PI) * 25 : 0;
-  // celebrate: both arms up and three little hops; shrug: forearms turn out, palms up. Same 10% ease in/out.
+  const g = frame.gesture;
+  const lookDown = g === 'lookDown';
+  const energy = f.energy;
+  // Speech motion, scaled by the expression's energy: nods on stressed syllables, a little tilt and sway.
+  const nod = (frame.nod ?? 0) * energy;
+  const headY = (g === 'nod' ? Math.sin(p * 2 * Math.PI) * 12 : 0) + (lookDown ? 6 : 0) + nod + f.slump * 0.6;
+  const tilt = f.tilt + (frame.tilt ?? 0) * Math.min(1.3, energy) + (g === 'think' ? 4 : 0);
+  const sway = (frame.sway ?? 0) * (0.5 + energy * 0.5);
+  // Every arm gesture eases in and out over the first and last 10% of its line.
   const ease = Math.max(0, Math.min(1, p / 0.1, (1 - p) / 0.1));
-  const cheer = frame.gesture === 'celebrate' ? ease : 0;
-  const shrug = frame.gesture === 'shrug' ? ease : 0;
+  const busy = ARM_GESTURES.has(g) ? ease : 0;
+  // wave: raise the arm, then swing the forearm by sin(p·4π)·25°
+  const lift = g === 'wave' ? ease : 0;
+  const waveRaise = -lift * 112;
+  const waveBend = g === 'wave' ? -lift * 50 + Math.sin(p * 4 * Math.PI) * 25 : 0;
+  // celebrate: both arms up and three little hops; shrug: forearms turn out, palms up
+  const cheer = g === 'celebrate' ? ease : 0;
+  const shrug = g === 'shrug' ? ease : 0;
   const hop = -Math.abs(Math.sin(p * 3 * Math.PI)) * 30 * cheer;
-  const raiseR = waveRaise - cheer * 140 - shrug * 30;
-  const bendR = waveBend - cheer * 10 - shrug * 75;
-  const raiseL = cheer * 140 + shrug * 30;
-  const bendL = cheer * 10 + shrug * 75;
+
+  // Resting arms: drawn together in front when worried, plus "talking hands" beats on stressed syllables.
+  const clasp = Math.max(0, Math.min(1, f.clasp));
+  const front = L.shoulderY + L.arm.len * 1.25;
+  let left = mixPose(REST_POSE, reach(L, 'left', h.cx - 28, front), clasp);
+  let right = mixPose(REST_POSE, reach(L, 'right', h.cx + 28, front), clasp);
+  // A beat lifts the forearm up in front of the body (elbow slightly out); the left hand joins in more softly.
+  const beat = Math.min(1.2, (frame.beat ?? 0) * energy), talk = (frame.talk ?? 0) * Math.min(1, energy);
+  const free = 1 - busy;
+  right = { raise: right.raise - (beat * 8 + talk * 3) * free, bend: right.bend + (beat * 55 + talk * 18) * free };
+  left = { raise: left.raise + (beat * 5 + talk * 2) * free, bend: left.bend - (beat * 30 + talk * 10) * free };
+
+  // Reaching gestures: hand to chin, pointing out to the side, both hands open while explaining.
+  if (g === 'think') right = mixPose(right, reach(L, 'right', h.cx + h.rx * 0.35, h.cy + h.ry * 0.95 + headY), ease);
+  if (g === 'point') {
+    const sx = h.cx + L.shoulderW - L.arm.w * 0.55;
+    right = mixPose(right, reach(L, 'right', sx + L.arm.len * 1.85, L.shoulderY - L.arm.len * 0.55), ease);
+  }
+  if (g === 'explain') {
+    const wob = Math.sin(p * 6 * Math.PI) * 18; // hands bob a little as the point is made
+    // Open palms: hands out at chest height, elbows hanging below them.
+    left = mixPose(left, reach(L, 'left', h.cx - L.shoulderW - L.arm.len * 0.5, L.shoulderY + L.arm.len * 0.35 - wob, 'down'), ease);
+    right = mixPose(right, reach(L, 'right', h.cx + L.shoulderW + L.arm.len * 0.5, L.shoulderY + L.arm.len * 0.35 + wob, 'down'), ease);
+  }
+  const raiseR = right.raise + waveRaise - cheer * 140 - shrug * 30;
+  const bendR = right.bend + waveBend - cheer * 10 - shrug * 75;
+  const raiseL = left.raise + cheer * 140 + shrug * 30;
+  const bendL = left.bend + cheer * 10 + shrug * 75;
+
   const blushK = Math.max(0, Math.min(1, f.blush));
   const eyeR = L.eye.r;
-  const browY = L.eye.y - eyeR * f.eyeScale - 40 - (config.eyeStyle === 'glasses' ? 22 : 0);
+  const browY = L.eye.y - eyeR * f.eyeScale - 40 - (config.eyeStyle === 'glasses' ? 22 : 0) - (frame.browLift ?? 0) * 12 * Math.min(1.2, energy);
+  const pivotY = h.cy + h.ry * 0.85; // the head tilts about the neck
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width={width} height={height}>
-      <g data-part="character" transform={`translate(0 ${n(frame.bob + hop)})`}>
+      <g data-part="character" transform={`translate(${n(sway * 0.6)} ${n(frame.bob + hop + f.slump * 0.25)})`}>
         <Body config={config} layout={L} />
         <Arm side="left" layout={L} config={config} raise={raiseL} bend={bendL} />
-        <g data-part="head-group" transform={`translate(0 ${n(headY)})`}>
+        <g data-part="head-group" transform={`translate(${n(sway * 0.4)} ${n(headY)}) rotate(${n(tilt)} ${h.cx} ${n(pivotY)})`}>
           <Ears layout={L} skin={config.skin} />
           <ellipse data-part="head" cx={h.cx} cy={h.cy} rx={h.rx} ry={h.ry} fill={config.skin} stroke={INK} strokeWidth={SW} />
           {(L.cheeks || blushK > 0.02) && (

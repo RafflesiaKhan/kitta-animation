@@ -108,3 +108,38 @@ describe('expression library', () => {
     expect(m.mouth.hs).toBeCloseTo(1.2);
   });
 });
+
+describe('natural motion', () => {
+  const armRot = (html: string, side: string) => parseFloat(html.match(new RegExp(`data-part="arm-${side}"[^>]*rotate\\((-?[\\d.]+)`))![1]);
+  it('reach puts the hand on the target (two-joint arm)', async () => {
+    const { reach } = await import('../../shared/character/Character');
+    // Kit's right shoulder is at (668, 746); arm segments are 170 long; rest angle 82 degrees.
+    const L = { head: { cx: 500, cy: 440, rx: 225, ry: 215 }, shoulderY: 700, shoulderW: 200, arm: { len: 170, w: 58 } } as never;
+    const { raise, bend } = reach(L, 'right', 560, 650);
+    const rad = (d: number) => (d * Math.PI) / 180;
+    const up = rad(82 + raise), fore = rad(82 + raise + bend);
+    const hx = 668 + 170 * Math.cos(up) + 170 * Math.cos(fore), hy = 746 + 170 * Math.sin(up) + 170 * Math.sin(fore);
+    expect(Math.hypot(hx - 560, hy - 650)).toBeLessThan(1);
+    expect(668 + 170 * Math.cos(up)).toBeGreaterThan(668); // elbow kept outside
+  });
+  it('moves the hands on beats only while no arm gesture is playing', () => {
+    const still = render(STARTERS.kit, frame());
+    const beat = render(STARTERS.kit, frame({ beat: 1, talk: 1 }));
+    expect(beat).not.toBe(still);
+    expect(armRot(beat, 'right')).toBeLessThan(armRot(still, 'right')); // elbow eases out a little
+    const waving = render(STARTERS.kit, frame({ gesture: 'wave', gestureProgress: 0.5, beat: 1, talk: 1 }));
+    expect(waving).toBe(render(STARTERS.kit, frame({ gesture: 'wave', gestureProgress: 0.5 })));
+  });
+  it('tilts and nods the head, scaled by the expression energy', () => {
+    const tiltOf = (html: string) => parseFloat(html.match(/data-part="head-group"[^>]*rotate\((-?[\d.]+)/)![1]);
+    const calm = render(STARTERS.kit, frame({ expression: 'sleepy', tilt: 2 }));
+    const lively = render(STARTERS.kit, frame({ expression: 'excited', tilt: 2 }));
+    expect(tiltOf(lively)).toBeGreaterThan(tiltOf(calm) - 4 - 0.5); // sleepy rests at +4 deg tilt, excited at 0
+    expect(render(STARTERS.kit, frame({ nod: 7 }))).not.toBe(render(STARTERS.kit, frame()));
+  });
+  it('clasps the hands when worried and renders the new gestures without NaN', () => {
+    expect(armRot(render(STARTERS.kit, frame({ expression: 'worried' })), 'left')).not.toBeCloseTo(0);
+    for (const g of ['think', 'point', 'explain'] as const)
+      for (const s of Object.values(STARTERS)) expect(render(s, frame({ gesture: g, gestureProgress: 0.5, beat: 1, talk: 1, tilt: 3, sway: 2, nod: 4, browLift: 1 }))).not.toMatch(/NaN/);
+  });
+});

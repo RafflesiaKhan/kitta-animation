@@ -1,6 +1,6 @@
 import type { ArtCharacter, ArtImage, FrameState } from '../types';
 import { ART_ACTIONS } from '../types';
-import { FACES } from './expressions';
+import { FACES, mixFaces } from './expressions';
 import { Mouth } from './Character';
 
 // Pure props → SVG for an AI-painted character, like Character.tsx (also rendered server-side for export).
@@ -39,6 +39,13 @@ export function ArtCharacterView({ character, frame, width = 1000, height = 1000
 
   const nod = frame.gesture === 'nod' ? Math.sin(p * 2 * Math.PI) * 12 : 0;
   const hop = frame.gesture === 'celebrate' ? -Math.abs(Math.sin(p * 3 * Math.PI)) * 30 * ease : 0;
+  // Body language and speech motion as gentle whole-picture moves: tilt about the base, sway, nods on stressed syllables.
+  const face = frame.fromExpression !== undefined && blend < 1
+    ? mixFaces(FACES[frame.fromExpression] ?? FACES.neutral, FACES[frame.expression] ?? FACES.neutral, blend)
+    : FACES[frame.expression] ?? FACES.neutral;
+  const speechNod = (frame.nod ?? 0) * face.energy * 0.7;
+  const tilt = (face.tilt + (frame.tilt ?? 0) * Math.min(1.3, face.energy)) * 0.45;
+  const sway = (frame.sway ?? 0) * (0.5 + face.energy * 0.5);
   const layer = (im: ArtImage, opacity: number, part: string) => (
     <image data-part={part} href={href(im.file)} x={0} y={0} width={1000} height={1000} opacity={opacity < 1 ? n(opacity) : undefined} />
   );
@@ -49,7 +56,7 @@ export function ArtCharacterView({ character, frame, width = 1000, height = 1000
   const mw = m ? m.w * 1000 : 0;
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width={width} height={height}>
-      <g data-part="character" transform={`translate(0 ${n(frame.bob + nod + hop)})`}>
+      <g data-part="character" transform={`translate(${n(sway)} ${n(frame.bob + nod + hop + speechNod + face.slump * 0.4)}) rotate(${n(tilt)} 500 980)`}>
         {fading && layer(from!, 1, 'from')}
         {base && layer(base, fading ? blend : 1, 'pose')}
         {blink && layer(blink, 1, 'blink')}

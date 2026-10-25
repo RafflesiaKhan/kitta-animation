@@ -1,4 +1,5 @@
 import type { FrameState, Timeline } from './types';
+import { analyzeSpeech, beatLevel, blinkAt, drift, talkLevel } from './motion';
 
 export const FPS = 30;
 
@@ -6,8 +7,6 @@ export function frameCount(durationMs: number): number {
   return Math.ceil((durationMs * FPS) / 1000);
 }
 
-const BLINK_PERIOD_MS = 3500;
-const BLINK_START_MS = 3350;
 const BOB_PERIOD_MS = 3000;
 export const TRANSITION_MS = 250; // how long one expression takes to morph into the next
 const GLANCE_PERIOD_MS = 9000; // idle loop: look to one side once per period, alternating sides
@@ -53,6 +52,10 @@ export function frameAt(t: Timeline, ms: number): FrameState {
   const fromExpression = li >= 1 ? t.lines[li - 1].expression : 'neutral';
   const blend = line ? smooth(Math.min(1, (ms - line.startMs) / TRANSITION_MS)) : 1;
 
+  // Speech-driven motion: nods and hand beats on stressed syllables, brow lifts on phrase openers, sway while talking.
+  const speech = analyzeSpeech(t);
+  const talk = talkLevel(speech, ms);
+
   return {
     expression: line ? line.expression : 'neutral',
     fromExpression,
@@ -61,7 +64,13 @@ export function frameAt(t: Timeline, ms: number): FrameState {
     mouth: cue ? cue.shape : 'X',
     gesture: inLine ? line.gesture : 'none',
     gestureProgress: inLine ? (ms - line.startMs) / (line.endMs - line.startMs) : 0,
-    blink: ms % BLINK_PERIOD_MS >= BLINK_START_MS,
+    blink: blinkAt(speech, ms),
     bob: 2 * Math.sin((2 * Math.PI * ms) / BOB_PERIOD_MS),
+    talk,
+    nod: 7 * beatLevel(speech, ms, 320),
+    beat: talk > 0 ? beatLevel(speech, ms, 420) : 0,
+    browLift: beatLevel(speech, ms, 450, 0.9),
+    tilt: drift(ms, 2300, 3700, 1.3) * (0.8 + 1.6 * talk), // degrees
+    sway: drift(ms, 4100, 6700, 0.7) * 4, // px
   };
 }

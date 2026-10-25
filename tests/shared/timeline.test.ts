@@ -81,14 +81,25 @@ describe('blink', () => {
   it('is deterministic', () => {
     expect(frameAt(t, 3400).blink).toBe(frameAt(t, 3400).blink);
   });
-  it('is true for 150ms in every 3500ms window starting at 3350', () => {
-    for (const base of [0, 3500, 7000]) {
-      expect(frameAt(t, base + 3349).blink).toBe(false);
-      expect(frameAt(t, base + 3350).blink).toBe(true);
-      expect(frameAt(t, base + 3499).blink).toBe(true);
-      expect(frameAt(t, base + 3500).blink).toBe(false);
+  it('blinks for about 150 ms at uneven intervals, never at the very start', () => {
+    const idle: Timeline = { durationMs: 0, cues: [], lines: [] };
+    const starts: number[] = [];
+    let prev = false;
+    for (let ms = 0; ms < 60000; ms += 10) {
+      const b = frameAt(idle, ms).blink;
+      if (b && !prev) starts.push(ms);
+      prev = b;
     }
-    expect(frameAt(t, 0).blink).toBe(false);
+    expect(frameAt(idle, 0).blink).toBe(false);
+    const gaps = starts.slice(1).map((x, i) => x - starts[i]);
+    expect(starts.length).toBeGreaterThan(12); // ~one per 3.8 s plus doubles
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(290); // double blinks
+    expect(Math.max(...gaps)).toBeLessThanOrEqual(6500);
+    expect(new Set(gaps.map((g) => Math.round(g / 100))).size).toBeGreaterThan(5); // not a fixed clock
+  });
+  it('blinks just after a phrase ends', () => {
+    const t2: Timeline = { durationMs: 3000, lines: [], cues: [{ startMs: 1000, endMs: 1400, shape: 'D' }, { startMs: 1400, endMs: 3000, shape: 'X' }] };
+    expect(frameAt(t2, 1400 + 100).blink).toBe(true);
   });
 });
 
@@ -108,5 +119,35 @@ describe('frameCount', () => {
     expect(FPS).toBe(30);
     expect(frameCount(1000)).toBe(30);
     expect(frameCount(1001)).toBe(31);
+  });
+});
+
+describe('speech motion', () => {
+  const talk: Timeline = {
+    durationMs: 4000,
+    lines: [{ text: 'hi', startMs: 0, endMs: 4000, expression: 'neutral', gesture: 'none' }],
+    cues: [
+      { startMs: 0, endMs: 1000, shape: 'X' },
+      { startMs: 1000, endMs: 1150, shape: 'D' }, // phrase opener: strongest beat
+      { startMs: 1150, endMs: 1300, shape: 'B' },
+      { startMs: 1300, endMs: 1450, shape: 'C' },
+      { startMs: 1450, endMs: 4000, shape: 'X' },
+    ],
+  };
+  it('nods, beats the hands and lifts the brows just after a stressed syllable', () => {
+    const at = frameAt(talk, 1080);
+    expect(at.nod).toBeGreaterThan(3);
+    expect(at.beat).toBeGreaterThan(0.4);
+    expect(at.browLift).toBeGreaterThan(0.4);
+    expect(at.talk).toBe(1);
+    const before = frameAt(talk, 500);
+    expect(before).toMatchObject({ nod: 0, beat: 0, browLift: 0, talk: 0 });
+  });
+  it('settles in pauses but keeps a little sway, and is deterministic', () => {
+    const quiet = frameAt(talk, 3000);
+    expect(quiet.talk).toBe(0);
+    expect(quiet.beat).toBe(0);
+    expect(Math.abs(quiet.tilt!)).toBeLessThanOrEqual(0.8);
+    expect(frameAt(talk, 1234)).toEqual(frameAt(talk, 1234));
   });
 });
