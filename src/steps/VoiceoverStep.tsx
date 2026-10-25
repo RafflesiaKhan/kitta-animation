@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EXPRESSIONS, GESTURES } from '../../shared/types';
 import type { Expression, Gesture, Line, ScriptLineInput } from '../../shared/types';
-import { OPENAI_VOICES, TTS_PROVIDER_NAMES, VOICES, type TtsProvider, type VoiceStudioInfo } from '../../shared/voices';
+import { CUES, LANGUAGES, OPENAI_VOICES, PAUSES, PITCH_RANGE, SOUND_TAGS, SPEED_RANGE, TTS_PROVIDER_NAMES, VOICES, type TtsProvider, type VoiceStudioInfo } from '../../shared/voices';
 import * as api from '../api';
 
 interface Props {
@@ -86,7 +86,13 @@ function UploadTab({ busy, error, onUpload, onAddExpressions, uploadLines, onEdi
   );
 }
 
-interface VoiceOption { id: string; label: string; kind?: 'profile' | 'default' }
+interface VoiceOption { id: string; label: string; kind?: 'profile' | 'persona' | 'default'; icon?: string }
+/** A persona's icon, else the voice's initial. */
+const avatar = (v?: VoiceOption) => v?.icon ?? (v?.label ?? '?').charAt(0).toUpperCase();
+const clamp = (v: number, r: number) => Math.max(-r, Math.min(r, Math.round(v) || 0));
+/** Controls a new line takes over from the line above it. */
+const carried = (l?: ScriptLineInput): Partial<ScriptLineInput> =>
+  l ? { language: l.language, style: l.style, pitch: l.pitch, speed: l.speed, variability: l.variability } : {};
 const named = (ids: string[]): VoiceOption[] => ids.map((id) => ({ id, label: id }));
 
 /** VoiceStudio's status, engines and voices, read from the running app (refreshable). */
@@ -120,10 +126,37 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
   };
   const voice = lines[0]?.voice && ids.includes(lines[0].voice) ? lines[0].voice : ids[0] ?? VOICES[0];
   const cloneOnPlainEngine = engine && !engine.cloning && voices.find((v) => v.id === voice)?.kind === 'profile';
-  // Switching provider (or VoiceStudio's list arriving) moves every line to a voice that provider has.
+  // Switching provider (or VoiceStudio's list arriving) moves lines to a voice that provider has.
   useEffect(() => {
-    if (voices.length && lines.some((l) => l.voice !== voice)) setLines(lines.map((l) => ({ ...l, voice })));
+    if (voices.length && lines.some((l) => !ids.includes(l.voice))) setLines(lines.map((l) => (ids.includes(l.voice) ? l : { ...l, voice })));
   }, [voice, voices.length]);
+  // VoiceStudio's reaction sounds only work on its default engine (OmniVoice); others would read them out.
+  const soundsOk = studioOn && (!ttsEngine || ttsEngine.startsWith('omnivoice'));
+  const boxes = useRef<(HTMLTextAreaElement | null)[]>([]);
+  /** Puts a tag at the cursor of line i; with a closing tag, wraps the selected words instead. */
+  const insert = (i: number, tag: string, close?: string) => {
+    const t = lines[i].text, box = boxes.current[i];
+    const a = box?.selectionStart ?? t.length, b = box?.selectionEnd ?? t.length;
+    const pre = t.slice(0, a), post = t.slice(b);
+    const mid = close && b > a ? `${tag}${t.slice(a, b)}${close}` : tag;
+    update(i, { text: `${pre}${pre && !/\s$/.test(pre) ? ' ' : ''}${mid}${post && !/^\s/.test(post) ? ' ' : ''}${post}` });
+  };
+  const [previewing, setPreviewing] = useState<number | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const preview = async (i: number) => {
+    setPreviewing(i);
+    setPreviewError(null);
+    try {
+      const url = URL.createObjectURL(await api.previewLine(lines[i], ttsProvider, studioOn ? ttsEngine : undefined));
+      const audio = new Audio(url);
+      audio.onended = () => URL.revokeObjectURL(url);
+      await audio.play();
+    } catch (e) {
+      setPreviewError((e as Error).message);
+    } finally {
+      setPreviewing(null);
+    }
+  };
 
   return (
     <div>
@@ -161,6 +194,37 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
       {cloneOnPlainEngine && <p className="hint">{engine!.label.split(' (')[0]} can't use saved or cloned voices, so it will speak in its own voice.</p>}
       {lines.map((l, i) => (
         <div key={i} className="line-card" data-testid="script-line">
+          <div className="voice-bar">
+            <span className="avatar" aria-hidden="true">{avatar(voices.find((v) => v.id === l.voice))}</span>
+            <select aria-label="Line voice" disabled={busy} value={ids.includes(l.voice) ? l.voice : voice} onChange={(e) => update(i, { voice: e.target.value })}>
+              {voices.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+            </select>
+            <select aria-label="Language" disabled={busy} value={l.language ?? 'auto'} onChange={(e) => update(i, { language: e.target.value === 'auto' ? undefined : e.target.value })}>
+              {LANGUAGES.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+            </select>
+            <select aria-label="Style" disabled={busy} value={l.style ?? 'normal'} onChange={(e) => update(i, { style: e.target.value === 'whisper' ? 'whisper' : undefined })}>
+              <option value="normal">Normal</option>
+              <option value="whisper">Whisper</option>
+            </select>
+            <label className="chip">Pitch <input type="number" aria-label="Pitch %" disabled={busy} min={-PITCH_RANGE} max={PITCH_RANGE} step={5} value={l.pitch ?? 0} onChange={(e) => update(i, { pitch: clamp(Number(e.target.value), PITCH_RANGE) })} />%</label>
+            <label className="chip">Speed <input type="number" aria-label="Speed %" disabled={busy} min={-SPEED_RANGE} max={SPEED_RANGE} step={5} value={l.speed ?? 0} onChange={(e) => update(i, { speed: clamp(Number(e.target.value), SPEED_RANGE) })} />%</label>
+            <select aria-label="Add pause" disabled={busy} value="" onChange={(e) => insert(i, e.target.value)}>
+              <option value="">Add pause</option>
+              {PAUSES.map((p) => <option key={p} value={p}>{p.slice(7, -1)}</option>)}
+            </select>
+            <select aria-label="Insert cue" disabled={busy} value="" onChange={(e) => (e.target.value in CUES ? insert(i, `[${e.target.value}]`, `[/${e.target.value}]`) : insert(i, e.target.value))}>
+              <option value="">✦ Cue</option>
+              <optgroup label="Delivery">{Object.keys(CUES).map((c) => <option key={c} value={c}>{c}</option>)}</optgroup>
+              {soundsOk && <optgroup label="Sounds">{SOUND_TAGS.map((t) => <option key={t} value={`[${t}]`}>{t}</option>)}</optgroup>}
+            </select>
+            {studioOn && (
+              <select aria-label="Variability" disabled={busy} value={l.variability ?? 'steady'} onChange={(e) => update(i, { variability: e.target.value === 'varied' ? 'varied' : undefined })}>
+                <option value="steady">Steady takes</option>
+                <option value="varied">Varied takes</option>
+              </select>
+            )}
+            <button className="mini" aria-label="Preview line" disabled={busy || previewing !== null || !voiceOk || !l.text.trim() || (studioOn && studio?.running === false)} onClick={() => preview(i)}>{previewing === i ? '…' : '▶'}</button>
+          </div>
           <div className="line-chips">
             <TagSelects busy={busy} expression={l.expression} gesture={l.gesture}
               onExpression={(expression) => update(i, { expression })} onGesture={(gesture) => update(i, { gesture })} />
@@ -169,19 +233,21 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
             <button aria-label="Move down" disabled={busy || i === lines.length - 1} onClick={() => move(i, 1)}>↓</button>
             <button aria-label="Delete line" disabled={busy || lines.length === 1} onClick={() => setLines(lines.filter((_, j) => j !== i))}>✕</button>
           </div>
-          <textarea aria-label="Line text" disabled={busy} rows={2} maxLength={500} placeholder="What should the character say?" value={l.text} onChange={(e) => update(i, { text: e.target.value })} />
+          <textarea ref={(el) => { boxes.current[i] = el; }} aria-label="Line text" disabled={busy} rows={2} maxLength={500} placeholder="What should the character say?" value={l.text} onChange={(e) => update(i, { text: e.target.value })} />
         </div>
       ))}
       <div className="line-actions">
-        <button className="btn secondary" disabled={busy || lines.length >= 50} onClick={() => setLines([...lines, { text: '', voice, expression: 'neutral', gesture: 'none' }])}>+ Line</button>
+        <button className="btn secondary" disabled={busy || lines.length >= 50} onClick={() => setLines([...lines, { text: '', voice, expression: 'neutral', gesture: 'none', ...carried(lines[lines.length - 1]) }])}>+ Line</button>
         <button className="btn" disabled={busy || !voiceOk || !ids.length || (studioOn && studio?.running === false)} title={voiceOk ? undefined : NEEDS_VOICE} onClick={onGenerate}>▶ Generate voice</button>
         <button className="btn secondary" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={onAutoTag}>✨ Auto-tag expressions</button>
       </div>
       <p className="hint">
-        Tip: add tags like &lt;short pause&gt; inside a line{studioOn ? ', or [laughter] and [sigh]; a delivery note with "whisper" makes it whisper' : ''}.
+        Tip: "Add pause" and "✦ Cue" put tags in the line at the cursor, e.g. [pause 1s] or [excited]…[/excited] around selected words{soundsOk ? ', and sounds like [laughter] and [sigh]' : ''}.
+        {studioOn ? ' VoiceStudio whispers for real; it has no emotions, so other cues are approximated with a little speed and pitch.' : ''}
         {' '}Powered by {TTS_PROVIDER_NAMES[ttsProvider]}{ttsProvider === 'gemini' ? ' TTS' : ''}.
       </p>
       {error && <p role="alert" className="error">{error}</p>}
+      {previewError && <p role="alert" className="error">{previewError}</p>}
     </div>
   );
 }

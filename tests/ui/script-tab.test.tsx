@@ -124,3 +124,41 @@ it("says when VoiceStudio isn't running and blocks Generate until it is", async 
   fireEvent.click(screen.getByRole('button', { name: 'check again' }));
   await waitFor(() => expect((screen.getByRole('button', { name: '▶ Generate voice' }) as HTMLButtonElement).disabled).toBe(false));
 });
+
+it('sends per-line voice controls, inserts pauses and cues, and previews a line', async () => {
+  vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: false, ttsProviders: ['voicestudio'] });
+  vi.mocked(api.voiceStudio).mockResolvedValue({ ...studioInfo, voices: [studioInfo.voices[0], { id: 'persona:narrator', label: 'Narrator', kind: 'persona', icon: '📖' }, studioInfo.voices[1]] });
+  vi.mocked(api.tts).mockReturnValue(new Promise(() => {}));
+  vi.mocked(api.previewLine).mockResolvedValue(new Blob(['RIFF']));
+  const play = vi.fn().mockResolvedValue(undefined);
+  vi.stubGlobal('Audio', class { onended = null; play = play; });
+  URL.createObjectURL = vi.fn(() => 'blob:x');
+  await open();
+  await waitFor(() => expect(screen.getByTestId('studio-status').textContent).toMatch(/running/));
+  fireEvent.change(screen.getByLabelText('Line voice'), { target: { value: 'persona:narrator' } });
+  expect(within(cards()[0]).getByText('📖')).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Language'), { target: { value: 'en-GB' } });
+  fireEvent.change(screen.getByLabelText('Style'), { target: { value: 'whisper' } });
+  fireEvent.change(screen.getByLabelText('Pitch %'), { target: { value: '40' } }); // clamped to the range
+  fireEvent.change(screen.getByLabelText('Speed %'), { target: { value: '-20' } });
+  fireEvent.change(screen.getByLabelText('Variability'), { target: { value: 'varied' } });
+  const box = screen.getByLabelText('Line text') as HTMLTextAreaElement;
+  fireEvent.change(box, { target: { value: 'Hello there' } });
+  box.setSelectionRange(6, 11); // "there"
+  fireEvent.change(screen.getByLabelText('Insert cue'), { target: { value: 'excited' } });
+  expect(box.value).toBe('Hello [excited]there[/excited]');
+  box.setSelectionRange(5, 5);
+  fireEvent.change(screen.getByLabelText('Add pause'), { target: { value: '[pause 1s]' } });
+  expect(box.value).toBe('Hello [pause 1s] [excited]there[/excited]');
+  const sent = { text: 'Hello [pause 1s] [excited]there[/excited]', voice: 'persona:narrator', language: 'en-GB', style: 'whisper', pitch: 25, speed: -20, variability: 'varied' };
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Preview line' })); });
+  expect(api.previewLine).toHaveBeenCalledWith(expect.objectContaining(sent), 'voicestudio', '');
+  expect(play).toHaveBeenCalled();
+  // a new line takes over the controls of the line above
+  fireEvent.click(screen.getByRole('button', { name: '+ Line' }));
+  expect((screen.getAllByLabelText('Language')[1] as HTMLSelectElement).value).toBe('en-GB');
+  fireEvent.change(screen.getAllByLabelText('Line text')[1], { target: { value: 'Bye' } });
+  fireEvent.click(screen.getByRole('button', { name: '▶ Generate voice' }));
+  expect(api.tts).toHaveBeenCalledWith([expect.objectContaining(sent), expect.objectContaining({ text: 'Bye', language: 'en-GB', speed: -20 })], 'voicestudio', '');
+  vi.unstubAllGlobals();
+});

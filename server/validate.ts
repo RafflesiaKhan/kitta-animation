@@ -1,5 +1,6 @@
 import { EXPRESSIONS, GESTURES } from '../shared/types';
-import type { AnyCharacter, ArtCharacter, ExportFormat, Timeline } from '../shared/types';
+import type { AnyCharacter, ArtCharacter, ExportFormat, ScriptLineInput, Timeline } from '../shared/types';
+import { LANGUAGES, PITCH_RANGE, SPEED_RANGE } from '../shared/voices';
 import { MAX_AUDIO_MS } from './audio';
 
 const SHAPES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'X'];
@@ -29,4 +30,17 @@ export function validateExport(body: unknown): { character: AnyCharacter; timeli
     timeline: timeline as unknown as Timeline,
     format: { aspect: format.aspect, transparent: format.transparent },
   };
+}
+
+const inRange = (v: unknown, r: number) => v === undefined || (num(v) && Math.abs(v) <= r);
+
+/** One script line for speech: its text, voice and tags, plus the optional voice controls within their ranges. */
+export function validScriptLine(l: unknown): l is ScriptLineInput {
+  return isObj(l) && typeof l.text === 'string' && l.text.length <= 500 && typeof l.voice === 'string' && l.voice.length > 0 && l.voice.length <= 100 &&
+    EXPRESSIONS.includes(l.expression as never) && GESTURES.includes(l.gesture as never) &&
+    (l.note === undefined || (typeof l.note === 'string' && l.note.length <= 200)) &&
+    (l.language === undefined || LANGUAGES.some((x) => x.id === l.language)) &&
+    (l.style === undefined || l.style === 'normal' || l.style === 'whisper') &&
+    (l.variability === undefined || l.variability === 'steady' || l.variability === 'varied') &&
+    inRange(l.pitch, PITCH_RANGE) && inRange(l.speed, SPEED_RANGE);
 }

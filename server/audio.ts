@@ -101,3 +101,37 @@ export async function concatWithGaps(
     await rm(dir, { recursive: true, force: true });
   }
 }
+
+/** Rate of the speech PCM that speech.ts stitches together (what VoiceStudio and OpenAI return). */
+export const SPEECH_RATE = 24_000;
+
+/** ffmpeg's atempo takes 0.5–2 per stage, so bigger changes are chained. */
+function atempo(f: number): string[] {
+  const out: string[] = [];
+  while (f > 2) { out.push('atempo=2'); f /= 2; }
+  while (f < 0.5) { out.push('atempo=0.5'); f /= 0.5; }
+  if (Math.abs(f - 1) > 0.001) out.push(`atempo=${f.toFixed(4)}`);
+  return out;
+}
+
+/**
+ * Raw 16-bit mono PCM at SPEECH_RATE from any WAV, optionally pitch-shifted (pitch: factor, keeps the length) and
+ * sped up (tempo: factor, keeps the pitch). Pitch = resample at a new rate, then atempo restores the length.
+ */
+export async function speechPcm(wav: Buffer, { pitch = 1, tempo = 1 } = {}): Promise<Buffer> {
+  const dir = await mkdtemp(join(tmpdir(), 'kitta-pcm-'));
+  try {
+    const raw = join(dir, 'in.wav');
+    await writeFile(raw, wav);
+    const r = SPEECH_RATE;
+    const filters = [`aresample=${r}`, ...(pitch !== 1 ? [`asetrate=${Math.round(r * pitch)}`, `aresample=${r}`] : []), ...atempo(tempo / pitch)];
+    const { stdout } = await run('ffmpeg', ['-loglevel', 'error', '-i', raw, '-ac', '1', '-af', filters.join(','), '-f', 's16le', '-acodec', 'pcm_s16le', '-'],
+      { encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 });
+    return stdout;
+  } catch {
+    throw new AudioError('unreadable');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+

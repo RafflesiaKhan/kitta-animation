@@ -1,5 +1,5 @@
 import type { MouthBox, ScriptLineInput } from '../shared/types';
-import type { VoiceStudioEngine, VoiceStudioInfo, VoiceStudioVoice } from '../shared/voices';
+import { CUES, LANGUAGES, SOUND_TAGS, type VoiceStudioEngine, type VoiceStudioInfo, type VoiceStudioVoice } from '../shared/voices';
 import { readFile } from 'node:fs/promises';
 import { TONES } from '../shared/character/expressions';
 import { MOUTH_PROMPT, parseMouthBox, type ImageInput } from './gemini';
@@ -110,36 +110,63 @@ export async function findMouth(png: Buffer): Promise<MouthBox | null> {
   }
 }
 
-/** Reaction tags VoiceStudio's default engine performs; any other [tag] would be read out loud. */
-export const VOICESTUDIO_TAGS = ['laughter', 'sigh'];
-
 /**
- * Script text for an OpenAI-style voice. Gemini-style <tags> never get read out: pause tags become pauses.
- * VoiceStudio gets its own [pause] / [pause 1s] and keeps [laughter] and [sigh]; OpenAI drops [bracket] tags too.
+ * Script text for an OpenAI-style voice (pauses and cues were already split off by speech.ts). Leftover <tags> never get
+ * read out. VoiceStudio keeps the reaction sounds its default engine performs (tags: false for engines that would read
+ * them); every other [bracket] tag is dropped.
  */
-export function speakableText(text: string, service: Service = 'OpenAI'): string {
-  let out = text;
-  if (service === 'VoiceStudio') {
-    out = out.replace(/<[^>]*long[^>]*pause[^>]*>/gi, ' [pause 1s] ').replace(/<[^>]*pause[^>]*>/gi, ' [pause] ')
-      .replace(/\[([^\]]*)\]/g, (m, tag: string) => (/^(pause\b.*|laughter|sigh)$/i.test(tag.trim()) ? m : ' '));
-  } else {
-    out = out.replace(/<[^>]*pause[^>]*>/gi, ' ... ').replace(/\[[^\]]*\]/g, ' ');
-  }
-  return out.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+export function speakableText(text: string, service: Service = 'OpenAI', tags = true): string {
+  const keep = service === 'VoiceStudio' && tags;
+  return text.replace(/\[([^\]]*)\]/g, (m, tag: string) => (keep && SOUND_TAGS.includes(tag.trim().toLowerCase()) ? m : ' '))
+    .replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+/** VoiceStudio's designed voices (GET /personalities, outside /v1); [] when it can't be read. */
+async function personalities(): Promise<any[]> {
+  try {
+    const res = await fetch(`${voiceStudioUrl()}/personalities`, { signal: AbortSignal.timeout(5_000) });
+    const out = res.ok ? await res.json() : [];
+    return Array.isArray(out) ? out : [];
+  } catch {
+    return [];
+  }
+}
+
+/** A VoiceStudio persona (voice id "persona:<id>") is a designed voice: its speaker attributes from /personalities. */
+async function personaInstruct(voice: string): Promise<string[]> {
+  if (!voice.startsWith('persona:')) return [];
+  const p = (await personalities()).find((x) => x?.id === voice.slice(8));
+  return typeof p?.instruct === 'string' ? p.instruct.split(',').map((x: string) => x.trim()).filter(Boolean) : [];
+}
+
+/** Per-segment extras from speech.ts: the inline cue in force and VoiceStudio's sampling seed. */
+export interface SpeakOptions { cue?: string; seed?: number }
+
 /** Speaks one line with OpenAI or VoiceStudio and returns the audio (WAV). engine picks a VoiceStudio engine. */
-export async function speak(service: Service, line: ScriptLineInput, engine?: string): Promise<Buffer> {
+export async function speak(service: Service, line: ScriptLineInput, engine?: string, opts: SpeakOptions = {}): Promise<Buffer> {
+  const studio = service === 'VoiceStudio';
   const body: Record<string, unknown> = {
     model: service === 'OpenAI' ? process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts' : engine || process.env.VOICESTUDIO_TTS_MODEL || 'tts-1',
-    voice: line.voice,
-    input: speakableText(line.text, service),
+    voice: studio && line.voice.startsWith('persona:') ? 'default' : line.voice,
+    input: speakableText(line.text, service, !engine || engine.startsWith('omnivoice')),
     response_format: 'wav',
   };
-  // VoiceStudio's own style field: its default engine understands "whisper".
-  if (service === 'VoiceStudio' && /whisper/i.test(line.note ?? '')) body.instruct = 'whisper';
-  // OpenAI's TTS takes delivery instructions; VoiceStudio's compatibility layer is only promised the standard fields.
-  if (service === 'OpenAI') {
+  if (studio) {
+    // OmniVoice's style field is a strict list of speaker attributes (anything else fails), so only those go in:
+    // the persona's attributes, the picked English accent instead of the persona's accent or Chinese dialect
+    // (such as 四川话; it refuses both together), and whisper.
+    const lang = LANGUAGES.find((l) => l.id === line.language);
+    const items = (await personaInstruct(line.voice)).filter((x) => !(lang?.accent && (x.endsWith(' accent') || x.endsWith('话'))));
+    if (lang?.accent) items.push(lang.accent);
+    if (line.style === 'whisper' || opts.cue === 'whisper' || /whisper/i.test(line.note ?? '')) items.push('whisper');
+    if (items.length) body.instruct = items.join(', ');
+    if (lang?.code) body.language = lang.code;
+    // Speed is native; an emotion cue it can't perform nudges the speed (and, in speech.ts, the pitch).
+    const speed = (1 + (line.speed ?? 0) / 100) * (1 + (CUES[opts.cue ?? '']?.speed ?? 0) / 100);
+    if (Math.abs(speed - 1) > 0.001) body.speed = Math.round(Math.min(4, Math.max(0.25, speed)) * 100) / 100;
+    if (opts.seed !== undefined) body.seed = opts.seed;
+  } else {
+    // OpenAI's TTS takes delivery instructions (speech.ts has already folded style, language and cues into the note).
     const style = [line.expression !== 'neutral' && `a ${TONES[line.expression]} tone`, line.note?.trim()].filter(Boolean).join(', ');
     body.instructions = style ? `Speak naturally, in ${style}.` : 'Speak naturally and conversationally.';
   }
@@ -174,7 +201,11 @@ export async function voiceStudioInfo(): Promise<VoiceStudioInfo> {
       const name = typeof v?.name === 'string' && v.name ? v.name : id;
       return [{ id, label: v?.language ? `${name} (${v.language})` : name, kind: 'profile' as const }];
     });
-    info.voices = [...profiles, { id: 'alloy', label: "Engine's default voice", kind: 'default' }];
+    // Personas are VoiceStudio's designed voices (speaker attributes, no recording), each with an icon.
+    const personas: VoiceStudioVoice[] = (await personalities()).flatMap((p) =>
+      typeof p?.id === 'string' && typeof p?.name === 'string' && typeof p?.instruct === 'string' && p.id.length <= 64
+        ? [{ id: `persona:${p.id}`, label: p.name, kind: 'persona' as const, ...(typeof p.icon === 'string' ? { icon: p.icon } : {}) }] : []);
+    info.voices = [...profiles, ...personas, { id: 'alloy', label: "Engine's default voice", kind: 'default' }];
     const engines: any[] = Array.isArray(out?.engines) ? out.engines : [];
     info.engines = engines.filter((e) => e?.available === true && typeof e?.id === 'string').map((e): VoiceStudioEngine => ({
       id: e.id,

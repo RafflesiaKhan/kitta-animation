@@ -40,7 +40,7 @@ h4 { font-weight: 600; }
 .pill { padding: 8px 16px; border-radius: var(--r-pill); border: 0; background: var(--canvas-soft); color: var(--ink); cursor: pointer; font-size: 14px; line-height: 20px; font-weight: 600; }
 .pill:hover { background: var(--primary-pale); }
 .pill.active { background: var(--ink); color: var(--primary); }
-main { display: grid; grid-template-columns: 400px 1fr; gap: 24px; align-items: start; }
+main { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 24px; align-items: start; }
 .panel, .preview { background: var(--canvas); border-radius: var(--r-xl); padding: 24px; }
 @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
 
@@ -112,7 +112,7 @@ input[type=file]::file-selector-button:hover { background: var(--primary-pale); 
 .studio .ok { color: var(--positive); }
 
 /* ---------- preview ---------- */
-.stage { position: relative; background: var(--canvas-soft); border-radius: var(--r-lg); display: flex; align-items: center; justify-content: center; height: 480px; overflow: hidden; }
+.stage { position: relative; background: var(--canvas-soft); border-radius: var(--r-lg); display: flex; align-items: center; justify-content: center; height: 360px; overflow: hidden; }
 .status { position: absolute; bottom: 16px; padding: 4px 12px; border-radius: var(--r-pill); background: var(--ink); color: var(--primary); font-size: 14px; line-height: 20px; font-weight: 600; }
 .preview audio { display: block; width: 100%; margin-top: 16px; }
 
@@ -134,3 +134,11 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--ink); }
 .usage-panel th { font-weight: 600; color: var(--mute); font-size: 12px; background: var(--canvas-soft); }
 .usage-panel th:first-child { border-radius: var(--r-sm) 0 0 var(--r-sm); }
 .usage-panel th:last-child { border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+
+/* ---------- per-line voice controls ---------- */
+.voice-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+.voice-bar select { max-width: 100%; }
+.voice-bar .mini { margin-top: 0; width: 36px; height: 36px; padding: 0; }
+.avatar { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: var(--primary-pale); font-size: 16px; font-weight: 600; flex: none; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border: 1px solid var(--ink); border-radius: var(--r-pill); font-size: 13px; font-weight: 600; }
+.chip input { width: 52px; border: 0; padding: 4px 0; min-height: 28px; font-weight: 400; background: transparent; }
