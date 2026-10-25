@@ -55,3 +55,5 @@ button.btn { border: 0; }
 .usage-panel table { width: 100%; border-collapse: collapse; }
 .usage-panel th, .usage-panel td { text-align: left; padding: 3px 4px; border-bottom: 1px solid #f0edf8; }
 .usage-panel th { font-weight: 600; color: #777; font-size: 11px; }
+.studio select { width: 100%; max-width: 100%; }
+.studio .ok { color: #1f9d55; }

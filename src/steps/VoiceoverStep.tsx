@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { EXPRESSIONS, GESTURES } from '../../shared/types';
 import type { Expression, Gesture, Line, ScriptLineInput } from '../../shared/types';
-import { OPENAI_VOICES, TTS_PROVIDER_NAMES, VOICES, type TtsProvider } from '../../shared/voices';
+import { OPENAI_VOICES, TTS_PROVIDER_NAMES, VOICES, type TtsProvider, type VoiceStudioInfo } from '../../shared/voices';
 import * as api from '../api';
 
 interface Props {
@@ -9,6 +9,8 @@ interface Props {
   ttsProviders: TtsProvider[]; // voice providers set up on the server
   ttsProvider: TtsProvider;
   onTtsProvider: (p: TtsProvider) => void;
+  ttsEngine: string; // VoiceStudio engine id; '' = its active engine
+  onTtsEngine: (e: string) => void;
   busy: boolean;
   error: string | null;
   onUpload: (file: File) => void;
@@ -44,7 +46,9 @@ function TagSelects({ busy, expression, gesture, onExpression, onGesture }: {
   );
 }
 
-function UploadTab({ busy, error, onUpload, onAddExpressions, uploadLines, onEditUploadLine, geminiOk }: TabProps) {
+function UploadTab({ busy, error, onUpload, onAddExpressions, uploadLines, onEditUploadLine, geminiOk, ttsProviders }: TabProps) {
+  // Transcription works with Gemini or a local VoiceStudio (then the lines come untagged).
+  const canListen = geminiOk || ttsProviders.includes('voicestudio');
   return (
     <div>
       <label className="upload">
@@ -64,7 +68,7 @@ function UploadTab({ busy, error, onUpload, onAddExpressions, uploadLines, onEdi
       <p className="hint">WAV, MP3, M4A… up to 3 minutes. Your character will lip-sync to it.</p>
       {uploadLines && (
         <>
-          <button className="btn" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={onAddExpressions}>✨ Add expressions</button>
+          <button className="btn" disabled={busy || !canListen} title={canListen ? undefined : NEEDS_KEY} onClick={onAddExpressions}>✨ Add expressions</button>
           {uploadLines.map((l, i) => (
             <div key={i} className="line-card" data-testid="upload-line">
               <div className="line-chips">
@@ -82,32 +86,40 @@ function UploadTab({ busy, error, onUpload, onAddExpressions, uploadLines, onEdi
   );
 }
 
-/** The voices a provider offers; VoiceStudio's are read from the running app. */
-function useVoices(provider: TtsProvider): string[] | null {
-  const [studio, setStudio] = useState<string[] | null>(null);
+interface VoiceOption { id: string; label: string; kind?: 'profile' | 'default' }
+const named = (ids: string[]): VoiceOption[] => ids.map((id) => ({ id, label: id }));
+
+/** VoiceStudio's status, engines and voices, read from the running app (refreshable). */
+function useVoiceStudio(active: boolean): [VoiceStudioInfo | null, () => void] {
+  const [info, setInfo] = useState<VoiceStudioInfo | null>(null);
+  const [tick, setTick] = useState(0);
   useEffect(() => {
-    if (provider !== 'voicestudio' || studio) return;
+    if (!active) return;
     let live = true;
-    Promise.resolve(api.voiceStudioVoices()).then((v) => { if (live) setStudio(v ?? []); }, () => { if (live) setStudio([]); });
+    Promise.resolve(api.voiceStudio()).then((v) => { if (live) setInfo(v ?? null); }, () => {});
     return () => { live = false; };
-  }, [provider, studio]);
-  if (provider === 'openai') return OPENAI_VOICES;
-  if (provider === 'voicestudio') return studio;
-  return VOICES;
+  }, [active, tick]);
+  return [info, () => setTick((t) => t + 1)];
 }
 
-function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, onGenerate, onAutoTag, geminiOk, ttsProviders, ttsProvider, onTtsProvider }: TabProps) {
+function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, onGenerate, onAutoTag, geminiOk, ttsProviders, ttsProvider, onTtsProvider, ttsEngine, onTtsEngine }: TabProps) {
   const voiceOk = ttsProviders.length > 0;
-  const loaded = useVoices(ttsProvider);
-  // A VoiceStudio that lists nothing still gets one voice to try (its OpenAI-compatible default).
-  const voices = loaded === null ? [] : loaded.length ? loaded : ['alloy'];
+  const studioOn = ttsProvider === 'voicestudio';
+  const [studio, refreshStudio] = useVoiceStudio(studioOn);
+  // VoiceStudio: wait for its list (so a saved voice is picked first); one that lists nothing still gets its default.
+  const voices: VoiceOption[] = ttsProvider === 'openai' ? named(OPENAI_VOICES)
+    : studioOn ? (studio === null ? [] : studio.voices.length ? studio.voices : [{ id: 'alloy', label: "Engine's default voice", kind: 'default' }])
+    : named(VOICES);
+  const ids = voices.map((v) => v.id);
+  const engine = studio?.engines.find((e) => e.id === ttsEngine);
   const update = (i: number, patch: Partial<ScriptLineInput>) => setLines(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   const move = (i: number, d: number) => {
     const next = [...lines];
     [next[i], next[i + d]] = [next[i + d], next[i]];
     setLines(next);
   };
-  const voice = lines[0]?.voice && voices.includes(lines[0].voice) ? lines[0].voice : voices[0] ?? VOICES[0];
+  const voice = lines[0]?.voice && ids.includes(lines[0].voice) ? lines[0].voice : ids[0] ?? VOICES[0];
+  const cloneOnPlainEngine = engine && !engine.cloning && voices.find((v) => v.id === voice)?.kind === 'profile';
   // Switching provider (or VoiceStudio's list arriving) moves every line to a voice that provider has.
   useEffect(() => {
     if (voices.length && lines.some((l) => l.voice !== voice)) setLines(lines.map((l) => ({ ...l, voice })));
@@ -123,14 +135,30 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
           </select>
         </label>
       )}
-      {ttsProvider === 'voicestudio' && loaded !== null && loaded.length === 0 && (
-        <p className="hint">Couldn't list VoiceStudio's voices. Is it running? Trying its default voice.</p>
+      {studioOn && (
+        <div className="studio">
+          <p className="hint" data-testid="studio-status">
+            {studio === null ? 'Checking VoiceStudio…'
+              : studio.running ? <><span className="ok">●</span>{` VoiceStudio ${studio.version ?? ''} running${studio.device ? ` on ${studio.device}` : ''}`}</>
+              : `VoiceStudio isn't running at ${studio.url}. Start it, then `}
+            {studio !== null && !studio.running && <button className="mini" onClick={refreshStudio}>check again</button>}
+          </p>
+          {studio?.running && studio.engines.length > 0 && (
+            <label className="field">Engine{' '}
+              <select aria-label="Engine" disabled={busy} value={ttsEngine} onChange={(e) => onTtsEngine(e.target.value)}>
+                <option value="">Active engine (set in VoiceStudio)</option>
+                {studio.engines.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
+              </select>
+            </label>
+          )}
+        </div>
       )}
       <label className="field">Voice{' '}
         <select aria-label="Voice" disabled={busy} value={voice} onChange={(e) => setLines(lines.map((l) => ({ ...l, voice: e.target.value })))}>
-          {voices.map((v) => <option key={v} value={v}>{v}</option>)}
+          {voices.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
         </select>
       </label>
+      {cloneOnPlainEngine && <p className="hint">{engine!.label.split(' (')[0]} can't use saved or cloned voices, so it will speak in its own voice.</p>}
       {lines.map((l, i) => (
         <div key={i} className="line-card" data-testid="script-line">
           <div className="line-chips">
@@ -146,10 +174,13 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
       ))}
       <div className="line-actions">
         <button className="btn" disabled={busy || lines.length >= 50} onClick={() => setLines([...lines, { text: '', voice, expression: 'neutral', gesture: 'none' }])}>+ Line</button>
-        <button className="btn" disabled={busy || !voiceOk || !voices.length} title={voiceOk ? undefined : NEEDS_VOICE} onClick={onGenerate}>▶ Generate voice</button>
+        <button className="btn" disabled={busy || !voiceOk || !ids.length || (studioOn && studio?.running === false)} title={voiceOk ? undefined : NEEDS_VOICE} onClick={onGenerate}>▶ Generate voice</button>
         <button className="btn" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={onAutoTag}>✨ Auto-tag expressions</button>
       </div>
-      <p className="hint">Tip: add tags like &lt;short pause&gt; inside a line. Powered by {TTS_PROVIDER_NAMES[ttsProvider]}{ttsProvider === 'gemini' ? ' TTS' : ''}.</p>
+      <p className="hint">
+        Tip: add tags like &lt;short pause&gt; inside a line{studioOn ? ', or [laughter] and [sigh]; a delivery note with "whisper" makes it whisper' : ''}.
+        {' '}Powered by {TTS_PROVIDER_NAMES[ttsProvider]}{ttsProvider === 'gemini' ? ' TTS' : ''}.
+      </p>
       {error && <p role="alert" className="error">{error}</p>}
     </div>
   );

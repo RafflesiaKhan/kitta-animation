@@ -74,7 +74,7 @@ it('generates, sets the timeline, and keeps the draft across steps', async () =>
   fireEvent.change(screen.getByLabelText('Delivery note'), { target: { value: 'softly' } });
   fireEvent.click(screen.getByRole('button', { name: '▶ Generate voice' }));
   expect(screen.getByText('Generating voice…')).toBeTruthy();
-  expect(api.tts).toHaveBeenCalledWith([expect.objectContaining({ text: 'hi', expression: 'sad', gesture: 'nod', note: 'softly', voice: expect.any(String) })], 'gemini');
+  expect(api.tts).toHaveBeenCalledWith([expect.objectContaining({ text: 'hi', expression: 'sad', gesture: 'nod', note: 'softly', voice: expect.any(String) })], 'gemini', undefined);
   await act(async () => { resolve(result); });
   expect(lastProps!.audioUrl).toBe('/api/audio/zzz');
   expect(lastProps!.timeline).toEqual({ durationMs: 2000, cues: result.cues, lines: result.lines });
@@ -85,9 +85,15 @@ it('generates, sets the timeline, and keeps the draft across steps', async () =>
   expect(textOf()).toEqual(['hi']);
 });
 
+const studioInfo = {
+  running: true, url: 'http://localhost:3900', version: '0.5.6', device: 'mps',
+  voices: [{ id: 'demo0001', label: 'VoiceStudio Demo Voice (English)', kind: 'profile' as const }, { id: 'alloy', label: "Engine's default voice", kind: 'default' as const }],
+  engines: [{ id: 'omnivoice', label: 'VoiceStudio (k2-fsa/OmniVoice, 600+ languages)', cloning: true, emotion: false }, { id: 'kittentts', label: 'KittenTTS (English, 8 preset voices, CPU realtime)', cloning: false, emotion: false }],
+};
+
 it('switches the voice provider and its voices', async () => {
   vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: true, ttsProviders: ['gemini', 'openai', 'voicestudio'] });
-  vi.mocked(api.voiceStudioVoices).mockResolvedValue(['Narrator', 'My clone']);
+  vi.mocked(api.voiceStudio).mockResolvedValue(studioInfo);
   vi.mocked(api.tts).mockReturnValue(new Promise(() => {}));
   await open();
   const voice = () => screen.getByLabelText('Voice') as HTMLSelectElement;
@@ -95,10 +101,26 @@ it('switches the voice provider and its voices', async () => {
   fireEvent.change(await screen.findByLabelText('Voice by'), { target: { value: 'openai' } });
   await waitFor(() => expect(voice().value).toBe('coral'));
   fireEvent.change(screen.getByLabelText('Voice by'), { target: { value: 'voicestudio' } });
-  await waitFor(() => expect([...voice().options].map((o) => o.value)).toEqual(['Narrator', 'My clone']));
-  fireEvent.change(voice(), { target: { value: 'My clone' } });
-  fireEvent.change(screen.getByLabelText('Line text'), { target: { value: 'hi' } });
+  await waitFor(() => expect([...voice().options].map((o) => o.text)).toEqual(['VoiceStudio Demo Voice (English)', "Engine's default voice"]));
+  expect(screen.getByTestId('studio-status').textContent).toBe('● VoiceStudio 0.5.6 running on mps');
+  // KittenTTS can't clone: picking it with the saved voice explains what will happen
+  fireEvent.change(screen.getByLabelText('Engine'), { target: { value: 'kittentts' } });
+  expect(voice().value).toBe('demo0001'); // the saved voice is picked first
+  expect(screen.getByText(/KittenTTS can't use saved or cloned voices/)).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Engine'), { target: { value: 'omnivoice' } });
+  fireEvent.change(screen.getByLabelText('Line text'), { target: { value: 'hi [laughter]' } });
   fireEvent.click(screen.getByRole('button', { name: '▶ Generate voice' }));
-  expect(api.tts).toHaveBeenCalledWith([expect.objectContaining({ text: 'hi', voice: 'My clone' })], 'voicestudio');
-  expect(screen.getByText(/Powered by VoiceStudio \(local\)/)).toBeTruthy();
+  expect(api.tts).toHaveBeenCalledWith([expect.objectContaining({ text: 'hi [laughter]', voice: 'demo0001' })], 'voicestudio', 'omnivoice');
+  expect(screen.getByText(/\[laughter\] and \[sigh\]/)).toBeTruthy();
+});
+
+it("says when VoiceStudio isn't running and blocks Generate until it is", async () => {
+  vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: false, ttsProviders: ['voicestudio'] });
+  vi.mocked(api.voiceStudio).mockResolvedValueOnce({ running: false, url: 'http://localhost:3900', voices: [], engines: [] }).mockResolvedValue(studioInfo);
+  await open();
+  await waitFor(() => expect(screen.getByTestId('studio-status').textContent).toMatch(/isn't running at http:\/\/localhost:3900/));
+  fireEvent.change(screen.getByLabelText('Line text'), { target: { value: 'hi' } });
+  expect((screen.getByRole('button', { name: '▶ Generate voice' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'check again' }));
+  await waitFor(() => expect((screen.getByRole('button', { name: '▶ Generate voice' }) as HTMLButtonElement).disabled).toBe(false));
 });

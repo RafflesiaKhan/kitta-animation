@@ -34,6 +34,7 @@ export function App() {
   const [imageProviders, setImageProviders] = useState<ImageProvider[]>(['gemini']);
   const [ttsProviders, setTtsProviders] = useState<TtsProvider[]>(['gemini']);
   const [ttsProvider, setTtsProvider] = useState<TtsProvider>('gemini'); // who speaks the script
+  const [ttsEngine, setTtsEngine] = useState(''); // VoiceStudio engine; '' = its active engine
   useEffect(() => {
     Promise.resolve(api.listCharacters()).then((l) => setLibrary(l ?? []), () => {});
     Promise.resolve(api.health()).then((h) => {
@@ -91,8 +92,12 @@ export function App() {
     if (!audioId || !state.timeline) return;
     const heard = await api.transcribe(audioId);
     if (!heard.length) throw new Error("Couldn't find any speech to tag.");
-    setStatus('Tagging expressions…');
-    const tags = await api.autoTag(heard.map((l) => l.text));
+    // Without Gemini (transcribed by a local VoiceStudio) the lines arrive untagged, ready to tag by hand.
+    let tags = heard.map(() => ({ expression: 'neutral' as const, gesture: 'none' as const })) as Awaited<ReturnType<typeof api.autoTag>>;
+    if (geminiOk) {
+      setStatus('Tagging expressions…');
+      tags = await api.autoTag(heard.map((l) => l.text));
+    }
     const lines = heard.map((l, i) => ({ ...l, expression: tags[i].expression, gesture: tags[i].gesture }));
     setState((s) => withTaggedLines(s, audioId, lines));
   });
@@ -132,7 +137,7 @@ export function App() {
     setError(null);
     try {
       setStatus('Generating voice…');
-      const { audioId, durationMs, cues, lines } = await api.tts(scriptLines.map((l) => (l.note?.trim() ? l : { ...l, note: undefined })), ttsProvider);
+      const { audioId, durationMs, cues, lines } = await api.tts(scriptLines.map((l) => (l.note?.trim() ? l : { ...l, note: undefined })), ttsProvider, ttsProvider === 'voicestudio' ? ttsEngine : undefined);
       setState((s) => ({ ...s, audioId, timeline: { durationMs, cues, lines }, source: 'script' }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -156,7 +161,7 @@ export function App() {
         <section className="panel">
           {step === 0 && <CharacterStep character={state.character} onChange={(character) => setState((s) => ({ ...s, character }))}
             library={library} imageProviders={imageProviders} busy={busy} error={error} onCreate={createArt} onDraw={drawPoses} onDelete={deleteArt} />}
-          {step === 1 && <VoiceoverStep geminiOk={geminiOk} ttsProviders={ttsProviders} ttsProvider={ttsProvider} onTtsProvider={setTtsProvider} busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} onAutoTag={autoTagScript} onAddExpressions={addExpressions} uploadLines={state.source === 'upload' ? state.timeline?.lines ?? null : null} onEditUploadLine={editUploadLine} />}
+          {step === 1 && <VoiceoverStep geminiOk={geminiOk} ttsProviders={ttsProviders} ttsProvider={ttsProvider} onTtsProvider={setTtsProvider} ttsEngine={ttsEngine} onTtsEngine={setTtsEngine} busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} onAutoTag={autoTagScript} onAddExpressions={addExpressions} uploadLines={state.source === 'upload' ? state.timeline?.lines ?? null : null} onEditUploadLine={editUploadLine} />}
           {step === 2 && <ExportStep character={state.character} timeline={state.timeline} audioId={state.audioId} />}
         </section>
         <Preview character={state.character} timeline={state.timeline} audioUrl={state.audioId ? `/api/audio/${state.audioId}` : null} status={status} />

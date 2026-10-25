@@ -1,4 +1,6 @@
 import type { MouthBox, ScriptLineInput } from '../shared/types';
+import type { VoiceStudioEngine, VoiceStudioInfo, VoiceStudioVoice } from '../shared/voices';
+import { readFile } from 'node:fs/promises';
 import { TONES } from '../shared/character/expressions';
 import { MOUTH_PROMPT, parseMouthBox, type ImageInput } from './gemini';
 import { recordOpenAI, recordUsage } from './usage';
@@ -108,19 +110,34 @@ export async function findMouth(png: Buffer): Promise<MouthBox | null> {
   }
 }
 
-/** Script text for an OpenAI-style voice: Gemini-style tags like <short pause> become pauses instead of being read out. */
-export function speakableText(text: string): string {
-  return text.replace(/<[^>]*pause[^>]*>/gi, ' ... ').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+/** Reaction tags VoiceStudio's default engine performs; any other [tag] would be read out loud. */
+export const VOICESTUDIO_TAGS = ['laughter', 'sigh'];
+
+/**
+ * Script text for an OpenAI-style voice. Gemini-style <tags> never get read out: pause tags become pauses.
+ * VoiceStudio gets its own [pause] / [pause 1s] and keeps [laughter] and [sigh]; OpenAI drops [bracket] tags too.
+ */
+export function speakableText(text: string, service: Service = 'OpenAI'): string {
+  let out = text;
+  if (service === 'VoiceStudio') {
+    out = out.replace(/<[^>]*long[^>]*pause[^>]*>/gi, ' [pause 1s] ').replace(/<[^>]*pause[^>]*>/gi, ' [pause] ')
+      .replace(/\[([^\]]*)\]/g, (m, tag: string) => (/^(pause\b.*|laughter|sigh)$/i.test(tag.trim()) ? m : ' '));
+  } else {
+    out = out.replace(/<[^>]*pause[^>]*>/gi, ' ... ').replace(/\[[^\]]*\]/g, ' ');
+  }
+  return out.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-/** Speaks one line with OpenAI or VoiceStudio and returns the audio (WAV). */
-export async function speak(service: Service, line: ScriptLineInput): Promise<Buffer> {
+/** Speaks one line with OpenAI or VoiceStudio and returns the audio (WAV). engine picks a VoiceStudio engine. */
+export async function speak(service: Service, line: ScriptLineInput, engine?: string): Promise<Buffer> {
   const body: Record<string, unknown> = {
-    model: service === 'OpenAI' ? process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts' : process.env.VOICESTUDIO_TTS_MODEL || 'tts-1',
+    model: service === 'OpenAI' ? process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts' : engine || process.env.VOICESTUDIO_TTS_MODEL || 'tts-1',
     voice: line.voice,
-    input: speakableText(line.text),
+    input: speakableText(line.text, service),
     response_format: 'wav',
   };
+  // VoiceStudio's own style field: its default engine understands "whisper".
+  if (service === 'VoiceStudio' && /whisper/i.test(line.note ?? '')) body.instruct = 'whisper';
   // OpenAI's TTS takes delivery instructions; VoiceStudio's compatibility layer is only promised the standard fields.
   if (service === 'OpenAI') {
     const style = [line.expression !== 'neutral' && `a ${TONES[line.expression]} tone`, line.note?.trim()].filter(Boolean).join(', ');
@@ -132,15 +149,58 @@ export async function speak(service: Service, line: ScriptLineInput): Promise<Bu
   return audio;
 }
 
-/** Voice names a running VoiceStudio offers (saved and built-in voices); empty when it can't be reached. */
-export async function voiceStudioVoices(): Promise<string[]> {
+/** Status, installed engines and pickable voices of the VoiceStudio at VOICESTUDIO_URL; running: false if unreachable. */
+export async function voiceStudioInfo(): Promise<VoiceStudioInfo> {
+  const url = voiceStudioUrl();
+  const info: VoiceStudioInfo = { running: false, url, voices: [], engines: [] };
+  try {
+    const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(3_000) });
+    const h = await res.json().catch(() => ({}));
+    if (!res.ok) return info;
+    info.running = true;
+    if (typeof h?.version === 'string') info.version = h.version;
+    if (typeof h?.device === 'string') info.device = h.device;
+  } catch {
+    return info;
+  }
   try {
     const out = await call('/audio/voices', null, 5_000, false, 'VoiceStudio');
-    const list: unknown[] = Array.isArray(out) ? out : Array.isArray(out?.voices) ? out.voices : Array.isArray(out?.data) ? out.data : [];
-    const names = list.map((v) => (typeof v === 'string' ? v : (v as { id?: unknown; voice_id?: unknown; name?: unknown })?.id ?? (v as any)?.voice_id ?? (v as any)?.name))
-      .filter((v): v is string => typeof v === 'string' && v.length > 0 && v.length <= 100);
-    return [...new Set(names)].slice(0, 200);
+    const raw: any[] = Array.isArray(out?.voices) ? out.voices : Array.isArray(out) ? out : [];
+    // Saved/cloned profiles by name. The OpenAI-style aliases (alloy, coral…) all map to the engine's default voice,
+    // so they collapse into a single "engine default" entry.
+    const profiles: VoiceStudioVoice[] = raw.flatMap((v) => {
+      const id = typeof v === 'string' ? v : v?.voice_id ?? v?.id;
+      if (typeof id !== 'string' || !id || id.length > 100 || v?.type === 'openai_alias') return [];
+      const name = typeof v?.name === 'string' && v.name ? v.name : id;
+      return [{ id, label: v?.language ? `${name} (${v.language})` : name, kind: 'profile' as const }];
+    });
+    info.voices = [...profiles, { id: 'alloy', label: "Engine's default voice", kind: 'default' }];
+    const engines: any[] = Array.isArray(out?.engines) ? out.engines : [];
+    info.engines = engines.filter((e) => e?.available === true && typeof e?.id === 'string').map((e): VoiceStudioEngine => ({
+      id: e.id,
+      label: typeof e.display_name === 'string' ? e.display_name : e.id,
+      cloning: e.supports_cloning === true,
+      emotion: e.supports_emotion === true,
+    }));
   } catch {
-    return [];
+    info.voices = [{ id: 'alloy', label: "Engine's default voice", kind: 'default' }];
   }
+  return info;
+}
+
+/** Sentence-level transcript of a WAV from VoiceStudio's local Whisper (free, offline), timings in ms. */
+export async function voiceStudioTranscribe(wavPath: string): Promise<{ text: string; startMs: number; endMs: number }[]> {
+  const form = new FormData();
+  form.append('file', new Blob([new Uint8Array(await readFile(wavPath))], { type: 'audio/wav' }), 'speech.wav');
+  form.append('model', 'whisper-1');
+  form.append('response_format', 'verbose_json');
+  const out = await call('/audio/transcriptions', form, 180_000, false, 'VoiceStudio');
+  recordUsage({ provider: 'voicestudio', model: 'whisper-1', kind: 'transcribe', input: null, output: null });
+  const segments: any[] = Array.isArray(out?.segments) ? out.segments : [];
+  const lines = segments.flatMap((s) => {
+    const text = typeof s?.text === 'string' ? s.text.trim() : '';
+    const start = Number(s?.start), end = Number(s?.end);
+    return text && Number.isFinite(start) && Number.isFinite(end) && end > start ? [{ text, startMs: Math.round(start * 1000), endMs: Math.round(end * 1000) }] : [];
+  }).sort((a, b) => a.startMs - b.startMs);
+  return lines.map((l, i) => ({ ...l, endMs: Math.min(l.endMs, lines[i + 1]?.startMs ?? Infinity) })).filter((l) => l.endMs > l.startMs);
 }
