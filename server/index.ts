@@ -8,15 +8,14 @@ import { pathToFileURL } from 'node:url';
 import { normalizeAudio, concatWithGaps, AudioError, AUDIO_DIR } from './audio';
 import { autoTag, transcribe, GeminiError } from './gemini';
 import { OpenAIError, voiceStudioInfo, voiceStudioTranscribe, voiceStudioUrl } from './openai';
-import { isTransient, speakLine, ttsProviders } from './speech';
+import { isTransient, parseSegments, plainText, speakLine, ttsProviders } from './speech';
 import { resetUsage, usageReport } from './usage';
 import { TTS_PROVIDERS, TTS_PROVIDER_NAMES, type TtsProvider } from '../shared/voices';
 import { imageProviders } from './images';
-import { EXPRESSIONS, GESTURES } from '../shared/types';
 import type { Line, ScriptLineInput } from '../shared/types';
 import { runRhubarb, rhubarbAvailable } from './rhubarb';
 import { renderVideo } from './render';
-import { validateExport } from './validate';
+import { validateExport, validScriptLine } from './validate';
 import { CharacterError, createCharacter, deleteCharacter, generatePose, getCharacter, imageDataUris, imagePath, listCharacters, measureMouths } from './characters';
 import { ART_STYLES } from '../shared/character/art';
 import { isArt, type ArtPose } from '../shared/types';
@@ -135,40 +134,64 @@ export function createApp() {
     }
   });
 
+  const hasSpeech = (text: string) => parseSegments(text).some((s) => 'text' in s);
+
+  /** Provider and VoiceStudio engine of a speech request; null when either is malformed. */
+  const ttsChoice = (body: any): { provider: TtsProvider; engine?: string } | null => {
+    const provider: TtsProvider = body?.provider ?? ttsProviders()[0] ?? 'gemini';
+    const engine = body?.engine;
+    if (engine !== undefined && (typeof engine !== 'string' || !/^[\w.-]{1,64}$/.test(engine))) return null;
+    return TTS_PROVIDERS.includes(provider) ? { provider, engine } : null;
+  };
+
+  /** Sends the error for a failed speech request. */
+  const sendTtsError = (res: express.Response, e: unknown, provider: TtsProvider) => {
+    // Still busy after the retries: point at the other voice providers that are set up.
+    const others = ttsProviders().filter((p) => p !== provider);
+    if (isTransient(e) && others.length) {
+      const name = TTS_PROVIDER_NAMES[provider].split(' ')[0];
+      const status = (e as { code: string }).code === 'busy' ? 503 : 429;
+      return res.status(status).json({ error: `${name} is ${status === 503 ? 'busy' : 'at its limit'} right now. Try again in a minute, or switch "Voice by" to ${others.map((p) => TTS_PROVIDER_NAMES[p]).join(' or ')}.` });
+    }
+    if (sendGeminiError(res, e, 'Voice generation failed. Please try again.')) return;
+    if (e instanceof AudioError && e.code === 'too_long') res.status(400).json({ error: 'Script is longer than 3 minutes. Please shorten it.' });
+    else {
+      console.error('tts failed', e);
+      res.status(502).json({ error: 'Voice generation failed. Please try again.' });
+    }
+  };
+
   app.post('/api/tts', async (req, res) => {
     const raw = req.body?.lines;
-    const isLine = (l: any) =>
-      l && typeof l.text === 'string' && l.text.length <= 500 && typeof l.voice === 'string' && l.voice &&
-      EXPRESSIONS.includes(l.expression) && GESTURES.includes(l.gesture) && (l.note === undefined || (typeof l.note === 'string' && l.note.length <= 200));
-    const provider: TtsProvider = req.body?.provider ?? ttsProviders()[0] ?? 'gemini';
-    const engine = req.body?.engine;
-    if (engine !== undefined && (typeof engine !== 'string' || !/^[\w.-]{1,64}$/.test(engine))) return res.status(400).json({ error: 'Invalid request' });
-    if (!Array.isArray(raw) || raw.length < 1 || raw.length > 50 || !raw.every(isLine) || !TTS_PROVIDERS.includes(provider)) return res.status(400).json({ error: 'Invalid request' });
+    const choice = ttsChoice(req.body);
+    if (!choice || !Array.isArray(raw) || raw.length < 1 || raw.length > 50 || !raw.every(validScriptLine)) return res.status(400).json({ error: 'Invalid request' });
+    const { provider, engine } = choice;
     const lines = raw as ScriptLineInput[];
-    const emptyAt = lines.findIndex((l) => !l.text.trim());
+    const emptyAt = lines.findIndex((l) => !hasSpeech(l.text));
     if (emptyAt >= 0) return res.status(400).json({ error: `Line ${emptyAt + 1} is empty` });
     try {
       const wavs: Buffer[] = [];
       for (const l of lines) wavs.push(await speakLine(provider, l, engine)); // sequential: kinder to free-tier limits
       const { path, durationMs, spans } = await concatWithGaps(wavs);
-      const dialog = lines.map((l) => l.text.replace(/<[^>]*>/g, ' ')).join(' ').replace(/\s+/g, ' ').trim();
+      const dialog = lines.map((l) => plainText(l.text)).join(' ');
       const cues = await runRhubarb(path, dialog || undefined);
       const out: Line[] = lines.map((l, i) => ({ text: l.text, expression: l.expression, gesture: l.gesture, ...spans[i] }));
       res.json({ audioId: basename(path, '.wav'), durationMs, lines: out, cues });
     } catch (e) {
-      // Still busy after the retries: point at the other voice providers that are set up.
-      const others = ttsProviders().filter((p) => p !== provider);
-      if (isTransient(e) && others.length) {
-        const name = TTS_PROVIDER_NAMES[provider].split(' ')[0];
-        const status = (e as { code: string }).code === 'busy' ? 503 : 429;
-        return res.status(status).json({ error: `${name} is ${status === 503 ? 'busy' : 'at its limit'} right now. Try again in a minute, or switch "Voice by" to ${others.map((p) => TTS_PROVIDER_NAMES[p]).join(' or ')}.` });
-      }
-      if (sendGeminiError(res, e, 'Voice generation failed. Please try again.')) return;
-      if (e instanceof AudioError && e.code === 'too_long') res.status(400).json({ error: 'Script is longer than 3 minutes. Please shorten it.' });
-      else {
-        console.error('tts failed', e);
-        res.status(502).json({ error: 'Voice generation failed. Please try again.' });
-      }
+      sendTtsError(res, e, provider);
+    }
+  });
+
+  // Hear one line before generating the whole script: just its audio (WAV), no lip sync.
+  app.post('/api/tts/preview', async (req, res) => {
+    const choice = ttsChoice(req.body);
+    const line = req.body?.line;
+    if (!choice || !validScriptLine(line)) return res.status(400).json({ error: 'Invalid request' });
+    if (!hasSpeech(line.text)) return res.status(400).json({ error: 'Line 1 is empty' });
+    try {
+      res.type('audio/wav').send(await speakLine(choice.provider, line, choice.engine));
+    } catch (e) {
+      sendTtsError(res, e, choice.provider);
     }
   });
 

@@ -30,7 +30,23 @@ The "Write script" tab can speak with three providers ("Voice by" appears when m
 
 - **Gemini TTS** (`GEMINI_API_KEY`): the default. A neutral line with no delivery note is sent as just its text; otherwise the expression and note go in separate director's notes, so they shape the delivery without being read out.
 - **OpenAI** (`OPENAI_API_KEY`, `OPENAI_TTS_MODEL`, default `gpt-4o-mini-tts`): the line's expression and delivery note become speaking instructions.
-- **VoiceStudio (local, free)**: [VoiceStudio](https://github.com/debpalash/VoiceStudio) runs open voice models on your own machine (voice cloning, 600+ languages). Start it, then set `VOICESTUDIO_URL=http://localhost:3900`. The script tab then shows whether it is running, an **Engine** picker (the engines installed in VoiceStudio, e.g. OmniVoice, KittenTTS, MLX-Audio) and your saved and cloned voices by name. Lines can use VoiceStudio's `[laughter]` and `[sigh]`; `<short pause>` becomes its `[pause]`, and a delivery note containing "whisper" makes it whisper. Clone or design new voices in VoiceStudio itself; they appear here automatically. With VoiceStudio running, "Add expressions" on an upload transcribes locally (free, offline); without a Gemini key the lines arrive untagged, ready to tag by hand.
+- **VoiceStudio (local, free)**: [VoiceStudio](https://github.com/debpalash/VoiceStudio) runs open voice models on your own machine (voice cloning, 600+ languages). Start it, then set `VOICESTUDIO_URL=http://localhost:3900`. The script tab then shows whether it is running, an **Engine** picker (the engines installed in VoiceStudio, e.g. OmniVoice, KittenTTS, MLX-Audio), your saved and cloned voices by name, and VoiceStudio's personas (designed voices such as Narrator or Storyteller, shown with their icon). Clone or design new voices in VoiceStudio itself; they appear here automatically. With VoiceStudio running, "Add expressions" on an upload transcribes locally (free, offline); without a Gemini key the lines arrive untagged, ready to tag by hand.
+
+Each line has its own voice controls, like Murf's blocks:
+
+| Control | VoiceStudio | OpenAI / Gemini |
+|---|---|---|
+| Voice | saved/cloned voice, persona, or the engine's default | the provider's voices |
+| Language | its `language`; English accents (US, UK, AU, CA, India) as a voice attribute | spoken direction ("with a British accent", "in French") |
+| Style | Whisper is real (its only delivery style) | spoken direction |
+| Pitch % (±25) | shifted afterwards with ffmpeg, length kept, so it also works on cloned voices | same |
+| Speed % (±50) | its own `speed` | ffmpeg afterwards |
+| Variability | Steady (one seed per voice: the same take every time) or Varied (a new take each time) | n/a |
+| ▶ | plays just that line, no lip sync | same |
+
+**Add pause** puts `[pause 0.5s]`, `[pause 1s]` or `[pause 2s]` at the cursor (any `[pause Ns]` / `[pause Nms]` up to 10 s works, as do Gemini-style `<short pause>` / `<long pause>`). The app splits the line there and inserts real silence, because VoiceStudio's speech endpoint reads timed pause tags out loud. **✦ Cue** adds a delivery cue at the cursor, or around the selected words: `[whisper]`, `[excited]`, `[happy]`, `[surprised]`, `[sad]`, `[calm]`, `[angry]`. A cue lasts until its closing tag (`[/excited]`), the next cue or the end of the line. OpenAI and Gemini perform cues as direction. VoiceStudio's default engine has no emotions (only whisper), so it *approximates* the others with a small speed and pitch change on those words. On OmniVoice the menu also offers its reaction sounds: `[laughter]`, `[sigh]`, `[surprise-oh]`, `[surprise-wa]`, `[question-en]`, `[confirmation-en]`, `[dissatisfaction-hnn]`. Other engines would read these out loud, so the app drops them there. A delivery note containing "whisper" still whispers.
+
+Not possible with the VoiceStudio engines installed by default: real emotional styles (Conversational, Promo, Angry…), emphasis on a word, and breaths. VoiceStudio's opt-in engines can do some of this (IndexTTS2 for emotion, CosyVoice 3 for `[breath]` and emphasis), but the app doesn't use them yet. Each pause or cue means one more call to the voice provider for that line.
 
 ## Natural movement
 

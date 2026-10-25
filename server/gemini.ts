@@ -56,7 +56,7 @@ const imageModel = () => process.env.GEMINI_IMAGE_MODEL || 'gemini-nano-banana-2
 
 const SAMPLE_RATE = 24000; // Gemini TTS: 24 kHz, 16-bit, mono
 
-function wrapPcm(pcm: Buffer): Buffer {
+export function wrapPcm(pcm: Buffer): Buffer {
   const h = Buffer.alloc(44);
   h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVEfmt ', 8);
   h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22);

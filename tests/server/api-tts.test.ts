@@ -26,7 +26,7 @@ describe('POST /api/tts', () => {
     expect(r.body.lines[1]).toMatchObject({ text: 'Second <short pause> line', expression: 'sad', gesture: 'nod' });
     expect(r.body.cues.length).toBeGreaterThan(0);
     expect(r.body.durationMs).toBe(r.body.lines[1].endMs);
-    expect(generateContent).toHaveBeenCalledTimes(2);
+    expect(generateContent).toHaveBeenCalledTimes(3); // the pause splits line 2 into two pieces with silence between
     rmSync(join('data/audio', `${r.body.audioId}.wav`), { force: true });
   }, 30000);
 
@@ -43,6 +43,11 @@ describe('POST /api/tts', () => {
       { lines: [L('x'.repeat(501))] },
       { lines: [L('x', { expression: 'bored' })] },
       { lines: [L('x', { gesture: 'dance' })] },
+      { lines: [L('x', { pitch: 30 })] },
+      { lines: [L('x', { speed: 'fast' })] },
+      { lines: [L('x', { language: 'xx' })] },
+      { lines: [L('x', { style: 'shout' })] },
+      { lines: [L('x', { variability: 'wild' })] },
     ];
     for (const b of bad) {
       const r = await request(app).post('/api/tts').send(b);
@@ -119,14 +124,16 @@ describe('POST /api/tts retries and providers', () => {
     expect(generateContent).toHaveBeenCalledTimes(1);
   });
 
-  it('speaks with OpenAI: tone as instructions, pause tags not read out', async () => {
+  it('speaks with OpenAI: tone, language and cues as instructions, pauses as real silence', async () => {
     process.env.OPENAI_API_KEY = 'sk-test';
     const calls: any[] = [];
     stubApis(async (url, init) => { calls.push({ url, body: JSON.parse(init.body) }); return new Response(fixture); });
-    const r = await request(app).post('/api/tts').send({ provider: 'openai', lines: [L('Hi <short pause> there', { voice: 'coral', expression: 'wink', note: 'whispering' })] });
+    const r = await request(app).post('/api/tts').send({ provider: 'openai', lines: [L('Hi <short pause> [excited]there', { voice: 'coral', expression: 'wink', note: 'softly', language: 'en-GB' })] });
     expect(r.status).toBe(200);
     expect(calls[0].url).toBe('https://api.openai.com/v1/audio/speech');
-    expect(calls[0].body).toMatchObject({ model: 'gpt-4o-mini-tts', voice: 'coral', input: 'Hi ... there', response_format: 'wav', instructions: 'Speak naturally, in a playful tone, whispering.' });
+    expect(calls[0].body).toMatchObject({ model: 'gpt-4o-mini-tts', voice: 'coral', input: 'Hi', response_format: 'wav', instructions: 'Speak naturally, in a playful tone, softly, with a British accent.' });
+    expect(calls[1].body).toMatchObject({ input: 'there', instructions: 'Speak naturally, in a playful tone, softly, with a British accent, excited.' });
+    expect(calls[0].body.speed).toBeUndefined();
     expect(generateContent).not.toHaveBeenCalled();
     rmSync(join('data/audio', `${r.body.audioId}.wav`), { force: true });
   }, 30000);
@@ -139,7 +146,7 @@ describe('POST /api/tts retries and providers', () => {
     expect(r.status).toBe(200);
     expect(calls[0].url).toBe('http://localhost:3900/v1/audio/speech');
     expect(calls[0].init.headers.Authorization).toBeUndefined(); // local: no key
-    expect(JSON.parse(calls[0].init.body)).toEqual({ model: 'tts-1', voice: 'My clone', input: 'Hello', response_format: 'wav' });
+    expect(JSON.parse(calls[0].init.body)).toEqual({ model: 'tts-1', voice: 'My clone', input: 'Hello', response_format: 'wav', seed: expect.any(Number) });
     rmSync(join('data/audio', `${r.body.audioId}.wav`), { force: true });
   }, 30000);
 
@@ -155,7 +162,9 @@ describe('POST /api/tts retries and providers', () => {
     process.env.VOICESTUDIO_URL = 'http://localhost:3900';
     process.env.OPENAI_API_KEY = 'sk-test';
     // Shapes copied from a real VoiceStudio 0.5.6
-    stubApis(async (url) => url.endsWith('/health') ? new Response(JSON.stringify({ status: 'ok', device: 'mps', version: '0.5.6' })) : new Response(JSON.stringify({
+    stubApis(async (url) => url.endsWith('/health') ? new Response(JSON.stringify({ status: 'ok', device: 'mps', version: '0.5.6' }))
+      : url.endsWith('/personalities') ? new Response(JSON.stringify([{ id: 'narrator', name: 'Narrator', instruct: 'middle-aged, low pitch', icon: '📖' }]))
+      : new Response(JSON.stringify({
       voices: [
         { voice_id: 'alloy', name: 'Alloy', type: 'openai_alias' }, { voice_id: 'coral', name: 'Coral', type: 'openai_alias' },
         { voice_id: 'demo0001', name: 'VoiceStudio Demo Voice', type: 'profile', language: 'English' },
@@ -168,7 +177,11 @@ describe('POST /api/tts retries and providers', () => {
     })));
     expect((await request(app).get('/api/voicestudio')).body).toEqual({
       running: true, url: 'http://localhost:3900', version: '0.5.6', device: 'mps',
-      voices: [{ id: 'demo0001', label: 'VoiceStudio Demo Voice (English)', kind: 'profile' }, { id: 'alloy', label: "Engine's default voice", kind: 'default' }],
+      voices: [
+        { id: 'demo0001', label: 'VoiceStudio Demo Voice (English)', kind: 'profile' },
+        { id: 'persona:narrator', label: 'Narrator', kind: 'persona', icon: '📖' },
+        { id: 'alloy', label: "Engine's default voice", kind: 'default' },
+      ],
       engines: [
         { id: 'omnivoice', label: 'VoiceStudio (k2-fsa/OmniVoice, 600+ languages)', cloning: true, emotion: false },
         { id: 'kittentts', label: 'KittenTTS (English)', cloning: false, emotion: false },
@@ -183,15 +196,60 @@ describe('POST /api/tts retries and providers', () => {
     expect((await request(app).get('/api/voicestudio')).body).toMatchObject({ running: false, voices: [], engines: [] });
   });
 
-  it('uses the chosen VoiceStudio engine, its own tags and whisper style', async () => {
+  it('splits VoiceStudio lines at pauses and cues, with language, accent, speed and one seed', async () => {
     process.env.VOICESTUDIO_URL = 'http://localhost:3900';
     const calls: any[] = [];
     stubApis(async (url, init) => { calls.push(JSON.parse(init.body)); return new Response(fixture); });
-    const r = await request(app).post('/api/tts').send({ provider: 'voicestudio', engine: 'kittentts', lines: [L('Well <short pause> [laughter] that [excited] is <long pause> funny', { voice: 'demo0001', note: 'whispering' })] });
+    const line = L('Well [laughter] [pause 1s] that [excited]is great[/excited] ok [bogus]', { voice: 'demo0001', language: 'en-GB', speed: 10 });
+    const r = await request(app).post('/api/tts').send({ provider: 'voicestudio', engine: 'omnivoice', lines: [line] });
     expect(r.status).toBe(200);
-    expect(calls[0]).toMatchObject({ model: 'kittentts', input: 'Well [pause] [laughter] that is [pause 1s] funny', instruct: 'whisper' });
+    expect(calls.map((c) => c.input)).toEqual(['Well [laughter]', 'that', 'is great', 'ok']);
+    expect(calls[0]).toMatchObject({ model: 'omnivoice', voice: 'demo0001', language: 'en', instruct: 'british accent', speed: 1.1 });
+    expect(calls[2].speed).toBe(1.23); // excited: +12% on top of the line's +10%
+    expect(new Set(calls.map((c) => c.seed)).size).toBe(1); // steady: one seed for the whole line
+    expect(r.body.durationMs).toBeGreaterThan(1000); // the pause is real silence
     expect((await request(app).post('/api/tts').send({ provider: 'voicestudio', engine: '../x', lines: [L('hi')] })).status).toBe(400);
     rmSync(join('data/audio', `${r.body.audioId}.wav`), { force: true });
+  }, 30000);
+
+  it('drops reaction sounds on engines that would read them, and whispers', async () => {
+    process.env.VOICESTUDIO_URL = 'http://localhost:3900';
+    const calls: any[] = [];
+    stubApis(async (url, init) => { calls.push(JSON.parse(init.body)); return new Response(fixture); });
+    const r = await request(app).post('/api/tts').send({ provider: 'voicestudio', engine: 'kittentts', lines: [L('Well [laughter] that is funny', { voice: 'demo0001', note: 'whispering' })] });
+    expect(calls[0]).toMatchObject({ model: 'kittentts', input: 'Well that is funny', instruct: 'whisper' });
+    rmSync(join('data/audio', `${r.body.audioId}.wav`), { force: true });
+  }, 30000);
+
+  it('speaks a VoiceStudio persona from its attributes, with the picked accent instead of its own', async () => {
+    process.env.VOICESTUDIO_URL = 'http://localhost:3900';
+    const calls: any[] = [];
+    stubApis(async (url, init) => {
+      if (url.endsWith('/personalities')) return new Response(JSON.stringify([{ id: 'storyteller', name: 'Storyteller', instruct: 'middle-aged, moderate pitch, british accent' }, { id: 'sichuan', name: 'Sichuan', instruct: 'female, 四川话' }]));
+      calls.push(JSON.parse(init.body));
+      return new Response(fixture);
+    });
+    const r = await request(app).post('/api/tts').send({ provider: 'voicestudio', lines: [L('Once upon a time', { voice: 'persona:storyteller', language: 'en-US', style: 'whisper', variability: 'varied' })] });
+    expect(r.status).toBe(200);
+    expect(calls[0]).toMatchObject({ voice: 'default', instruct: 'middle-aged, moderate pitch, american accent, whisper', language: 'en' });
+    // a Chinese dialect gives way to an English accent too (OmniVoice refuses both together)
+    const r2 = await request(app).post('/api/tts').send({ provider: 'voicestudio', lines: [L('Hi', { voice: 'persona:sichuan', language: 'en-GB' })] });
+    expect(calls[1].instruct).toBe('female, british accent');
+    rmSync(join('data/audio', `${r2.body.audioId}.wav`), { force: true });
+    rmSync(join('data/audio', `${r.body.audioId}.wav`), { force: true });
+  }, 30000);
+
+  it('previews one line as audio, with pitch shifted and the length kept', async () => {
+    generateContent.mockResolvedValue(speech);
+    const plain = await request(app).post('/api/tts/preview').send({ provider: 'gemini', line: L('Hi there') }).buffer(true);
+    const shifted = await request(app).post('/api/tts/preview').send({ provider: 'gemini', line: L('Hi there', { pitch: 20 }) }).buffer(true);
+    expect(plain.status).toBe(200);
+    expect(plain.headers['content-type']).toMatch(/audio\/wav/);
+    expect(shifted.status).toBe(200);
+    const seconds = (wav: Buffer) => (wav.length - 44) / (wav.readUInt32LE(28)); // data bytes / bytes per second
+    expect(Math.abs(seconds(shifted.body) - seconds(plain.body))).toBeLessThan(0.1);
+    expect((await request(app).post('/api/tts/preview').send({ line: L('[pause 1s]') })).body).toEqual({ error: 'Line 1 is empty' });
+    expect((await request(app).post('/api/tts/preview').send({ line: L('hi', { speed: 90 }) })).status).toBe(400);
   }, 30000);
 
   it('transcribes locally with VoiceStudio when it is running', async () => {

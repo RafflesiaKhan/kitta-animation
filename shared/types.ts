@@ -18,7 +18,11 @@ export interface FrameState {
 }
 export type StarterId = 'kit' | 'milo' | 'pip';
 export interface CharacterConfig { starter: StarterId; skin: string; hairStyle: string; hairColor: string; eyeStyle: string; outfit: string; outfitColor: string }
-export interface ScriptLineInput { text: string; voice: string; expression: Expression; gesture: Gesture; note?: string }
+export interface ScriptLineInput {
+  text: string; voice: string; expression: Expression; gesture: Gesture; note?: string;
+  // Per-line voice controls (shared/voices.ts): language id, style, pitch and speed in % (0 = as is), steady or varied takes.
+  language?: string; style?: 'normal' | 'whisper'; pitch?: number; speed?: number; variability?: 'steady' | 'varied';
+}
 export type ExportFormat = { aspect: '16:9' | '9:16'; transparent: boolean };
 
 // ---------- AI-created characters (painted artwork instead of the SVG rig) ----------

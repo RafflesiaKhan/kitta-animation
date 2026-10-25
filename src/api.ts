@@ -37,6 +37,19 @@ export function tts(lines: ScriptLineInput[], provider?: TtsProvider, engine?: s
   return post('/api/tts', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines, provider, engine: engine || undefined }) });
 }
 
+/** Speaks one script line and returns its audio, for the per-line preview (no lip sync). */
+export async function previewLine(line: ScriptLineInput, provider?: TtsProvider, engine?: string): Promise<Blob> {
+  let res: Response;
+  try {
+    res = await fetch('/api/tts/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ line, provider, engine: engine || undefined }) });
+  } catch {
+    throw new Error('Could not reach the server. Is it running?');
+  }
+  if (res.ok) return res.blob();
+  const body = await res.json().catch(() => ({}));
+  throw new Error(typeof body.error === 'string' ? body.error : `Request failed (${res.status})`);
+}
+
 /** Status, engines and voices of the local VoiceStudio; null if our server can't be reached. */
 export async function voiceStudio(): Promise<VoiceStudioInfo | null> {
   try {
