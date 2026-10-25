@@ -27,13 +27,19 @@ export type ArtPose = Expression | 'blink' | ArtAction;
 export type ArtAction = 'wave' | 'lookDown' | 'celebrate' | 'shrug' | 'think' | 'point' | 'explain';
 export const ART_ACTIONS: ArtAction[] = ['wave', 'lookDown', 'celebrate', 'shrug', 'think', 'point', 'explain'];
 export const ART_POSES: ArtPose[] = [...EXPRESSIONS, 'blink', ...ART_ACTIONS];
-/** Where the painted mouth is, as fractions of the square image (x, y = centre; w = width), plus the skin colour around it. */
-export interface MouthBox { x: number; y: number; w: number; skin: string }
+/**
+ * Where the painted mouth is, as fractions of the square image (x, y = centre; w = width), plus the skin colour around it.
+ * h (height) is set when the mouth was measured in the pixels, not just guessed by a vision model.
+ */
+export interface MouthBox { x: number; y: number; w: number; h?: number; skin: string }
 export interface ArtImage { file: string; mouth: MouthBox | null }
 export type ImageProvider = 'gemini' | 'openai';
 export const IMAGE_PROVIDERS: ImageProvider[] = ['gemini', 'openai'];
-/** provider: the model family that painted it; its later poses use the same one (absent = gemini, for older characters). */
-export interface ArtCharacter { kind: 'art'; id: string; name: string; prompt: string; style: string; provider?: ImageProvider; images: Partial<Record<ArtPose, ArtImage>> }
+/**
+ * provider: the model family that painted it; its later poses use the same one (absent = gemini, for older characters).
+ * mouthsMeasured: its mouths were measured in the pixels (absent for characters made before that, which can be re-measured).
+ */
+export interface ArtCharacter { kind: 'art'; id: string; name: string; prompt: string; style: string; provider?: ImageProvider; mouthsMeasured?: boolean; images: Partial<Record<ArtPose, ArtImage>> }
 /** Whatever the user picked in the Character step: a customised SVG starter or an AI-created character. */
 export type AnyCharacter = CharacterConfig | ArtCharacter;
 export const isArt = (c: AnyCharacter): c is ArtCharacter => (c as ArtCharacter).kind === 'art';

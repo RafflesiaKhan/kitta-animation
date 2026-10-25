@@ -145,9 +145,11 @@ function ArtSheet({ character: c, busy, geminiOk, onDraw, onFindMouths, onDelete
         <button className="mini" disabled={busy} onClick={() => { if (confirm(`Delete ${c.name}?`)) onDelete(c.id); }}>Delete</button>
       </div>
       <p className="hint">{c.style} · {PROVIDER_NAMES[c.provider ?? 'gemini']} · {c.prompt || 'from a reference picture'}</p>
-      {noMouth > 0 && (
+      {(noMouth > 0 || !c.mouthsMeasured) && (
         <p className="hint">
-          {noMouth === 1 ? '1 picture has' : `${noMouth} pictures have`} no mouth found, so the character won't move its lips in {noMouth === 1 ? 'it' : 'them'}.{' '}
+          {noMouth > 0
+            ? `${noMouth === 1 ? '1 picture has' : `${noMouth} pictures have`} no mouth found, so the character won't move its lips in ${noMouth === 1 ? 'it' : 'them'}.`
+            : 'This character was made before mouths were measured precisely, so its talking mouth may sit off its painted one.'}{' '}
           <button className="mini" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={() => onFindMouths(c.id)}>Find mouths again</button>
         </p>
       )}

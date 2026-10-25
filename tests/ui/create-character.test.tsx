@@ -95,11 +95,21 @@ it('disables creation without any image key', async () => {
 it('finds missing mouths again from the character sheet', async () => {
   const noMouth = { ...robo, images: { neutral: { file: 'neutral-a.png', mouth: null }, wave: { file: 'wave-a.png', mouth: null } } };
   vi.mocked(api.listCharacters).mockResolvedValue([noMouth]);
-  vi.mocked(api.findMissingMouths).mockResolvedValue({ ...noMouth, images: { ...noMouth.images, neutral: robo.images.neutral } });
+  vi.mocked(api.measureMouths).mockResolvedValue({ ...noMouth, images: { ...noMouth.images, neutral: robo.images.neutral } });
   render(<App />);
   fireEvent.click(await screen.findByRole('button', { name: /Robo/ }));
   expect(screen.getByText(/2 pictures have no mouth found/)).toBeTruthy();
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Find mouths again' })); });
-  expect(api.findMissingMouths).toHaveBeenCalledWith(robo.id);
+  expect(api.measureMouths).toHaveBeenCalledWith(robo.id);
   await waitFor(() => expect(screen.getByText(/1 picture has no mouth found/)).toBeTruthy());
+});
+
+it('offers to re-measure a character made before mouths were measured, and not one that was', async () => {
+  vi.mocked(api.listCharacters).mockResolvedValue([robo]);
+  vi.mocked(api.measureMouths).mockResolvedValue({ ...robo, mouthsMeasured: true });
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: /Robo/ }));
+  expect(screen.getByText(/made before mouths were measured/)).toBeTruthy();
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Find mouths again' })); });
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Find mouths again' })).toBeNull());
 });

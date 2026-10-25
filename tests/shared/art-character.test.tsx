@@ -54,6 +54,15 @@ describe('ArtCharacterView', () => {
     expect(html).toContain('fill="#ffcc99"');
     expect(html).toMatch(/data-part="mouth"[^>]*translate\(500 600\)/);
   });
+  it('fits the patch to a measured mouth in each picture, keeping the talking mouth at the neutral size', () => {
+    const measured: ArtCharacter = { ...art, images: {
+      neutral: { file: 'neutral-a.png', mouth: { x: 0.5, y: 0.6, w: 0.1, h: 0.02, skin: '#ffcc99' } },
+      happy: { file: 'happy-a.png', mouth: { x: 0.52, y: 0.61, w: 0.14, h: 0.03, skin: '#ffcc98' } },
+    } };
+    const html = render(frame({ mouth: 'D', expression: 'happy' }), measured);
+    expect(html).toContain('<ellipse cx="520" cy="610" rx="91" ry="36" fill="#ffcc98"'); // 70 + 21 pad, 15 + 21 pad
+    expect(html).toMatch(/data-part="mouth"[^>]*translate\(520 610\) scale\(1\)/); // neutral width 0.1 -> scale 1
+  });
   it("talks at the neutral picture's mouth in every pose, and not while looking down", () => {
     // happy's own box is off and wave has none: both talk where the neutral mouth is
     expect(render(frame({ mouth: 'D', expression: 'happy' }))).toMatch(/data-part="mouth"[^>]*translate\(500 600\)/);

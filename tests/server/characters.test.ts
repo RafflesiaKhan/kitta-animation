@@ -119,7 +119,31 @@ describe('AI characters', () => {
     expect(r.body.character.images.neutral.mouth).toBeNull();
   }, 30000);
 
-  it('finds missing mouths again without repainting', async () => {
+  it('measures the painted mouth in the pixels and seeds every pose with it, without more vision calls', async () => {
+    // a skin square on magenta with a dark mouth line at x 226-286, y 300-306 (of 512); the vision box is 20 px too high
+    const face = execFileSync('ffmpeg', ['-loglevel', 'error', '-f', 'lavfi', '-i', 'color=0xFF00FF:s=512x512', '-vf',
+      'drawbox=x=156:y=156:w=200:h=200:color=0xF0C8A0:t=fill,drawbox=x=226:y=300:w=60:h=6:color=0x401010:t=fill',
+      '-frames:v', '1', '-f', 'image2pipe', '-vcodec', 'png', 'pipe:1']);
+    const faceReply = { candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: face.toString('base64') } }] } }] };
+    generateContent.mockImplementation(async (req: any) => req.config?.responseModalities?.includes('IMAGE')
+      ? faceReply : { text: JSON.stringify({ found: true, box_2d: [560, 450, 600, 550], skin: '#000000' }) });
+    const c = (await create()).body.character;
+    created.push(c.id);
+    expect(c.mouthsMeasured).toBe(true);
+    const m = c.images.neutral.mouth;
+    expect(m.x).toBeCloseTo(0.5, 2);
+    expect(m.y).toBeCloseTo(0.592, 2);
+    expect(m.w).toBeCloseTo(0.117, 1);
+    expect(m.h).toBeGreaterThan(0);
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(m.skin.slice(i, i + 2), 16)); // sampled skin, not the vision reply's
+    [r - 0xf0, g - 0xc8, b - 0xa0].forEach((d) => expect(Math.abs(d)).toBeLessThanOrEqual(6));
+    generateContent.mockClear();
+    const happy = (await request(app).post(`/api/characters/${c.id}/poses/happy`)).body.character.images.happy;
+    expect(happy.mouth).toEqual(m); // same picture here, measured from the neutral mouth
+    expect(generateContent.mock.calls.every(([req]) => req.config?.responseModalities)).toBe(true); // only the image call
+  }, 30000);
+
+  it('measures mouths again without repainting', async () => {
     generateContent.mockImplementation(async (req: any) => {
       if (req.config?.responseModalities) return imageReply;
       throw Object.assign(new Error('RESOURCE_EXHAUSTED'), { status: 429 });

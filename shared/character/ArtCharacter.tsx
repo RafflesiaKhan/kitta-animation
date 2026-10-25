@@ -54,11 +54,15 @@ export function ArtCharacterView({ character, frame, width = 1000, height = 1000
   // out, so its body (e.g. a hanging arm where the pose has a raised one) never shows through the action pose.
   const actionOpacity = Math.min(1, poseK * 2);
   const underOpacity = Math.min(1, (1 - poseK) * 2);
-  // Every pose is an edit of the neutral picture with the same framing, so the mouth sits where the neutral one does;
-  // the neutral lookup is the one to trust. Only looking down moves the head; its face is turned away, so it doesn't talk.
-  const m = poseK >= 0.5 && frame.gesture === 'lookDown' ? undefined : neutral?.mouth;
+  // A mouth measured in the pixels (h set) is exact for its own picture, so the patch covers that picture's painted
+  // mouth. A vision-only guess is trusted only from the neutral picture, which every pose shares its framing with.
+  // Looking down turns the face away, so it doesn't talk. The talking mouth keeps the neutral mouth's size throughout.
+  const shown = poseK >= 0.5 ? pose : blink ?? base;
+  const m = poseK >= 0.5 && frame.gesture === 'lookDown' ? undefined : shown?.mouth?.h !== undefined ? shown.mouth : neutral?.mouth;
   const talking = m && !QUIET.has(frame.mouth);
-  const mw = m ? m.w * 1000 : 0;
+  const mw = (neutral?.mouth ?? m)?.w ?? 0;
+  const pad = m ? Math.max(6, m.w * 150) : 0;
+  const patch = m && (m.h !== undefined ? { rx: m.w * 500 + pad, ry: m.h * 500 + pad } : { rx: m.w * 620, ry: m.w * 380 });
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width={width} height={height}>
       <g data-part="character" transform={`translate(${n(sway)} ${n(frame.bob + nod + hop + speechNod + face.slump * 0.4)}) rotate(${n(tilt)} 500 980)`}>
@@ -72,8 +76,8 @@ export function ArtCharacterView({ character, frame, width = 1000, height = 1000
         {pose && poseK > 0 && layer(pose, actionOpacity, 'action')}
         {talking && (
           <g data-part="talk">
-            <ellipse cx={n(m.x * 1000)} cy={n(m.y * 1000)} rx={n(mw * 0.62)} ry={n(mw * 0.38)} fill={m.skin} />
-            <Mouth shape={frame.mouth} mood={FACES[frame.expression]?.mouth ?? FACES.neutral.mouth} x={m.x * 1000} y={m.y * 1000} scale={Math.max(0.2, mw / 100)} />
+            <ellipse cx={n(m.x * 1000)} cy={n(m.y * 1000)} rx={n(patch!.rx)} ry={n(patch!.ry)} fill={m.skin} />
+            <Mouth shape={frame.mouth} mood={FACES[frame.expression]?.mouth ?? FACES.neutral.mouth} x={m.x * 1000} y={m.y * 1000} scale={Math.max(0.2, mw * 10)} />
           </g>
         )}
       </g>

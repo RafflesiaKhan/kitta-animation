@@ -10,6 +10,8 @@ export type ArtStyle = (typeof ART_STYLES)[number];
 const BACKDROP = 'Plain solid magenta (#FF00FF) background filling the whole image, no shadow, no floor, no text. Do not use magenta anywhere on the character.';
 const FRAMING = 'A single character, front view, upper body from the waist up, centred with some space around it, facing the viewer.';
 const KEEP = 'Same character, same art style, same framing, size and position, same outfit and colours, same solid magenta background.';
+// A simple, clearly outlined mouth is what the app measures to fit the talking mouth over it.
+const MOUTH = 'Keep the mouth closed, drawn as one simple clear line.';
 
 const FACE: Record<Expression, string> = {
   neutral: 'a neutral, relaxed face',
@@ -40,12 +42,12 @@ export function basePrompt(description: string, style: string, hasReference: boo
   const who = hasReference
     ? `Redraw the character in the attached picture${description.trim() ? ` (${description.trim()})` : ''}`
     : `A ${description.trim()}`;
-  return `${who}, as a ${style} mascot character. ${FRAMING} ${FACE.neutral} with the mouth closed, arms relaxed. ${BACKDROP}`;
+  return `${who}, as a ${style} mascot character. ${FRAMING} ${FACE.neutral} with the mouth closed, drawn as one simple clear line, arms relaxed. ${BACKDROP}`;
 }
 
 /** Prompt for editing the base image into another pose. Mouths stay closed: the app animates speech on top. */
 export function posePrompt(pose: ArtPose): string {
-  if (pose === 'blink') return `${KEEP} Change only the eyes: both eyes fully closed, mid-blink. Keep the mouth closed.`;
-  if (pose in ACTION) return `${KEEP} Change the pose to ${ACTION[pose as keyof typeof ACTION]}. Keep the face neutral with the mouth closed, and keep the character as close as possible to the same size and position.`;
-  return `${KEEP} Change only the face to look ${FACE[pose as Expression]}. Keep the mouth closed.`;
+  if (pose === 'blink') return `${KEEP} Change only the eyes: both eyes fully closed, mid-blink. ${MOUTH}`;
+  if (pose in ACTION) return `${KEEP} Change the pose to ${ACTION[pose as keyof typeof ACTION]}. Keep the face neutral. ${MOUTH} Keep the character as close as possible to the same size and position.`;
+  return `${KEEP} Change only the face to look ${FACE[pose as Expression]}. ${MOUTH}`;
 }

@@ -128,7 +128,7 @@ export function App() {
   });
 
   const findMouths = (id: string) => run('Finding mouths…', async () => {
-    putArt(await api.findMissingMouths(id));
+    putArt(await api.measureMouths(id));
   });
 
   const deleteArt = (id: string) => run('Deleting…', async () => {

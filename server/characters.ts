@@ -4,10 +4,11 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ART_POSES } from '../shared/types';
-import type { ArtCharacter, ArtPose, ImageProvider } from '../shared/types';
+import type { ArtCharacter, ArtPose, ImageProvider, MouthBox } from '../shared/types';
 import { basePrompt, posePrompt } from '../shared/character/art';
 import type { ImageInput } from './gemini';
 import { imageProviders, locateMouth, paint } from './images';
+import { measureMouth } from './mouth';
 
 // The library of AI-created characters: data/characters/<id>/meta.json plus one transparent PNG per pose,
 // and source.png, the base image with its magenta backdrop, which every later pose is edited from.
@@ -72,12 +73,25 @@ async function mouthOf(png: Buffer) {
   }
 }
 
+/** The mouth measured in the picture near the seed, or the seed itself when it can't be measured. */
+async function measureFrom(png: Buffer, seed: MouthBox | null): Promise<MouthBox | null> {
+  return seed && ((await measureMouth(png, seed)) ?? seed);
+}
+
+/**
+ * A pose's mouth. The neutral picture's comes from the vision lookup, refined in the pixels. Every other pose is an
+ * edit with the same framing, so the neutral mouth seeds its measurement (no vision call).
+ */
+async function mouthFor(c: ArtCharacter, pose: ArtPose, png: Buffer): Promise<MouthBox | null> {
+  return measureFrom(png, pose === 'neutral' ? await mouthOf(png) : c.images.neutral?.mouth ?? null);
+}
+
 async function savePose(c: ArtCharacter, pose: ArtPose, png: Buffer): Promise<ArtCharacter> {
   const dir = dirOf(c.id);
   const file = `${pose}-${Date.now().toString(36)}.png`; // new name per version, so browsers never show a stale cached pose
   await writeFile(join(dir, file), png);
   const old = c.images[pose]?.file;
-  const next: ArtCharacter = { ...c, images: { ...c.images, [pose]: { file, mouth: await mouthOf(png) } } };
+  const next: ArtCharacter = { ...c, images: { ...c.images, [pose]: { file, mouth: await mouthFor(c, pose, png) } } };
   await writeFile(join(dir, 'meta.json'), JSON.stringify(next, null, 2));
   if (old && old !== file) await rm(join(dir, old), { force: true });
   return next;
@@ -102,7 +116,7 @@ export async function createCharacter({ description, name, style, provider, refe
   const dir = dirOf(id);
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'source.png'), source);
-  const c: ArtCharacter = { kind: 'art', id, name, prompt: description, style, provider, images: {} };
+  const c: ArtCharacter = { kind: 'art', id, name, prompt: description, style, provider, mouthsMeasured: true, images: {} };
   return withLock(id, () => savePose(c, 'neutral', png));
 }
 
@@ -118,17 +132,25 @@ export async function generatePose(id: string, pose: ArtPose): Promise<ArtCharac
   return withLock(id, async () => savePose(await readMeta(id), pose, png));
 }
 
-/** Runs the mouth lookup again for every picture that has no mouth yet (e.g. the lookup failed when it was drawn). */
-export async function findMissingMouths(id: string): Promise<ArtCharacter> {
+/**
+ * Measures every picture's mouth again (for characters made before mouths were measured, or whose lookup failed).
+ * Only a neutral picture without any mouth needs a vision call; the rest is local pixel work.
+ */
+export async function measureMouths(id: string): Promise<ArtCharacter> {
   return withLock(id, async () => {
     const c = await readMeta(id);
+    const read = (file: string) => { const p = imagePath(id, file); return p ? readFile(p) : null; };
     const images = { ...c.images };
+    const neutral = images.neutral;
+    const png = neutral && await read(neutral.file);
+    if (neutral && png) images.neutral = { ...neutral, mouth: await measureFrom(png, neutral.mouth ?? await mouthOf(png)) };
+    const seed = images.neutral?.mouth ?? null;
     for (const [pose, im] of Object.entries(images) as [ArtPose, NonNullable<ArtCharacter['images'][ArtPose]>][]) {
-      if (im.mouth) continue;
-      const p = imagePath(id, im.file);
-      if (p) images[pose] = { ...im, mouth: await mouthOf(await readFile(p)) };
+      if (pose === 'neutral') continue;
+      const p = await read(im.file);
+      if (p) images[pose] = { ...im, mouth: await measureFrom(p, seed) };
     }
-    const next = { ...c, images };
+    const next: ArtCharacter = { ...c, mouthsMeasured: true, images };
     await writeFile(join(dirOf(id), 'meta.json'), JSON.stringify(next, null, 2));
     return next;
   });

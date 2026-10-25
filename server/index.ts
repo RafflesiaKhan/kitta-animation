@@ -17,7 +17,7 @@ import type { Line, ScriptLineInput } from '../shared/types';
 import { runRhubarb, rhubarbAvailable } from './rhubarb';
 import { renderVideo } from './render';
 import { validateExport } from './validate';
-import { CharacterError, createCharacter, deleteCharacter, findMissingMouths, generatePose, getCharacter, imageDataUris, imagePath, listCharacters } from './characters';
+import { CharacterError, createCharacter, deleteCharacter, generatePose, getCharacter, imageDataUris, imagePath, listCharacters, measureMouths } from './characters';
 import { ART_STYLES } from '../shared/character/art';
 import { isArt, type ArtPose } from '../shared/types';
 
@@ -248,7 +248,7 @@ export function createApp() {
 
   app.post('/api/characters/:id/mouths', async (req, res) => {
     try {
-      res.json({ character: await findMissingMouths(req.params.id) });
+      res.json({ character: await measureMouths(req.params.id) });
     } catch (e) {
       if (!sendCharacterError(res, e, 'Mouth lookup failed. Please try again.')) {
         console.error('find mouths failed', e);
