@@ -149,7 +149,10 @@ export function App() {
   return (
     <div className="app">
       <header>
-        <h1>Kitta Animation</h1>
+        <div className="brand">
+          <h1>Kitta Animation</h1>
+          <span className="tagline">Lip-synced cartoon videos from your voice</span>
+        </div>
         <nav className="pills">
           {STEPS.map((label, i) => (
             <button key={label} className={`pill${i === step ? ' active' : ''}`} onClick={() => setStep(i)}>{label}</button>
