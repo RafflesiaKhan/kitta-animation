@@ -173,9 +173,9 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
         </div>
       ))}
       <div className="line-actions">
-        <button className="btn" disabled={busy || lines.length >= 50} onClick={() => setLines([...lines, { text: '', voice, expression: 'neutral', gesture: 'none' }])}>+ Line</button>
+        <button className="btn secondary" disabled={busy || lines.length >= 50} onClick={() => setLines([...lines, { text: '', voice, expression: 'neutral', gesture: 'none' }])}>+ Line</button>
         <button className="btn" disabled={busy || !voiceOk || !ids.length || (studioOn && studio?.running === false)} title={voiceOk ? undefined : NEEDS_VOICE} onClick={onGenerate}>▶ Generate voice</button>
-        <button className="btn" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={onAutoTag}>✨ Auto-tag expressions</button>
+        <button className="btn secondary" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={onAutoTag}>✨ Auto-tag expressions</button>
       </div>
       <p className="hint">
         Tip: add tags like &lt;short pause&gt; inside a line{studioOn ? ', or [laughter] and [sigh]; a delivery note with "whisper" makes it whisper' : ''}.
