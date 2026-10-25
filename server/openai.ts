@@ -1,6 +1,7 @@
 import type { MouthBox, ScriptLineInput } from '../shared/types';
 import { TONES } from '../shared/character/expressions';
 import { MOUTH_PROMPT, parseMouthBox, type ImageInput } from './gemini';
+import { recordOpenAI, recordUsage } from './usage';
 
 // OpenAI-style REST APIs over plain fetch (no extra SDK), models from env:
 // - OpenAI: image generation/editing, the mouth lookup and speech.
@@ -78,6 +79,7 @@ export async function generateImage(prompt: string, refs: ImageInput[] = []): Pr
     refs.forEach((r, i) => form.append('image[]', new Blob([new Uint8Array(r.data)], { type: r.mimeType }), `ref-${i}.${r.mimeType.split('/')[1]}`));
     out = await call('/images/edits', form, IMAGE_TIMEOUT_MS, false);
   }
+  recordOpenAI('image', imageModel(), out?.usage);
   const b64 = out?.data?.[0]?.b64_json;
   if (typeof b64 !== 'string' || !b64) throw new OpenAIError('no_image');
   return Buffer.from(b64, 'base64');
@@ -98,6 +100,7 @@ export async function findMouth(png: Buffer): Promise<MouthBox | null> {
       additionalProperties: false,
     } } },
   }), MOUTH_TIMEOUT_MS, true);
+  recordOpenAI('mouth', visionModel(), out?.usage);
   try {
     return parseMouthBox(JSON.parse(out?.choices?.[0]?.message?.content ?? ''));
   } catch {
@@ -119,8 +122,14 @@ export async function speak(service: Service, line: ScriptLineInput): Promise<Bu
     response_format: 'wav',
   };
   // OpenAI's TTS takes delivery instructions; VoiceStudio's compatibility layer is only promised the standard fields.
-  if (service === 'OpenAI') body.instructions = `Speak in a ${TONES[line.expression]} tone${line.note ? `, ${line.note}` : ''}.`;
-  return call('/audio/speech', JSON.stringify(body), SPEECH_TIMEOUT_MS, true, service, true);
+  if (service === 'OpenAI') {
+    const style = [line.expression !== 'neutral' && `a ${TONES[line.expression]} tone`, line.note?.trim()].filter(Boolean).join(', ');
+    body.instructions = style ? `Speak naturally, in ${style}.` : 'Speak naturally and conversationally.';
+  }
+  const audio: Buffer = await call('/audio/speech', JSON.stringify(body), SPEECH_TIMEOUT_MS, true, service, true);
+  // The speech endpoint returns only audio, so there are no token counts to record, just the call.
+  recordUsage({ provider: service === 'OpenAI' ? 'openai' : 'voicestudio', model: String(body.model), kind: 'voice', input: null, output: null });
+  return audio;
 }
 
 /** Voice names a running VoiceStudio offers (saved and built-in voices); empty when it can't be reached. */

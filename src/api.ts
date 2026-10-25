@@ -1,4 +1,5 @@
 import type { TtsProvider } from '../shared/voices';
+import type { UsageReport } from '../shared/usage';
 import type { AnyCharacter, ArtCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
 
 async function post<T>(url: string, init: RequestInit): Promise<T> {
@@ -132,4 +133,18 @@ export async function exportVideo(body: ExportBody, onProgress: (p: number) => v
   handle(buffer);
   if (!url) throw new Error('Export failed. Please try again.');
   return url;
+}
+
+/** Token telemetry from the server; null if it can't be reached. */
+export async function usage(): Promise<UsageReport | null> {
+  try {
+    const res = await fetch('/api/usage');
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function resetUsage(): Promise<void> {
+  await fetch('/api/usage', { method: 'DELETE' }).catch(() => {});
 }

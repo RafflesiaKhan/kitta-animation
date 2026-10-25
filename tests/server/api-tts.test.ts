@@ -126,7 +126,7 @@ describe('POST /api/tts retries and providers', () => {
     const r = await request(app).post('/api/tts').send({ provider: 'openai', lines: [L('Hi <short pause> there', { voice: 'coral', expression: 'wink', note: 'whispering' })] });
     expect(r.status).toBe(200);
     expect(calls[0].url).toBe('https://api.openai.com/v1/audio/speech');
-    expect(calls[0].body).toMatchObject({ model: 'gpt-4o-mini-tts', voice: 'coral', input: 'Hi ... there', response_format: 'wav', instructions: 'Speak in a playful tone, whispering.' });
+    expect(calls[0].body).toMatchObject({ model: 'gpt-4o-mini-tts', voice: 'coral', input: 'Hi ... there', response_format: 'wav', instructions: 'Speak naturally, in a playful tone, whispering.' });
     expect(generateContent).not.toHaveBeenCalled();
     rmSync(join('data/audio', `${r.body.audioId}.wav`), { force: true });
   }, 30000);

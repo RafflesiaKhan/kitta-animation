@@ -9,6 +9,7 @@ import { normalizeAudio, concatWithGaps, AudioError, AUDIO_DIR } from './audio';
 import { autoTag, transcribe, GeminiError } from './gemini';
 import { OpenAIError, voiceStudioUrl, voiceStudioVoices } from './openai';
 import { isTransient, speakLine, ttsProviders } from './speech';
+import { resetUsage, usageReport } from './usage';
 import { TTS_PROVIDERS, TTS_PROVIDER_NAMES, type TtsProvider } from '../shared/voices';
 import { imageProviders } from './images';
 import { EXPRESSIONS, GESTURES } from '../shared/types';
@@ -76,6 +77,15 @@ export function createApp() {
 
   app.get('/api/health', async (_req, res) => {
     res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(process.env.GEMINI_API_KEY), imageProviders: imageProviders(), ttsProviders: ttsProviders() });
+  });
+
+  // Token telemetry for the usage panel.
+  app.get('/api/usage', async (_req, res) => {
+    res.json(await usageReport());
+  });
+  app.delete('/api/usage', async (_req, res) => {
+    await resetUsage();
+    res.status(204).end();
   });
 
   // VoiceStudio's voices come from the running app (its saved and built-in voices).

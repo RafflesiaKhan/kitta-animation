@@ -49,3 +49,9 @@ button.btn { border: 0; }
 .line-card textarea { width: 100%; box-sizing: border-box; font: inherit; }
 .line-actions { display: flex; gap: 6px; justify-content: space-between; margin-bottom: 6px; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
+.usage { margin-left: auto; position: relative; }
+.usage-panel { position: absolute; right: 0; top: 40px; z-index: 10; width: 420px; max-width: calc(100vw - 32px); max-height: 70vh; overflow: auto; background: #fff; border-radius: 12px; padding: 12px 16px; box-shadow: 0 8px 30px rgba(45, 42, 50, .18); font-size: 13px; }
+.usage-panel h4 { margin: 10px 0 6px; font-size: 13px; }
+.usage-panel table { width: 100%; border-collapse: collapse; }
+.usage-panel th, .usage-panel td { text-align: left; padding: 3px 4px; border-bottom: 1px solid #f0edf8; }
+.usage-panel th { font-weight: 600; color: #777; font-size: 11px; }

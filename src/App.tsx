@@ -8,6 +8,7 @@ import { Preview } from './Preview';
 import { CharacterStep } from './steps/CharacterStep';
 import { VoiceoverStep } from './steps/VoiceoverStep';
 import { ExportStep } from './steps/ExportStep';
+import { UsagePanel } from './UsagePanel';
 
 export interface State { character: AnyCharacter; timeline: Timeline | null; audioId: string | null; source: 'upload' | 'script' | null }
 
@@ -149,6 +150,7 @@ export function App() {
             <button key={label} className={`pill${i === step ? ' active' : ''}`} onClick={() => setStep(i)}>{label}</button>
           ))}
         </nav>
+        <UsagePanel refreshKey={busy} />
       </header>
       <main>
         <section className="panel">
