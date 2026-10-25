@@ -17,9 +17,19 @@ export function paint(provider: ImageProvider, prompt: string, refs: ImageInput[
   return provider === 'openai' ? openai.generateImage(prompt, refs) : gemini.generateImage(prompt, refs);
 }
 
-/** Gemini when it has a key (its boxes are the more precise), otherwise OpenAI; null without either. */
-export function locateMouth(png: Buffer): Promise<MouthBox | null> {
-  if (process.env.GEMINI_API_KEY) return gemini.findMouth(png);
+/**
+ * Gemini when it has a key (its boxes are the more precise), otherwise OpenAI; null without either.
+ * If Gemini fails (e.g. its quota is used up) and OpenAI has a key, OpenAI takes over.
+ */
+export async function locateMouth(png: Buffer): Promise<MouthBox | null> {
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      return await gemini.findMouth(png);
+    } catch (e) {
+      if (!process.env.OPENAI_API_KEY) throw e;
+      console.warn(`mouth lookup: Gemini failed (${(e as Error)?.message}), trying OpenAI`);
+    }
+  }
   if (process.env.OPENAI_API_KEY) return openai.findMouth(png);
-  return Promise.resolve(null);
+  return null;
 }
