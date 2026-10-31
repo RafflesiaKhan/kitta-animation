@@ -5,7 +5,12 @@ export const EXPRESSIONS: Expression[] = ['neutral', 'happy', 'sad', 'surprised'
 export const GESTURES: Gesture[] = ['none', 'wave', 'nod', 'lookDown', 'celebrate', 'shrug', 'think', 'point', 'explain'];
 export interface MouthCue { startMs: number; endMs: number; shape: MouthShape }
 export interface Line { text: string; startMs: number; endMs: number; expression: Expression; gesture: Gesture }
-export interface Timeline { durationMs: number; cues: MouthCue[]; lines: Line[] }
+// Hand-placed animation (the Animate step): an expression holds until the next one; an action plays once over its clip.
+export interface ExpressionMark { startMs: number; expression: Expression }
+export interface ActionMark { startMs: number; endMs: number; gesture: Exclude<Gesture, 'none'> }
+export interface Marks { expressions: ExpressionMark[]; actions: ActionMark[] }
+/** marks: absent = the lines' own expression and gesture drive the animation. */
+export interface Timeline { durationMs: number; cues: MouthCue[]; lines: Line[]; marks?: Marks }
 // fromExpression/blend animate the change into `expression` (blend 0 = still fromExpression, 1 = fully expression);
 // glance is an idle side-look between lines, -1 (left) .. 1 (right). All three are optional: absent = settled, looking ahead.
 // Natural motion (optional, absent = still): nod = head dip on stressed syllables (px), tilt = head tilt (deg),
