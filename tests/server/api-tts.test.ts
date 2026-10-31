@@ -212,6 +212,28 @@ describe('POST /api/tts retries and providers', () => {
     rmSync(join('data/audio', `${r.body.audioId}.wav`), { force: true });
   }, 30000);
 
+  it('gives the engine default voice one described speaker on every line and piece, so it stays the same person', async () => {
+    process.env.VOICESTUDIO_URL = 'http://localhost:3900';
+    const calls: any[] = [];
+    stubApis(async (url, init) => { calls.push(JSON.parse(init.body)); return new Response(fixture); });
+    const r = await request(app).post('/api/tts').send({ provider: 'voicestudio', lines: [
+      L('First line', { voice: 'alloy' }),
+      L('Second [pause 1s] line', { voice: 'alloy', speaker: 'woman', language: 'en-GB' }),
+      L('Named voice', { voice: 'demo0001', speaker: 'woman' }),
+    ] });
+    expect(r.status).toBe(200);
+    expect(calls.map((c) => c.instruct)).toEqual(['male, young adult, moderate pitch', 'female, young adult, moderate pitch, british accent', 'female, young adult, moderate pitch, british accent', undefined]);
+    expect(new Set(calls.slice(0, 3).map((c) => c.seed)).size).toBe(1);
+    const other = await request(app).post('/api/tts').send({ provider: 'voicestudio', engine: 'kittentts', lines: [L('Hi', { voice: 'alloy' })] });
+    expect(calls.at(-1).instruct).toBeUndefined(); // only OmniVoice designs voices
+    for (const res of [r, other]) rmSync(join('data/audio', `${res.body.audioId}.wav`), { force: true });
+  }, 30000);
+
+  it('rejects an unknown speaker', async () => {
+    const r = await request(app).post('/api/tts').send({ provider: 'voicestudio', lines: [L('Hi', { voice: 'alloy', speaker: 'robot' })] });
+    expect(r.status).toBe(400);
+  });
+
   it('drops reaction sounds on engines that would read them, and whispers', async () => {
     process.env.VOICESTUDIO_URL = 'http://localhost:3900';
     const calls: any[] = [];

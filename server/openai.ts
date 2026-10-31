@@ -1,5 +1,5 @@
 import type { MouthBox, ScriptLineInput } from '../shared/types';
-import { CUES, LANGUAGES, SOUND_TAGS, type VoiceStudioEngine, type VoiceStudioInfo, type VoiceStudioVoice } from '../shared/voices';
+import { CUES, DEFAULT_SPEAKER, isEngineDefaultVoice, LANGUAGES, SOUND_TAGS, SPEAKERS, type VoiceStudioEngine, type VoiceStudioInfo, type VoiceStudioVoice } from '../shared/voices';
 import { readFile } from 'node:fs/promises';
 import { TONES } from '../shared/character/expressions';
 import { MOUTH_PROMPT, parseMouthBox, type ImageInput } from './gemini';
@@ -182,6 +182,10 @@ export async function speak(service: Service, line: ScriptLineInput, engine?: st
     // (such as 四川话; it refuses both together), and whisper.
     const lang = LANGUAGES.find((l) => l.id === line.language);
     const items = (await personaInstruct(line.voice)).filter((x) => !(lang?.accent && (x.endsWith(' accent') || x.endsWith('话'))));
+    // The engine default voice has no speaker of its own, so OmniVoice gets the same described one on every line.
+    if (isEngineDefaultVoice(line.voice) && (!engine || engine.startsWith('omnivoice'))) {
+      items.push((SPEAKERS.find((s) => s.id === line.speaker) ?? SPEAKERS.find((s) => s.id === DEFAULT_SPEAKER)!).instruct);
+    }
     if (lang?.accent) items.push(lang.accent);
     if (line.style === 'whisper' || opts.cue === 'whisper' || /whisper/i.test(line.note ?? '')) items.push('whisper');
     if (items.length) body.instruct = items.join(', ');
