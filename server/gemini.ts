@@ -6,6 +6,7 @@ import { withSpeechWav } from './audio';
 import { EXPRESSIONS, GESTURES } from '../shared/types';
 import type { Expression, Gesture, MouthBox, ScriptLineInput } from '../shared/types';
 import { TONES } from '../shared/character/expressions';
+import { DIRECTION_CHOICES, directionPrompt, toMatch, type Direction, type Match } from '../shared/direction';
 
 export { VOICES } from '../shared/voices';
 
@@ -144,6 +145,29 @@ export async function autoTag(texts: string[]): Promise<Tag[]> {
       gesture: GESTURES.includes(it?.gesture as Gesture) ? (it!.gesture as Gesture) : NEUTRAL.gesture,
     };
   });
+}
+
+/** The director: one name per stage direction (see shared/direction.ts); undefined where the answer was unusable. */
+export async function direct(ds: Direction[]): Promise<(Match | undefined)[]> {
+  const ai = client();
+  let parsed: unknown;
+  try {
+    const res = await generate(ai, 'direct', {
+      model: textModel(),
+      contents: directionPrompt(ds),
+      config: {
+        abortSignal: AbortSignal.timeout(AUTOTAG_TIMEOUT_MS),
+        httpOptions: QUICK_RETRY,
+        responseMimeType: 'application/json',
+        responseSchema: { type: 'ARRAY', items: { type: 'STRING', enum: [...new Set(Object.values(DIRECTION_CHOICES).flat())] } } as unknown as Schema,
+      },
+    });
+    parsed = parseJson(res.text);
+  } catch (e) {
+    throw toGeminiError(e, 'direct');
+  }
+  const items = Array.isArray(parsed) ? parsed : [];
+  return ds.map((d, i) => toMatch(d, items[i]));
 }
 
 /** Seconds from a number, "ss.mmm" or "mm:ss.mmm"; null if unusable. */

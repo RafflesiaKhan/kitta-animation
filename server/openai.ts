@@ -3,6 +3,7 @@ import { CUES, LANGUAGES, SOUND_TAGS, type VoiceStudioEngine, type VoiceStudioIn
 import { readFile } from 'node:fs/promises';
 import { TONES } from '../shared/character/expressions';
 import { MOUTH_PROMPT, parseMouthBox, type ImageInput } from './gemini';
+import { DIRECTION_CHOICES, directionPrompt, toMatch, type Direction, type Match } from '../shared/direction';
 import { recordOpenAI, recordUsage } from './usage';
 
 // OpenAI-style REST APIs over plain fetch (no extra SDK), models from env:
@@ -24,8 +25,10 @@ export const voiceStudioUrl = () => (process.env.VOICESTUDIO_URL || 'http://loca
 const SPEECH_TIMEOUT_MS = 120_000; // a local CPU-only VoiceStudio can be slow
 const IMAGE_TIMEOUT_MS = 180_000; // gpt-image models can take a minute or more per picture
 const MOUTH_TIMEOUT_MS = 30_000;
+const DIRECT_TIMEOUT_MS = 30_000;
 const imageModel = () => process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2';
 const visionModel = () => process.env.OPENAI_VISION_MODEL || 'gpt-5-mini';
+const textModel = () => process.env.OPENAI_TEXT_MODEL || 'gpt-5-mini';
 
 /** Base URL and auth for a service. OpenAI needs its key; a local VoiceStudio needs none (its key is for remote backends). */
 function endpoint(service: Service): { base: string; headers: Record<string, string> } {
@@ -85,6 +88,28 @@ export async function generateImage(prompt: string, refs: ImageInput[] = []): Pr
   const b64 = out?.data?.[0]?.b64_json;
   if (typeof b64 !== 'string' || !b64) throw new OpenAIError('no_image');
   return Buffer.from(b64, 'base64');
+}
+
+/** Same contract as the Gemini director: one name per stage direction; undefined where the answer was unusable. */
+export async function direct(ds: Direction[]): Promise<(Match | undefined)[]> {
+  const names = [...new Set(Object.values(DIRECTION_CHOICES).flat())];
+  const out = await call('/chat/completions', JSON.stringify({
+    model: textModel(),
+    messages: [{ role: 'user', content: directionPrompt(ds) }],
+    response_format: { type: 'json_schema', json_schema: { name: 'directions', strict: true, schema: {
+      type: 'object',
+      properties: { picks: { type: 'array', items: { type: 'string', enum: names } } },
+      required: ['picks'],
+      additionalProperties: false,
+    } } },
+  }), DIRECT_TIMEOUT_MS, true);
+  recordOpenAI('direct', textModel(), out?.usage);
+  let picks: unknown[] = [];
+  try {
+    const p = JSON.parse(out?.choices?.[0]?.message?.content ?? '')?.picks;
+    if (Array.isArray(p)) picks = p;
+  } catch { /* unusable answer: every direction falls back */ }
+  return ds.map((d, i) => toMatch(d, picks[i]));
 }
 
 /** Same contract as the Gemini findMouth: null when there is no clear mouth. */

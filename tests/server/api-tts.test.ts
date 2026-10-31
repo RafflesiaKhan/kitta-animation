@@ -273,3 +273,47 @@ describe('POST /api/tts retries and providers', () => {
     expect((await request(app).post('/api/tts').send({ provider: 'acme', lines: [L('hi')] })).status).toBe(400);
   });
 });
+
+describe('POST /api/tts with stage directions', () => {
+  const isDirector = (req: any) => req?.config?.responseMimeType === 'application/json';
+  const directed = [
+    L('[expression: warm smile] [action: waves hand gently] Have you ever wondered?', { expression: 'neutral', gesture: 'none' }),
+    L('[action: pauses for two seconds] [action: leans forward slightly] Well, let me tell you.', { expression: 'neutral', gesture: 'none' }),
+  ];
+
+  it('never speaks the directions, makes pauses real, and returns marks matched by the AI director', async () => {
+    generateContent.mockImplementation(async (req: any) => (isDirector(req) ? { text: JSON.stringify(['happy', 'wave', 'none']) } : speech));
+    const r = await request(app).post('/api/tts').send({ lines: directed });
+    expect(r.status).toBe(200);
+    const spoken = generateContent.mock.calls.map(([req]) => req).filter((req) => !isDirector(req)).map((req) => JSON.stringify(req.contents));
+    expect(spoken.join(' ')).not.toMatch(/expression:|action:|warm smile|leans/);
+    const asked = generateContent.mock.calls.map(([req]) => req).find(isDirector);
+    expect(asked.contents).toMatch(/1\. expression: warm smile\n2\. action: waves hand gently\n3\. action: leans forward slightly/);
+    expect(r.body.lines[1].text).toBe('[pause 2s] Well, let me tell you.');
+    expect(r.body.lines[1].endMs - r.body.lines[1].startMs).toBeGreaterThan(r.body.lines[0].endMs - r.body.lines[0].startMs + 1500); // 2 s of silence first
+    expect(r.body.directedBy).toBe('gemini');
+    expect(r.body.marks).toEqual({ expressions: [{ startMs: 0, expression: 'happy' }], actions: [{ startMs: 0, endMs: 2000, gesture: 'wave' }] });
+    rmSync(join('data/audio', `${r.body.audioId}.wav`), { force: true });
+  }, 30000);
+
+  it('falls back to the keyword rules when the director fails, and still returns the voice', async () => {
+    generateContent.mockImplementation(async (req: any) => {
+      if (isDirector(req)) throw Object.assign(new Error('quota'), { status: 429 });
+      return speech;
+    });
+    const r = await request(app).post('/api/tts').send({ lines: directed });
+    expect(r.status).toBe(200);
+    expect(r.body.directedBy).toBe('keywords');
+    expect(r.body.marks.expressions).toEqual([{ startMs: 0, expression: 'happy' }]);
+    expect(r.body.marks.actions[0]).toMatchObject({ startMs: 0, gesture: 'wave' });
+    rmSync(join('data/audio', `${r.body.audioId}.wav`), { force: true });
+  }, 30000);
+
+  it('leaves an undirected script as it was: no marks', async () => {
+    generateContent.mockResolvedValue(speech);
+    const r = await request(app).post('/api/tts').send({ lines: [L('Hi there')] });
+    expect(r.body.marks).toBeUndefined();
+    expect(r.body.directedBy).toBeUndefined();
+    rmSync(join('data/audio', `${r.body.audioId}.wav`), { force: true });
+  }, 30000);
+});

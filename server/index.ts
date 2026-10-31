@@ -9,6 +9,8 @@ import { normalizeAudio, concatWithGaps, AudioError, AUDIO_DIR } from './audio';
 import { autoTag, transcribe, GeminiError } from './gemini';
 import { OpenAIError, voiceStudioInfo, voiceStudioTranscribe, voiceStudioUrl } from './openai';
 import { isTransient, parseSegments, plainText, speakLine, ttsProviders } from './speech';
+import { directAll } from './director';
+import { marksFromDirections, prepareLine } from '../shared/direction';
 import { resetUsage, usageReport } from './usage';
 import { TTS_PROVIDERS, TTS_PROVIDER_NAMES, type TtsProvider } from '../shared/voices';
 import { imageProviders } from './images';
@@ -166,7 +168,9 @@ export function createApp() {
     const choice = ttsChoice(req.body);
     if (!choice || !Array.isArray(raw) || raw.length < 1 || raw.length > 50 || !raw.every(validScriptLine)) return res.status(400).json({ error: 'Invalid request' });
     const { provider, engine } = choice;
-    const lines = raw as ScriptLineInput[];
+    // Stage directions ([expression: …], [action: …]) come out of what is spoken; pause actions become real silence.
+    const prepared = (raw as ScriptLineInput[]).map((l) => prepareLine(l.text));
+    const lines = (raw as ScriptLineInput[]).map((l, i) => ({ ...l, text: prepared[i].spoken }));
     const emptyAt = lines.findIndex((l) => !hasSpeech(l.text));
     if (emptyAt >= 0) return res.status(400).json({ error: `Line ${emptyAt + 1} is empty` });
     try {
@@ -176,7 +180,12 @@ export function createApp() {
       const dialog = lines.map((l) => plainText(l.text)).join(' ');
       const cues = await runRhubarb(path, dialog || undefined);
       const out: Line[] = lines.map((l, i) => ({ text: l.text, expression: l.expression, gesture: l.gesture, ...spans[i] }));
-      res.json({ audioId: basename(path, '.wav'), durationMs, lines: out, cues });
+      // A directed script animates itself: its directions, matched to what the character can do, become the marks.
+      const directions = prepared.flatMap((p) => p.tags);
+      if (!directions.length) return res.json({ audioId: basename(path, '.wav'), durationMs, lines: out, cues });
+      const { matches, by } = await directAll(directions);
+      const marks = marksFromDirections(spans.map((s, i) => ({ ...s, tags: prepared[i].tags })), matches, durationMs);
+      res.json({ audioId: basename(path, '.wav'), durationMs, lines: out, cues, marks, directedBy: by });
     } catch (e) {
       sendTtsError(res, e, provider);
     }
@@ -187,9 +196,10 @@ export function createApp() {
     const choice = ttsChoice(req.body);
     const line = req.body?.line;
     if (!choice || !validScriptLine(line)) return res.status(400).json({ error: 'Invalid request' });
-    if (!hasSpeech(line.text)) return res.status(400).json({ error: 'Line 1 is empty' });
+    const spoken = { ...line, text: prepareLine(line.text).spoken };
+    if (!hasSpeech(spoken.text)) return res.status(400).json({ error: 'Line 1 is empty' });
     try {
-      res.type('audio/wav').send(await speakLine(choice.provider, line, choice.engine));
+      res.type('audio/wav').send(await speakLine(choice.provider, spoken, choice.engine));
     } catch (e) {
       sendTtsError(res, e, choice.provider);
     }

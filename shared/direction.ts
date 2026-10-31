@@ -1,3 +1,4 @@
+import { EXPRESSIONS, GESTURES } from './types';
 import type { ActionMark, Expression, Marks } from './types';
 import { addAction, addExpression } from './marks';
 
@@ -116,6 +117,24 @@ const ACTION_WORDS: [RegExp, ActionMark['gesture']][] = [
   [/chin|tilt|scratch\w* (his |her |their )?head|think/, 'think'],
   [/open\w* (his |her |their )?hands|explain|gestur|palms?|presents?/, 'explain'],
 ];
+
+/** The names a director may answer with, per kind; 'none' = nothing fits. */
+export const DIRECTION_CHOICES: Record<DirectionKind, string[]> = {
+  expression: [...EXPRESSIONS, 'none'],
+  action: [...GESTURES.filter((g) => g !== 'none'), 'none'],
+};
+/** What the director should hear: each direction numbered with its kind. */
+export const directionPrompt = (ds: Direction[]) =>
+  'A cartoon character performs a script. For each numbered stage direction, pick the closest thing the character can do. ' +
+  `Expressions: ${DIRECTION_CHOICES.expression.join(', ')}. Actions: ${DIRECTION_CHOICES.action.join(', ')}. ` +
+  "Answer 'none' when nothing is a reasonable fit (an action like leaning or touching the heart has no match). " +
+  'Reply with a JSON array of the chosen names, one per direction, in order.\n\n' +
+  ds.map((d, i) => `${i + 1}. ${d.kind}: ${d.phrase}`).join('\n');
+/** A director's answer for one direction, checked against its kind (anything else counts as no answer). */
+export function toMatch(d: Direction, answer: unknown): Match | undefined {
+  if (answer === 'none') return null;
+  return typeof answer === 'string' && DIRECTION_CHOICES[d.kind].includes(answer) ? (answer as Match) : undefined;
+}
 
 /** The built-in, offline matcher: plain keyword rules. */
 export function keywordMatch(d: Direction): Match {
