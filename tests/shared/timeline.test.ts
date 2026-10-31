@@ -93,6 +93,15 @@ describe('frameAt with marks', () => {
   });
 });
 
+describe('frameAt with an expression that ends', () => {
+  it('morphs back to the expression before it when it ends', () => {
+    const marked: Timeline = { ...t, marks: { expressions: [{ startMs: 0, expression: 'sad' }, { startMs: 500, endMs: 1500, expression: 'angry' }], actions: [] } };
+    expect(frameAt(marked, 1000)).toMatchObject({ expression: 'angry', blend: 1 });
+    expect(frameAt(marked, 1500)).toMatchObject({ expression: 'sad', fromExpression: 'angry', blend: 0 });
+    expect(frameAt(marked, 1500 + TRANSITION_MS)).toMatchObject({ expression: 'sad', blend: 1 });
+  });
+});
+
 describe('blink', () => {
   it('is deterministic', () => {
     expect(frameAt(t, 3400).blink).toBe(frameAt(t, 3400).blink);

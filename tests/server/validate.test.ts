@@ -13,6 +13,8 @@ const withMarks = (m: unknown) => ({ character, format, timeline: { durationMs: 
 describe('validateExport marks', () => {
   it('accepts well-formed marks and keeps them', () => {
     expect(validateExport(withMarks(marks))?.timeline.marks).toEqual(marks);
+    const ended = { ...marks, expressions: [{ startMs: 0, expression: 'neutral' }, { startMs: 300, endMs: 500, expression: 'happy' }, { startMs: 500, expression: 'sad' }] };
+    expect(validateExport(withMarks(ended))?.timeline.marks).toEqual(ended);
     expect(validateExport({ character, format, timeline: { durationMs: 1000, cues: [], lines: [] } })).not.toBeNull();
   });
   it.each([
@@ -24,6 +26,10 @@ describe('validateExport marks', () => {
     ['overlapping actions', { ...marks, actions: [{ startMs: 0, endMs: 600, gesture: 'wave' }, { startMs: 500, endMs: 900, gesture: 'nod' }] }],
     ['empty clip', { ...marks, actions: [{ startMs: 500, endMs: 500, gesture: 'wave' }] }],
     ['clip past the end', { ...marks, actions: [{ startMs: 500, endMs: 1200, gesture: 'wave' }] }],
+    ['expression ending before it starts', { ...marks, expressions: [{ startMs: 0, expression: 'neutral' }, { startMs: 300, endMs: 200, expression: 'happy' }] }],
+    ['expression ending after the next starts', { ...marks, expressions: [{ startMs: 0, expression: 'neutral' }, { startMs: 300, endMs: 600, expression: 'happy' }, { startMs: 500, expression: 'sad' }] }],
+    ['first expression ending', { ...marks, expressions: [{ startMs: 0, endMs: 500, expression: 'neutral' }] }],
+    ['expression ending after the audio', { ...marks, expressions: [{ startMs: 0, expression: 'neutral' }, { startMs: 300, endMs: 1200, expression: 'happy' }] }],
     ['not an object', 'x'],
   ])('rejects %s', (_label, m) => {
     expect(validateExport(withMarks(m))).toBeNull();

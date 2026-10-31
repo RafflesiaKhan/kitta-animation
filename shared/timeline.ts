@@ -1,6 +1,6 @@
 import type { FrameState, Timeline } from './types';
 import { analyzeSpeech, beatLevel, blinkAt, drift, talkLevel } from './motion';
-import { marksOf } from './marks';
+import { expressionAt, lastExpressionChange, marksOf } from './marks';
 
 export const FPS = 30;
 
@@ -52,11 +52,11 @@ export function frameAt(t: Timeline, ms: number): FrameState {
   // Expressions and actions come from the marks (hand-placed, or the lines' own). An expression morphs in from the one
   // before it over its first TRANSITION_MS; an action's progress runs 0..1 over its clip.
   const marks = marksOf(t);
-  const ei = Math.max(0, lastStartedIndex(marks.expressions, ms));
-  const mark = marks.expressions[ei];
-  const expression = mark?.expression ?? 'neutral';
-  const fromExpression = ei >= 1 ? marks.expressions[ei - 1].expression : 'neutral';
-  const blend = mark && fromExpression !== expression ? smooth(Math.min(1, (ms - mark.startMs) / TRANSITION_MS)) : 1;
+  // An expression that ends morphs back the same way into the one before it.
+  const expression = expressionAt(marks, ms);
+  const changed = lastExpressionChange(marks, ms);
+  const fromExpression = changed > 0 ? expressionAt(marks, changed - 1) : 'neutral';
+  const blend = fromExpression !== expression ? smooth(Math.min(1, (ms - changed) / TRANSITION_MS)) : 1;
   const ai = lastStartedIndex(marks.actions, ms);
   const action = ai >= 0 && ms < marks.actions[ai].endMs ? marks.actions[ai] : undefined;
 

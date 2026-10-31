@@ -15,7 +15,10 @@ function validMarks(marks: unknown, durationMs: number): boolean {
   if (!isObj(marks) || !Array.isArray(marks.expressions) || !Array.isArray(marks.actions)) return false;
   const ex = marks.expressions as Record<string, unknown>[];
   const ac = marks.actions as Record<string, unknown>[];
-  const exOk = ex.length > 0 && ex[0]?.startMs === 0 && ex.every((e, i) => isObj(e) && num(e.startMs) && EXPRESSIONS.includes(e.expression as never) && (i === 0 || (ex[i - 1].startMs as number) < e.startMs));
+  // An expression may end (then the one before it shows again), after its start and no later than the next one.
+  const exOk = ex.length > 0 && ex[0]?.startMs === 0 && ex.every((e, i) => isObj(e) && num(e.startMs) && EXPRESSIONS.includes(e.expression as never) &&
+    (i === 0 || ((ex[i - 1].endMs as number | undefined) ?? (ex[i - 1].startMs as number)) <= e.startMs && (ex[i - 1].startMs as number) < e.startMs) &&
+    (e.endMs === undefined || (i > 0 && num(e.endMs) && e.endMs > e.startMs && e.endMs <= durationMs)));
   const acOk = ac.every((a, i) => isObj(a) && num(a.startMs) && num(a.endMs) && a.gesture !== 'none' && GESTURES.includes(a.gesture as never) &&
     a.startMs >= (i === 0 ? 0 : (ac[i - 1].endMs as number)) && a.endMs > a.startMs && a.endMs <= durationMs);
   return exOk && acOk;
