@@ -4,7 +4,8 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   test: {
-    env: { KITTA_USAGE_FILE: 'off' }, // token telemetry stays in memory during tests
+    // Token telemetry stays in memory; tests never open the real VoiceStudio app.
+    env: { KITTA_USAGE_FILE: 'off', VOICESTUDIO_APP: '/nonexistent/VoiceStudio.app' },
     projects: [
       {
         extends: true,

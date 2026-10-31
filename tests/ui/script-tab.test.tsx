@@ -201,3 +201,12 @@ it("asks who the engine default voice is, and gives every line (and pasted ones)
     expect.objectContaining({ text: 'Two.', voice: 'alloy', speaker: 'girl' }),
   ]);
 });
+
+it('shows VoiceStudio starting and checks back until it is running', async () => {
+  vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: false, ttsProviders: ['voicestudio'] });
+  vi.mocked(api.voiceStudio).mockResolvedValueOnce({ running: false, starting: true, url: 'http://localhost:3900', voices: [], engines: [] }).mockResolvedValue(studioInfo);
+  await open();
+  await waitFor(() => expect(screen.getByTestId('studio-status').textContent).toMatch(/Starting VoiceStudio/));
+  expect(screen.queryByRole('button', { name: 'check again' })).toBeNull();
+  await waitFor(() => expect(screen.getByTestId('studio-status').textContent).toMatch(/running on mps/), { timeout: 5000 });
+});

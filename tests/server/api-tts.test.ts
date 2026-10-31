@@ -141,7 +141,7 @@ describe('POST /api/tts retries and providers', () => {
   it('speaks with a local VoiceStudio through its OpenAI-compatible API', async () => {
     process.env.VOICESTUDIO_URL = 'http://localhost:3900/';
     const calls: any[] = [];
-    stubApis(async (url, init) => { calls.push({ url, init }); return new Response(fixture); });
+    stubApis(async (url, init) => { if (!url.endsWith('/health')) calls.push({ url, init }); return new Response(fixture); });
     const r = await request(app).post('/api/tts').send({ provider: 'voicestudio', lines: [L('Hello', { voice: 'My clone' })] });
     expect(r.status).toBe(200);
     expect(calls[0].url).toBe('http://localhost:3900/v1/audio/speech');

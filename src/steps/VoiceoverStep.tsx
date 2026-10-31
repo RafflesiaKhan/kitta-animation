@@ -109,6 +109,12 @@ function useVoiceStudio(active: boolean): [VoiceStudioInfo | null, () => void] {
     Promise.resolve(api.voiceStudio()).then((v) => { if (live) setInfo(v ?? null); }, () => {});
     return () => { live = false; };
   }, [active, tick]);
+  // While Kitta is opening it, check back every few seconds until it answers.
+  useEffect(() => {
+    if (!active || !info?.starting) return;
+    const t = setTimeout(() => setTick((n) => n + 1), 3_000);
+    return () => clearTimeout(t);
+  }, [active, info]);
   return [info, () => setTick((t) => t + 1)];
 }
 
@@ -178,8 +184,9 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
           <p className="hint" data-testid="studio-status">
             {studio === null ? 'Checking VoiceStudio…'
               : studio.running ? <><span className="ok">●</span>{` VoiceStudio ${studio.version ?? ''} running${studio.device ? ` on ${studio.device}` : ''}`}</>
+              : studio.starting ? 'Starting VoiceStudio… (its voice models take a moment to load)'
               : `VoiceStudio isn't running at ${studio.url}. Start it, then `}
-            {studio !== null && !studio.running && <button className="mini" onClick={refreshStudio}>check again</button>}
+            {studio !== null && !studio.running && !studio.starting && <button className="mini" onClick={refreshStudio}>check again</button>}
           </p>
           {studio?.running && studio.engines.length > 0 && (
             <label className="field">Engine{' '}

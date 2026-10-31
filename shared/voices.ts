@@ -29,7 +29,8 @@ export const isEngineDefaultVoice = (voice: string) => voice === 'default' || OP
 /** What a running VoiceStudio reports: its status, the engines that are installed and the voices you can pick. */
 export interface VoiceStudioVoice { id: string; label: string; kind: 'profile' | 'persona' | 'default'; icon?: string }
 export interface VoiceStudioEngine { id: string; label: string; cloning: boolean; emotion: boolean }
-export interface VoiceStudioInfo { running: boolean; url: string; version?: string; device?: string; voices: VoiceStudioVoice[]; engines: VoiceStudioEngine[] }
+/** starting: Kitta is opening the VoiceStudio app (it isn't answering yet). */
+export interface VoiceStudioInfo { running: boolean; starting?: boolean; url: string; version?: string; device?: string; voices: VoiceStudioVoice[]; engines: VoiceStudioEngine[] }
 
 /**
  * Language / accent picker. VoiceStudio gets `code` as its language and `accent` as a voice-design attribute

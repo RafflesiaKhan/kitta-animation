@@ -10,6 +10,7 @@ import { autoTag, transcribe, GeminiError } from './gemini';
 import { OpenAIError, voiceStudioInfo, voiceStudioTranscribe, voiceStudioUrl } from './openai';
 import { isTransient, parseSegments, plainText, speakLine, ttsProviders } from './speech';
 import { directAll } from './director';
+import { canLaunchVoiceStudio, ensureVoiceStudio } from './launch';
 import { marksFromDirections, prepareLine } from '../shared/direction';
 import { resetUsage, usageReport } from './usage';
 import { TTS_PROVIDERS, TTS_PROVIDER_NAMES, type TtsProvider } from '../shared/voices';
@@ -90,8 +91,14 @@ export function createApp() {
   });
 
   // VoiceStudio status, installed engines and voices (saved and cloned), read from the running app.
+  // Not running but installed here: open it in the background; the script tab checks back until it answers.
   app.get('/api/voicestudio', async (_req, res) => {
-    res.json(await voiceStudioInfo());
+    const info = await voiceStudioInfo();
+    if (!info.running && canLaunchVoiceStudio()) {
+      void ensureVoiceStudio();
+      info.starting = true;
+    }
+    res.json(info);
   });
 
   app.post('/api/audio', async (req, res) => {
@@ -174,6 +181,7 @@ export function createApp() {
     const emptyAt = lines.findIndex((l) => !hasSpeech(l.text));
     if (emptyAt >= 0) return res.status(400).json({ error: `Line ${emptyAt + 1} is empty` });
     try {
+      if (provider === 'voicestudio') await ensureVoiceStudio(); // opens the app if it's installed but not running
       const wavs: Buffer[] = [];
       for (const l of lines) wavs.push(await speakLine(provider, l, engine)); // sequential: kinder to free-tier limits
       const { path, durationMs, spans } = await concatWithGaps(wavs);
@@ -199,6 +207,7 @@ export function createApp() {
     const spoken = { ...line, text: prepareLine(line.text).spoken };
     if (!hasSpeech(spoken.text)) return res.status(400).json({ error: 'Line 1 is empty' });
     try {
+      if (choice.provider === 'voicestudio') await ensureVoiceStudio();
       res.type('audio/wav').send(await speakLine(choice.provider, spoken, choice.engine));
     } catch (e) {
       sendTtsError(res, e, choice.provider);
