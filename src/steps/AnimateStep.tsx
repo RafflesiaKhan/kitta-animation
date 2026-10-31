@@ -26,6 +26,7 @@ const STILL: FrameState = { ...frameAt({ durationMs: 0, cues: [], lines: [] }, 0
 const name = (x: Expression | Action) => NAMES[x as Action] ?? x;
 const clock = (ms: number) => `${Math.floor(ms / 60000)}:${((ms / 1000) % 60).toFixed(1).padStart(4, '0')}`;
 const pct = (ms: number, total: number) => `${(100 * ms) / total}%`;
+const said = (text: string) => text.replace(/\[[^\]]*\]|<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(); // words only, no pause or cue tags
 
 /** A palette tile: the user's own character showing that expression, or caught early in that action. */
 function Tile({ character, kind, value, onAdd }: { character: AnyCharacter; kind: Kind; value: Expression | Action; onAdd: () => void }) {
@@ -162,8 +163,8 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
         <div className="tracks">
           <div className="track"><span className="track-label">Script</span>
             <div className="lane" data-testid="row-script" {...lane}>
-              {timeline.lines.map((l, i) => l.text.trim() && (
-                <span key={i} className="line-span" title={l.text} style={{ left: pct(l.startMs, total), width: pct(l.endMs - l.startMs, total) }}>{l.text}</span>
+              {timeline.lines.map((l, i) => said(l.text) && (
+                <span key={i} className="line-span" title={said(l.text)} style={{ left: pct(l.startMs, total), width: pct(l.endMs - l.startMs, total) }}>{said(l.text)}</span>
               ))}
             </div>
           </div>

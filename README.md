@@ -49,6 +49,12 @@ Each line has its own voice controls, like Murf's blocks:
 
 Not possible with the VoiceStudio engines installed by default: real emotional styles (Conversational, Promo, Angry…), emphasis on a word, and breaths. VoiceStudio's opt-in engines can do some of this (IndexTTS2 for emotion, CosyVoice 3 for `[breath]` and emphasis), but the app doesn't use them yet. Each pause or cue means one more call to the voice provider for that line.
 
+## Directed scripts
+
+Put stage directions in a script and the video animates itself: `[expression: warm smile]`, `[action: waves hand gently]`, in any wording. **📋 Paste script** (Write script tab) takes a whole script and makes one line per sentence, each direction kept with the words after it; directions typed into a line work too. They are never spoken.
+
+When the voice is generated, an AI director matches each wording to what the character can do (e.g. "curious, raised eyebrows" → thinking, "opens hands" → explain): Gemini, or OpenAI (`OPENAI_TEXT_MODEL`, default `gpt-5-mini`) when there is no Gemini key or Gemini is busy, else a built-in word list. An action nothing fits (leaning forward, a hand over the heart) is left out and the natural movement carries on. Pause actions ("pauses for two seconds", "pauses briefly") become real silence. A direction at the start of a line starts with that line; one inside a line is placed by how far into the line it is. The result lands on the Animate timeline, ready to fine-tune.
+
 ## Natural movement
 
 While the character talks it nods slightly and moves its hands on stressed syllables, lifts its brows at the start of a phrase, tilts and sways a little, and blinks at uneven intervals and at the end of phrases. The amount follows the expression (sad slumps and moves less, excited bounces, confused tilts, worried clasps the hands). Gestures: wave, nod, look down, celebrate, shrug, think (hand on chin), point and explain (open palms). All of it comes from the lip-sync timing, so it works with every voice source and the exported video matches the preview.

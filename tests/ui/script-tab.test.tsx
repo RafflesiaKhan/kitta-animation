@@ -162,3 +162,22 @@ it('sends per-line voice controls, inserts pauses and cues, and previews a line'
   expect(api.tts).toHaveBeenCalledWith([expect.objectContaining(sent), expect.objectContaining({ text: 'Bye', language: 'en-GB', speed: -20 })], 'voicestudio', '');
   vi.unstubAllGlobals();
 });
+
+it('pastes a whole directed script as one line per sentence', async () => {
+  await open();
+  fireEvent.click(screen.getByRole('button', { name: '📋 Paste script' }));
+  fireEvent.change(screen.getByLabelText('Whole script'), { target: { value: '[expression: warm smile] Hello there. [action: waves] Nice to meet you! [expression: curious] Shall we begin?' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Use this script' }));
+  expect(textOf()).toEqual(['[expression: warm smile] Hello there.', '[action: waves] Nice to meet you!', '[expression: curious] Shall we begin?']);
+  expect(screen.queryByLabelText('Whole script')).toBeNull();
+});
+
+it('keeps the marks a directed script comes back with, and says how they were matched', async () => {
+  const marks = { expressions: [{ startMs: 0, expression: 'happy' }], actions: [{ startMs: 0, endMs: 2000, gesture: 'wave' }] };
+  vi.mocked(api.tts).mockResolvedValue({ audioId: 'a', durationMs: 3000, cues: [], lines: [{ text: 'Hi', startMs: 0, endMs: 3000, expression: 'neutral', gesture: 'none' }], marks, directedBy: 'keywords' } as never);
+  await open();
+  fireEvent.change(screen.getByLabelText('Line text'), { target: { value: '[expression: smile] [action: wave] Hi' } });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: '▶ Generate voice' })); });
+  expect((lastProps!.timeline as { marks: unknown }).marks).toEqual(marks);
+  expect(screen.getByText(/built-in word list/)).toBeTruthy();
+});
