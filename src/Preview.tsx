@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { isArt } from '../shared/types';
 import type { AnyCharacter, FrameState, Timeline } from '../shared/types';
 import { CharacterView } from '../shared/character/CharacterView';
@@ -11,13 +11,15 @@ export interface PreviewProps {
   timeline: Timeline | null;
   audioUrl: string | null;
   status?: string;
+  audioRef?: RefObject<HTMLAudioElement>; // pass one to read or move the clock from outside (the Animate timeline)
 }
 
 // The <audio> element is the master clock: every animation frame reads its
 // currentTime, so the drawing can never drift from the sound. With no audio the
 // character idles (blink/bob) on performance.now().
-export function Preview({ character, timeline, audioUrl, status }: PreviewProps) {
-  const audioRef = useRef<HTMLAudioElement>(null);
+export function Preview({ character, timeline, audioUrl, status, audioRef: shared }: PreviewProps) {
+  const own = useRef<HTMLAudioElement>(null);
+  const audioRef = shared ?? own;
   const [frame, setFrame] = useState<FrameState>(() => frameAt(IDLE, 0));
 
   useEffect(() => {

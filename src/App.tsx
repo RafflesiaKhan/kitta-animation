@@ -1,28 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { isArt } from '../shared/types';
-import type { AnyCharacter, ArtCharacter, ArtPose, ImageProvider, Line, ScriptLineInput, Timeline } from '../shared/types';
+import type { AnyCharacter, ArtCharacter, ArtPose, ImageProvider, Line, Marks, ScriptLineInput, Timeline } from '../shared/types';
 import { VOICES, type TtsProvider } from '../shared/voices';
 import { STARTERS } from '../shared/character/starters';
 import * as api from './api';
 import { Preview } from './Preview';
 import { CharacterStep } from './steps/CharacterStep';
 import { VoiceoverStep } from './steps/VoiceoverStep';
+import { AnimateStep } from './steps/AnimateStep';
 import { ExportStep } from './steps/ExportStep';
 import { UsagePanel } from './UsagePanel';
 
 export interface State { character: AnyCharacter; timeline: Timeline | null; audioId: string | null; source: 'upload' | 'script' | null }
 
 const NEW_LINE: ScriptLineInput = { text: '', voice: VOICES[0], expression: 'neutral', gesture: 'none' };
-const STEPS = ['1 Character', '2 Voiceover', '3 Export'];
+const STEPS = ['1 Character', '2 Voiceover', '3 Animate', '4 Export'];
 const { name: _name, ...KIT } = STARTERS.kit;
 
-/** Applies tagged lines only if the timeline still belongs to the audio the request started with. */
+/**
+ * Applies tagged lines only if the timeline still belongs to the audio the request started with.
+ * The new tags replace every line's, so any hand-placed animation starts again from them.
+ */
 export function withTaggedLines(s: State, startedAudioId: string, lines: Line[]): State {
-  return s.audioId === startedAudioId && s.timeline ? { ...s, timeline: { ...s.timeline, lines } } : s;
+  if (s.audioId !== startedAudioId || !s.timeline) return s;
+  const { marks: _marks, ...timeline } = s.timeline;
+  return { ...s, timeline: { ...timeline, lines } };
 }
 
 export function App() {
   const [step, setStep] = useState(0);
+  const audioRef = useRef<HTMLAudioElement>(null); // the preview's audio, shared with the Animate timeline
   const [state, setState] = useState<State>({ character: KIT, timeline: null, audioId: null, source: null });
   const [status, setStatus] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +113,9 @@ export function App() {
   const editUploadLine = (i: number, patch: Pick<Line, 'expression'> | Pick<Line, 'gesture'>) =>
     setState((s) => (s.timeline ? { ...s, timeline: { ...s.timeline, lines: s.timeline.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) } } : s));
 
+  // Hand-placed animation from the Animate step.
+  const setMarks = useCallback((marks: Marks) => setState((s) => (s.timeline ? { ...s, timeline: { ...s.timeline, marks } } : s)), []);
+
   // ---------- AI characters ----------
   // Stores a created/updated AI character in the library and, if it is the one in use, in the state too.
   const putArt = (c: ArtCharacter) => {
@@ -150,6 +160,7 @@ export function App() {
     }
   };
 
+  const audioUrl = state.audioId ? `/api/audio/${state.audioId}` : null;
   return (
     <div className="app">
       <header>
@@ -164,15 +175,22 @@ export function App() {
         </nav>
         <UsagePanel refreshKey={busy} />
       </header>
-      <main>
-        <section className="panel">
-          {step === 0 && <CharacterStep character={state.character} onChange={(character) => setState((s) => ({ ...s, character }))}
-            library={library} imageProviders={imageProviders} busy={busy} error={error} onCreate={createArt} onDraw={drawPoses} onFindMouths={findMouths} onDelete={deleteArt} />}
-          {step === 1 && <VoiceoverStep geminiOk={geminiOk} ttsProviders={ttsProviders} ttsProvider={ttsProvider} onTtsProvider={setTtsProvider} ttsEngine={ttsEngine} onTtsEngine={setTtsEngine} busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} onAutoTag={autoTagScript} onAddExpressions={addExpressions} uploadLines={state.source === 'upload' ? state.timeline?.lines ?? null : null} onEditUploadLine={editUploadLine} />}
-          {step === 2 && <ExportStep character={state.character} timeline={state.timeline} audioId={state.audioId} />}
-        </section>
-        <Preview character={state.character} timeline={state.timeline} audioUrl={state.audioId ? `/api/audio/${state.audioId}` : null} status={status} />
-      </main>
+      {step === 2 ? (
+        <main className="animate">
+          <Preview character={state.character} timeline={state.timeline} audioUrl={audioUrl} status={status} audioRef={audioRef} />
+          <AnimateStep character={state.character} timeline={state.timeline} audioUrl={audioUrl} audioRef={audioRef} onMarks={setMarks} />
+        </main>
+      ) : (
+        <main>
+          <section className="panel">
+            {step === 0 && <CharacterStep character={state.character} onChange={(character) => setState((s) => ({ ...s, character }))}
+              library={library} imageProviders={imageProviders} busy={busy} error={error} onCreate={createArt} onDraw={drawPoses} onFindMouths={findMouths} onDelete={deleteArt} />}
+            {step === 1 && <VoiceoverStep geminiOk={geminiOk} ttsProviders={ttsProviders} ttsProvider={ttsProvider} onTtsProvider={setTtsProvider} ttsEngine={ttsEngine} onTtsEngine={setTtsEngine} busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} onAutoTag={autoTagScript} onAddExpressions={addExpressions} uploadLines={state.source === 'upload' ? state.timeline?.lines ?? null : null} onEditUploadLine={editUploadLine} handAnimated={!!state.timeline?.marks} />}
+            {step === 3 && <ExportStep character={state.character} timeline={state.timeline} audioId={state.audioId} />}
+          </section>
+          <Preview character={state.character} timeline={state.timeline} audioUrl={audioUrl} status={status} audioRef={audioRef} />
+        </main>
+      )}
     </div>
   );
 }

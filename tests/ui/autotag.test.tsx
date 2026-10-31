@@ -133,3 +133,9 @@ it('withTaggedLines discards results when the audio changed or the timeline is g
   expect(withTaggedLines({ ...base, timeline: null }, 'new', lines).timeline).toBeNull();
   expect(withTaggedLines(base, 'new', lines).timeline).toEqual({ ...tl, lines });
 });
+
+it('withTaggedLines starts the hand-placed animation again from the new tags', () => {
+  const tl = { durationMs: 1, cues: [], lines: [], marks: { expressions: [{ startMs: 0, expression: 'sad' as const }], actions: [] } };
+  const base = { character: {} as any, timeline: tl, audioId: 'a', source: 'upload' as const };
+  expect(withTaggedLines(base, 'a', []).timeline).toEqual({ durationMs: 1, cues: [], lines: [] });
+});

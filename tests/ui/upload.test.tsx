@@ -50,7 +50,7 @@ it('keeps the input disabled across step switches and applies the result once', 
   render(<App />);
   fireEvent.click(screen.getByRole('button', { name: '2 Voiceover' }));
   pick();
-  fireEvent.click(screen.getByRole('button', { name: '3 Export' }));
+  fireEvent.click(screen.getByRole('button', { name: '4 Export' }));
   fireEvent.click(screen.getByRole('button', { name: '2 Voiceover' }));
   expect((screen.getByLabelText('Upload voiceover') as HTMLInputElement).disabled).toBe(true);
   await act(async () => { up.resolve({ audioId: 'first', durationMs: 1000 }); });
@@ -77,4 +77,21 @@ it('lists the uploaded line and lets you edit its expression and gesture without
   ]);
   expect(api.lipsync).toHaveBeenCalledTimes(1);
   expect(api.tts).not.toHaveBeenCalled();
+});
+
+it('animating by hand drives the video, and the upload lines say so', async () => {
+  vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: false });
+  vi.mocked(api.uploadAudio).mockResolvedValue({ audioId: 'abc', durationMs: 65000 });
+  vi.mocked(api.lipsync).mockResolvedValue(cues);
+  vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))));
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: '2 Voiceover' }));
+  await act(async () => { pick(); });
+  expect(screen.queryByText(/Animated in the Animate step/)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: '3 Animate' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Add angry' }));
+  expect((lastProps!.timeline as { marks: unknown }).marks).toEqual({ expressions: [{ startMs: 0, expression: 'angry' }], actions: [] });
+  fireEvent.click(screen.getByRole('button', { name: '2 Voiceover' }));
+  expect(screen.getByText(/Animated in the Animate step/)).toBeTruthy();
+  vi.unstubAllGlobals();
 });
