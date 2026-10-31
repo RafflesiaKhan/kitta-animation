@@ -34,6 +34,7 @@ export function App() {
   const [state, setState] = useState<State>({ character: KIT, timeline: null, audioId: null, source: null });
   const [status, setStatus] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null); // how a directed script's directions were matched
   const [scriptLines, setScriptLines] = useState<ScriptLineInput[]>([NEW_LINE]); // draft survives step switches
   const busy = status !== '';
   const [library, setLibrary] = useState<ArtCharacter[]>([]); // saved AI characters
@@ -152,8 +153,12 @@ export function App() {
     setError(null);
     try {
       setStatus('Generating voice…');
-      const { audioId, durationMs, cues, lines } = await api.tts(scriptLines.map((l) => (l.note?.trim() ? l : { ...l, note: undefined })), ttsProvider, ttsProvider === 'voicestudio' ? ttsEngine : undefined);
-      setState((s) => ({ ...s, audioId, timeline: { durationMs, cues, lines }, source: 'script' }));
+      setNotice(null);
+      const { audioId, durationMs, cues, lines, marks, directedBy } = await api.tts(scriptLines.map((l) => (l.note?.trim() ? l : { ...l, note: undefined })), ttsProvider, ttsProvider === 'voicestudio' ? ttsEngine : undefined);
+      setState((s) => ({ ...s, audioId, timeline: { durationMs, cues, lines, ...(marks && { marks }) }, source: 'script' }));
+      if (directedBy) setNotice(directedBy === 'keywords'
+        ? 'Animated from the directions, matched with the built-in word list (no AI available). Fine-tune them in the Animate step.'
+        : 'Animated from the directions. Fine-tune them in the Animate step.');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -186,7 +191,7 @@ export function App() {
           <section className="panel">
             {step === 0 && <CharacterStep character={state.character} onChange={(character) => setState((s) => ({ ...s, character }))}
               library={library} imageProviders={imageProviders} busy={busy} error={error} onCreate={createArt} onDraw={drawPoses} onFindMouths={findMouths} onDelete={deleteArt} />}
-            {step === 1 && <VoiceoverStep geminiOk={geminiOk} ttsProviders={ttsProviders} ttsProvider={ttsProvider} onTtsProvider={setTtsProvider} ttsEngine={ttsEngine} onTtsEngine={setTtsEngine} busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} onAutoTag={autoTagScript} onAddExpressions={addExpressions} uploadLines={state.source === 'upload' ? state.timeline?.lines ?? null : null} onEditUploadLine={editUploadLine} handAnimated={!!state.timeline?.marks} />}
+            {step === 1 && <VoiceoverStep geminiOk={geminiOk} ttsProviders={ttsProviders} ttsProvider={ttsProvider} onTtsProvider={setTtsProvider} ttsEngine={ttsEngine} onTtsEngine={setTtsEngine} busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} onAutoTag={autoTagScript} onAddExpressions={addExpressions} uploadLines={state.source === 'upload' ? state.timeline?.lines ?? null : null} onEditUploadLine={editUploadLine} handAnimated={!!state.timeline?.marks} notice={notice} />}
             {step === 3 && <ExportStep character={state.character} timeline={state.timeline} audioId={state.audioId} />}
           </section>
           <Preview character={state.character} timeline={state.timeline} audioUrl={audioUrl} status={status} audioRef={audioRef} />

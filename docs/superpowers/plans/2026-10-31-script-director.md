@@ -40,19 +40,19 @@
 - `keywordMatch(d: Direction): Match`
 - `marksFromDirections(lines: { startMs: number; endMs: number; tags: Placed[] }[], matches: Map<string, Match>, durationMs: number): Marks` — key `${kind}:${phrase.toLowerCase()}`.
 
-- [ ] Tests in `tests/shared/direction.test.ts` (the user's example sentences): pause parsing (`two seconds`→2000, `1.5s`→1500, `briefly`→500, `20 seconds`→10000, `waves`→null); `prepareLine` strips tags, keeps `[whisper]`, inserts `[pause 2s]`, `at` of a leading tag 0 and a middle tag ≈ its position; `splitScript` on the example → 14 lines each starting with its tags; 60 short sentences → 50 lines; keyword matches from the spec's table; `marksFromDirections` timing (leading tag at line start, middle by fraction, trailing tag → next line start / last line end), action clips via `addAction`, null matches skipped.
-- [ ] Implement; `npx vitest run tests/shared/direction.test.ts` passes; commit.
+- [x] Tests in `tests/shared/direction.test.ts` (the user's example sentences): pause parsing (`two seconds`→2000, `1.5s`→1500, `briefly`→500, `20 seconds`→10000, `waves`→null); `prepareLine` strips tags, keeps `[whisper]`, inserts `[pause 2s]`, `at` of a leading tag 0 and a middle tag ≈ its position; `splitScript` on the example → 14 lines each starting with its tags; 60 short sentences → 50 lines; keyword matches from the spec's table; `marksFromDirections` timing (leading tag at line start, middle by fraction, trailing tag → next line start / last line end), action clips via `addAction`, null matches skipped.
+- [x] Implement; `npx vitest run tests/shared/direction.test.ts` passes; commit.
 
 ### Task 2: Director on the server
 
 **Files:** `server/gemini.ts` (`direct(ds: Direction[]): Promise<Match[]>`), `server/openai.ts` (same), `server/director.ts` (`directAll(ds): Promise<{ matches: Map<string, Match>; by: 'gemini' | 'openai' | 'keywords' }>`: dedupe, Gemini if key, else OpenAI if key, else keywords; on AI error → keywords), `server/index.ts` `/api/tts` (prepare lines, speak `spoken`, return `lines[i].text = spoken`, `marks` and `directedBy` when any tag), `shared/usage.ts` kind `direct`.
 
-- [ ] Tests in `tests/server/api-tts.test.ts` (existing mocks): tagged script → `marks` with the expected expression and clip; tags never reach the speak mock; pause tag → longer audio; director failure → `directedBy: 'keywords'`; untagged → no `marks`.
-- [ ] Implement; tests pass; commit.
+- [x] Tests in `tests/server/api-tts.test.ts` (existing mocks): tagged script → `marks` with the expected expression and clip; tags never reach the speak mock; pause tag → longer audio; director failure → `directedBy: 'keywords'`; untagged → no `marks`.
+- [x] Implement; tests pass; commit.
 
 ### Task 3: Client
 
 **Files:** `src/api.ts` (`tts` returns `marks?`, `directedBy?`), `src/App.tsx` (keep `marks` in the timeline; notice when keywords were used), `src/steps/VoiceoverStep.tsx` (Paste script box: textarea + "Use this script" → `splitScript` lines with the current voice), README.
 
-- [ ] Tests in `tests/ui/script-tab.test.tsx`: pasting the example makes 14 line cards; generate passes `marks` into the timeline.
-- [ ] Implement; full suite + `tsc` pass; verify in the browser; commit.
+- [x] Tests in `tests/ui/script-tab.test.tsx`: pasting the example makes 14 line cards; generate passes `marks` into the timeline.
+- [x] Implement; full suite + `tsc` pass; verify in the browser; commit.

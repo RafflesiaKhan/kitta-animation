@@ -172,3 +172,5 @@ main.animate .timeline { grid-column: 1 / -1; }
 .mark-grip { position: absolute; top: 0; bottom: 0; right: 0; width: 8px; cursor: ew-resize; background: rgba(14, 15, 12, .18); touch-action: none; }
 .playhead-area { position: absolute; top: 0; bottom: 0; left: 96px; right: 0; pointer-events: none; }
 .playhead { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--negative); }
+.btn.paste { margin-bottom: 12px; }
+.line-card textarea[aria-label="Whole script"] { width: 100%; }

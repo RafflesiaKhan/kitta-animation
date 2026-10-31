@@ -317,3 +317,26 @@ describe('POST /api/tts with stage directions', () => {
     rmSync(join('data/audio', `${r.body.audioId}.wav`), { force: true });
   }, 30000);
 });
+
+describe('POST /api/tts director fallback to OpenAI', () => {
+  const realFetch = globalThis.fetch;
+  it('asks OpenAI when Gemini is busy', async () => {
+    process.env.OPENAI_API_KEY = 'sk-test';
+    generateContent.mockImplementation(async (req: any) => {
+      if (req?.config?.responseMimeType === 'application/json') throw Object.assign(new Error('busy'), { status: 503 });
+      return speech;
+    });
+    const asked: any[] = [];
+    vi.stubGlobal('fetch', async (url: any, init?: any) => {
+      if (!/api\.openai\.com/.test(String(url))) return realFetch(url, init);
+      asked.push(JSON.parse(init.body));
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ picks: ['sad', 'none'] }) } }] }));
+    });
+    const r = await request(app).post('/api/tts').send({ lines: [L('[expression: gloomy] [action: hand on heart] Hello.', { expression: 'neutral', gesture: 'none' })] });
+    expect(r.status).toBe(200);
+    expect(asked[0].model).toBe('gpt-5-mini');
+    expect(r.body.directedBy).toBe('openai');
+    expect(r.body.marks).toEqual({ expressions: [{ startMs: 0, expression: 'sad' }], actions: [] });
+    rmSync(join('data/audio', `${r.body.audioId}.wav`), { force: true });
+  }, 30000);
+});
