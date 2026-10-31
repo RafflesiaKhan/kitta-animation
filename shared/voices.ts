@@ -9,10 +9,28 @@ export const TTS_PROVIDER_NAMES: Record<TtsProvider, string> = { gemini: 'Gemini
 /** Voices offered for OpenAI speech (gpt-4o-mini-tts and later). VoiceStudio's list comes from the running app. */
 export const OPENAI_VOICES = ['coral', 'alloy', 'ash', 'ballad', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse'];
 
+/**
+ * Who VoiceStudio's engine default voice sounds like. Without a reference voice OmniVoice invents a speaker from each
+ * line's text, so every line could be someone else; one description sent with every line keeps it one person.
+ */
+export interface Speaker { id: string; label: string; instruct: string }
+export const SPEAKERS: Speaker[] = [
+  { id: 'man', label: 'Man', instruct: 'male, young adult, moderate pitch' },
+  { id: 'woman', label: 'Woman', instruct: 'female, young adult, moderate pitch' },
+  { id: 'boy', label: 'Boy', instruct: 'male, child, high pitch' },
+  { id: 'girl', label: 'Girl', instruct: 'female, child, high pitch' },
+  { id: 'older-man', label: 'Older man', instruct: 'male, elderly, low pitch' },
+  { id: 'older-woman', label: 'Older woman', instruct: 'female, elderly, low pitch' },
+];
+export const DEFAULT_SPEAKER = 'man';
+/** VoiceStudio maps 'default' and OpenAI voice names (the app's "Engine's default voice" is 'alloy') to the engine default. */
+export const isEngineDefaultVoice = (voice: string) => voice === 'default' || OPENAI_VOICES.includes(voice);
+
 /** What a running VoiceStudio reports: its status, the engines that are installed and the voices you can pick. */
 export interface VoiceStudioVoice { id: string; label: string; kind: 'profile' | 'persona' | 'default'; icon?: string }
 export interface VoiceStudioEngine { id: string; label: string; cloning: boolean; emotion: boolean }
-export interface VoiceStudioInfo { running: boolean; url: string; version?: string; device?: string; voices: VoiceStudioVoice[]; engines: VoiceStudioEngine[] }
+/** starting: Kitta is opening the VoiceStudio app (it isn't answering yet). */
+export interface VoiceStudioInfo { running: boolean; starting?: boolean; url: string; version?: string; device?: string; voices: VoiceStudioVoice[]; engines: VoiceStudioEngine[] }
 
 /**
  * Language / accent picker. VoiceStudio gets `code` as its language and `accent` as a voice-design attribute

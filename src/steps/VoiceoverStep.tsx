@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { EXPRESSIONS, GESTURES } from '../../shared/types';
 import type { Expression, Gesture, Line, ScriptLineInput } from '../../shared/types';
-import { CUES, LANGUAGES, OPENAI_VOICES, PAUSES, PITCH_RANGE, SOUND_TAGS, SPEED_RANGE, TTS_PROVIDER_NAMES, VOICES, type TtsProvider, type VoiceStudioInfo } from '../../shared/voices';
+import { CUES, DEFAULT_SPEAKER, LANGUAGES, OPENAI_VOICES, PAUSES, PITCH_RANGE, SOUND_TAGS, SPEAKERS, SPEED_RANGE, TTS_PROVIDER_NAMES, VOICES, type TtsProvider, type VoiceStudioInfo } from '../../shared/voices';
 import * as api from '../api';
 import { splitScript } from '../../shared/direction';
 
@@ -96,7 +96,7 @@ const avatar = (v?: VoiceOption) => v?.icon ?? (v?.label ?? '?').charAt(0).toUpp
 const clamp = (v: number, r: number) => Math.max(-r, Math.min(r, Math.round(v) || 0));
 /** Controls a new line takes over from the line above it. */
 const carried = (l?: ScriptLineInput): Partial<ScriptLineInput> =>
-  l ? { language: l.language, style: l.style, pitch: l.pitch, speed: l.speed, variability: l.variability } : {};
+  l ? { language: l.language, style: l.style, pitch: l.pitch, speed: l.speed, variability: l.variability, speaker: l.speaker } : {};
 const named = (ids: string[]): VoiceOption[] => ids.map((id) => ({ id, label: id }));
 
 /** VoiceStudio's status, engines and voices, read from the running app (refreshable). */
@@ -109,6 +109,12 @@ function useVoiceStudio(active: boolean): [VoiceStudioInfo | null, () => void] {
     Promise.resolve(api.voiceStudio()).then((v) => { if (live) setInfo(v ?? null); }, () => {});
     return () => { live = false; };
   }, [active, tick]);
+  // While Kitta is opening it, check back every few seconds until it answers.
+  useEffect(() => {
+    if (!active || !info?.starting) return;
+    const t = setTimeout(() => setTick((n) => n + 1), 3_000);
+    return () => clearTimeout(t);
+  }, [active, info]);
   return [info, () => setTick((t) => t + 1)];
 }
 
@@ -178,8 +184,9 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
           <p className="hint" data-testid="studio-status">
             {studio === null ? 'Checking VoiceStudio…'
               : studio.running ? <><span className="ok">●</span>{` VoiceStudio ${studio.version ?? ''} running${studio.device ? ` on ${studio.device}` : ''}`}</>
+              : studio.starting ? 'Starting VoiceStudio… (its voice models take a moment to load)'
               : `VoiceStudio isn't running at ${studio.url}. Start it, then `}
-            {studio !== null && !studio.running && <button className="mini" onClick={refreshStudio}>check again</button>}
+            {studio !== null && !studio.running && !studio.starting && <button className="mini" onClick={refreshStudio}>check again</button>}
           </p>
           {studio?.running && studio.engines.length > 0 && (
             <label className="field">Engine{' '}
@@ -196,6 +203,13 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
           {voices.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
         </select>
       </label>
+      {studioOn && voices.find((v) => v.id === voice)?.kind === 'default' && (
+        <label className="field">Speaker{' '}
+          <select aria-label="Speaker" disabled={busy} value={lines[0]?.speaker ?? DEFAULT_SPEAKER} onChange={(e) => setLines(lines.map((l) => ({ ...l, speaker: e.target.value })))}>
+            {SPEAKERS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+        </label>
+      )}
       {cloneOnPlainEngine && <p className="hint">{engine!.label.split(' (')[0]} can't use saved or cloned voices, so it will speak in its own voice.</p>}
       {pasted === null ? (
         <button className="btn secondary paste" disabled={busy} onClick={() => setPasted('')}>📋 Paste script</button>

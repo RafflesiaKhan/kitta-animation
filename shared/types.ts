@@ -28,6 +28,7 @@ export interface ScriptLineInput {
   text: string; voice: string; expression: Expression; gesture: Gesture; note?: string;
   // Per-line voice controls (shared/voices.ts): language id, style, pitch and speed in % (0 = as is), steady or varied takes.
   language?: string; style?: 'normal' | 'whisper'; pitch?: number; speed?: number; variability?: 'steady' | 'varied';
+  speaker?: string; // VoiceStudio's engine default voice: who it sounds like (shared/voices.ts SPEAKERS), else DEFAULT_SPEAKER
 }
 export type ExportFormat = { aspect: '16:9' | '9:16'; transparent: boolean };
 

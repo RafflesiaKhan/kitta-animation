@@ -181,3 +181,32 @@ it('keeps the marks a directed script comes back with, and says how they were ma
   expect((lastProps!.timeline as { marks: unknown }).marks).toEqual(marks);
   expect(screen.getByText(/built-in word list/)).toBeTruthy();
 });
+
+it("asks who the engine default voice is, and gives every line (and pasted ones) that speaker", async () => {
+  vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: false, ttsProviders: ['voicestudio'] });
+  vi.mocked(api.voiceStudio).mockResolvedValue(studioInfo);
+  vi.mocked(api.tts).mockReturnValue(new Promise(() => {}));
+  await open();
+  await waitFor(() => expect((screen.getByLabelText('Voice') as HTMLSelectElement).value).toBe('demo0001'));
+  expect(screen.queryByLabelText('Speaker')).toBeNull(); // a saved voice is already one person
+  fireEvent.change(screen.getByLabelText('Voice'), { target: { value: 'alloy' } });
+  expect((screen.getByLabelText('Speaker') as HTMLSelectElement).value).toBe('man');
+  fireEvent.change(screen.getByLabelText('Speaker'), { target: { value: 'girl' } });
+  fireEvent.click(screen.getByRole('button', { name: '📋 Paste script' }));
+  fireEvent.change(screen.getByLabelText('Whole script'), { target: { value: 'One. Two.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Use this script' }));
+  fireEvent.click(screen.getByRole('button', { name: '▶ Generate voice' }));
+  expect(vi.mocked(api.tts).mock.calls[0][0]).toEqual([
+    expect.objectContaining({ text: 'One.', voice: 'alloy', speaker: 'girl' }),
+    expect.objectContaining({ text: 'Two.', voice: 'alloy', speaker: 'girl' }),
+  ]);
+});
+
+it('shows VoiceStudio starting and checks back until it is running', async () => {
+  vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: false, ttsProviders: ['voicestudio'] });
+  vi.mocked(api.voiceStudio).mockResolvedValueOnce({ running: false, starting: true, url: 'http://localhost:3900', voices: [], engines: [] }).mockResolvedValue(studioInfo);
+  await open();
+  await waitFor(() => expect(screen.getByTestId('studio-status').textContent).toMatch(/Starting VoiceStudio/));
+  expect(screen.queryByRole('button', { name: 'check again' })).toBeNull();
+  await waitFor(() => expect(screen.getByTestId('studio-status').textContent).toMatch(/running on mps/), { timeout: 5000 });
+});

@@ -1,6 +1,6 @@
 import { EXPRESSIONS, GESTURES } from '../shared/types';
 import type { AnyCharacter, ArtCharacter, ExportFormat, ScriptLineInput, Timeline } from '../shared/types';
-import { LANGUAGES, PITCH_RANGE, SPEED_RANGE } from '../shared/voices';
+import { LANGUAGES, PITCH_RANGE, SPEAKERS, SPEED_RANGE } from '../shared/voices';
 import { MAX_AUDIO_MS } from './audio';
 
 const SHAPES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'X'];
@@ -57,5 +57,6 @@ export function validScriptLine(l: unknown): l is ScriptLineInput {
     (l.language === undefined || LANGUAGES.some((x) => x.id === l.language)) &&
     (l.style === undefined || l.style === 'normal' || l.style === 'whisper') &&
     (l.variability === undefined || l.variability === 'steady' || l.variability === 'varied') &&
+    (l.speaker === undefined || SPEAKERS.some((s) => s.id === l.speaker)) &&
     inRange(l.pitch, PITCH_RANGE) && inRange(l.speed, SPEED_RANGE);
 }
