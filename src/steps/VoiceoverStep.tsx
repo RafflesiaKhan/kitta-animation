@@ -3,6 +3,7 @@ import { EXPRESSIONS, GESTURES } from '../../shared/types';
 import type { Expression, Gesture, Line, ScriptLineInput } from '../../shared/types';
 import { CUES, LANGUAGES, OPENAI_VOICES, PAUSES, PITCH_RANGE, SOUND_TAGS, SPEED_RANGE, TTS_PROVIDER_NAMES, VOICES, type TtsProvider, type VoiceStudioInfo } from '../../shared/voices';
 import * as api from '../api';
+import { splitScript } from '../../shared/direction';
 
 interface Props {
   geminiOk: boolean; // auto-tag and transcription
@@ -22,6 +23,7 @@ interface Props {
   uploadLines: Line[] | null; // lines of the uploaded timeline; null unless the current audio was uploaded
   onEditUploadLine: (i: number, patch: Pick<Line, 'expression'> | Pick<Line, 'gesture'>) => void;
   handAnimated?: boolean; // the Animate step now drives the animation, not these lines' tags
+  notice?: string | null; // after generating a directed script: how its directions were matched
 }
 
 type TabProps = Props;
@@ -110,7 +112,8 @@ function useVoiceStudio(active: boolean): [VoiceStudioInfo | null, () => void] {
   return [info, () => setTick((t) => t + 1)];
 }
 
-function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, onGenerate, onAutoTag, geminiOk, ttsProviders, ttsProvider, onTtsProvider, ttsEngine, onTtsEngine }: TabProps) {
+function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, onGenerate, onAutoTag, geminiOk, ttsProviders, ttsProvider, onTtsProvider, ttsEngine, onTtsEngine, notice }: TabProps) {
+  const [pasted, setPasted] = useState<string | null>(null); // the Paste-script box, open while not null
   const voiceOk = ttsProviders.length > 0;
   const studioOn = ttsProvider === 'voicestudio';
   const [studio, refreshStudio] = useVoiceStudio(studioOn);
@@ -194,6 +197,22 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
         </select>
       </label>
       {cloneOnPlainEngine && <p className="hint">{engine!.label.split(' (')[0]} can't use saved or cloned voices, so it will speak in its own voice.</p>}
+      {pasted === null ? (
+        <button className="btn secondary paste" disabled={busy} onClick={() => setPasted('')}>📋 Paste script</button>
+      ) : (
+        <div className="line-card">
+          <textarea aria-label="Whole script" rows={6} value={pasted} onChange={(e) => setPasted(e.target.value)}
+            placeholder="Paste a whole script. Stage directions like [expression: warm smile] or [action: waves hand gently] animate the character; they are not spoken." />
+          <p className="hint">Replaces the lines below with one line per sentence, each in the voice above.</p>
+          <div className="line-actions">
+            <button className="btn" disabled={!pasted.trim()} onClick={() => {
+              setLines(splitScript(pasted).map((text) => ({ text, voice, expression: 'neutral', gesture: 'none', ...carried(lines[0]) })));
+              setPasted(null);
+            }}>Use this script</button>
+            <button className="btn secondary" onClick={() => setPasted(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
       {lines.map((l, i) => (
         <div key={i} className="line-card" data-testid="script-line">
           <div className="voice-bar">
@@ -248,6 +267,7 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
         {studioOn ? ' VoiceStudio whispers for real; it has no emotions, so other cues are approximated with a little speed and pitch.' : ''}
         {' '}Powered by {TTS_PROVIDER_NAMES[ttsProvider]}{ttsProvider === 'gemini' ? ' TTS' : ''}.
       </p>
+      {notice && !error && <p className="hint">{notice}</p>}
       {error && <p role="alert" className="error">{error}</p>}
       {previewError && <p role="alert" className="error">{previewError}</p>}
     </div>

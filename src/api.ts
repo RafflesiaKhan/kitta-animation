@@ -1,6 +1,6 @@
 import type { TtsProvider, VoiceStudioInfo } from '../shared/voices';
 import type { UsageReport } from '../shared/usage';
-import type { AnyCharacter, ArtCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
+import type { AnyCharacter, ArtCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, Marks, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
 
 async function post<T>(url: string, init: RequestInit): Promise<T> {
   let res: Response;
@@ -33,7 +33,8 @@ export async function health(): Promise<{ rhubarb: boolean; gemini: boolean; ima
   return res.json();
 }
 
-export function tts(lines: ScriptLineInput[], provider?: TtsProvider, engine?: string): Promise<{ audioId: string; durationMs: number; lines: Line[]; cues: MouthCue[] }> {
+/** marks and directedBy come back only for a script with [expression: …] / [action: …] directions. */
+export function tts(lines: ScriptLineInput[], provider?: TtsProvider, engine?: string): Promise<{ audioId: string; durationMs: number; lines: Line[]; cues: MouthCue[]; marks?: Marks; directedBy?: 'gemini' | 'openai' | 'keywords' }> {
   return post('/api/tts', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines, provider, engine: engine || undefined }) });
 }
 
