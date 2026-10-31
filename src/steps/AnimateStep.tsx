@@ -11,7 +11,7 @@ interface Props {
   timeline: Timeline | null;
   audioUrl: string | null;
   audioRef: RefObject<HTMLAudioElement>; // the preview's audio: the one clock, read for the playhead and set to seek
-  onMarks: (m: Marks) => void;
+  onMarks: (edit: (m: Marks) => Marks) => void; // applied to the marks as they are then, so quick edits never undo each other
 }
 
 type Action = ActionMark['gesture'];
@@ -78,9 +78,10 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
       if (!d.moved && Math.abs(dx) < 3) return;
       d.moved = true;
       const ms = d.ms + (dx / d.width) * timeline.durationMs;
-      onMarks(d.kind === 'expression' ? moveExpression(d.base, d.i, ms) : d.kind === 'action' ? moveAction(d.base, d.i, ms, timeline.durationMs) : resizeAction(d.base, d.i, ms, timeline.durationMs));
+      const next = d.kind === 'expression' ? moveExpression(d.base, d.i, ms) : d.kind === 'action' ? moveAction(d.base, d.i, ms, timeline.durationMs) : resizeAction(d.base, d.i, ms, timeline.durationMs);
+      onMarks(() => next);
     };
-    const up = () => { drag.current = null; };
+    const up = (e: globalThis.PointerEvent) => { move(e); drag.current = null; }; // a quick flick may end past its last move
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
@@ -99,14 +100,13 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
 
   const add = (kind: Kind, value: string, ms: number) => {
     setNote('');
-    if (kind === 'expression') return onMarks(addExpression(marks, ms, value as Expression));
-    const next = addAction(marks, ms, value as Action, timeline.durationMs);
-    if (next) onMarks(next);
+    if (kind === 'expression') return onMarks((m) => addExpression(m, ms, value as Expression));
+    if (addAction(marks, ms, value as Action, timeline.durationMs)) onMarks((m) => addAction(m, ms, value as Action, timeline.durationMs) ?? m);
     else setNote('No room for an action there: it needs half a second free.');
   };
   const remove = (kind: Kind, i: number) => {
     if (kind === 'expression' && i === 0) return; // the character always has an expression
-    onMarks(kind === 'expression' ? removeExpression(marks, i) : removeAction(marks, i));
+    onMarks((m) => (kind === 'expression' ? removeExpression(m, i) : removeAction(m, i)));
     setSelected(null);
   };
   const at = () => (audioRef.current?.currentTime ?? 0) * 1000; // the playhead, read straight from the clock

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, createEvent, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { App } from '../../src/App';
 import * as api from '../../src/api';
@@ -93,5 +93,28 @@ it('animating by hand drives the video, and the upload lines say so', async () =
   expect((lastProps!.timeline as { marks: unknown }).marks).toEqual({ expressions: [{ startMs: 0, expression: 'angry' }], actions: [] });
   fireEvent.click(screen.getByRole('button', { name: '2 Voiceover' }));
   expect(screen.getByText(/Animated in the Animate step/)).toBeTruthy();
+  vi.unstubAllGlobals();
+});
+
+it('keeps every edit when several land before the next render', async () => {
+  vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: false });
+  vi.mocked(api.uploadAudio).mockResolvedValue({ audioId: 'abc', durationMs: 10000 });
+  vi.mocked(api.lipsync).mockResolvedValue(cues);
+  vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))));
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: '2 Voiceover' }));
+  await act(async () => { pick(); });
+  fireEvent.click(screen.getByRole('button', { name: '3 Animate' }));
+  const row = screen.getByTestId('row-expression');
+  vi.spyOn(row, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 100, top: 0, height: 20, right: 100, bottom: 20, x: 0, y: 0, toJSON: () => ({}) });
+  const drop = (data: string, x: number) => {
+    const ev = createEvent.drop(row, { dataTransfer: { getData: () => data, types: ['text/plain'] } });
+    Object.defineProperty(ev, 'clientX', { value: x });
+    fireEvent(row, ev);
+  };
+  act(() => { drop('expression:angry', 20); drop('expression:happy', 60); }); // one batch: no render in between
+  expect((lastProps!.timeline as { marks: { expressions: unknown[] } }).marks.expressions).toEqual([
+    { startMs: 0, expression: 'neutral' }, { startMs: 2000, expression: 'angry' }, { startMs: 6000, expression: 'happy' },
+  ]);
   vi.unstubAllGlobals();
 });

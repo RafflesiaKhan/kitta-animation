@@ -3,6 +3,7 @@ import { isArt } from '../shared/types';
 import type { AnyCharacter, ArtCharacter, ArtPose, ImageProvider, Line, Marks, ScriptLineInput, Timeline } from '../shared/types';
 import { VOICES, type TtsProvider } from '../shared/voices';
 import { STARTERS } from '../shared/character/starters';
+import { marksOf } from '../shared/marks';
 import * as api from './api';
 import { Preview } from './Preview';
 import { CharacterStep } from './steps/CharacterStep';
@@ -114,7 +115,7 @@ export function App() {
     setState((s) => (s.timeline ? { ...s, timeline: { ...s.timeline, lines: s.timeline.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) } } : s));
 
   // Hand-placed animation from the Animate step.
-  const setMarks = useCallback((marks: Marks) => setState((s) => (s.timeline ? { ...s, timeline: { ...s.timeline, marks } } : s)), []);
+  const editMarks = useCallback((edit: (m: Marks) => Marks) => setState((s) => (s.timeline ? { ...s, timeline: { ...s.timeline, marks: edit(marksOf(s.timeline)) } } : s)), []);
 
   // ---------- AI characters ----------
   // Stores a created/updated AI character in the library and, if it is the one in use, in the state too.
@@ -178,7 +179,7 @@ export function App() {
       {step === 2 ? (
         <main className="animate">
           <Preview character={state.character} timeline={state.timeline} audioUrl={audioUrl} status={status} audioRef={audioRef} />
-          <AnimateStep character={state.character} timeline={state.timeline} audioUrl={audioUrl} audioRef={audioRef} onMarks={setMarks} />
+          <AnimateStep character={state.character} timeline={state.timeline} audioUrl={audioUrl} audioRef={audioRef} onMarks={editMarks} />
         </main>
       ) : (
         <main>
