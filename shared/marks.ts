@@ -1,10 +1,12 @@
 import type { ActionMark, Expression, Line, Marks, Timeline } from './types';
 
 // The Animate step's hand-placed animation. Every edit is pure and keeps the invariants frameAt relies on:
-// expressions sorted with the first at 0 (the character always has one), actions sorted and never overlapping.
+// expressions sorted with the first at 0 (the character always has one), an expression's end (if any) no later than the
+// next one's start, actions sorted and never overlapping.
 
 export const ACTION_MS = 2000; // length of a newly placed action
 export const MIN_ACTION_MS = 500;
+export const MIN_EXPRESSION_MS = 500;
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -26,18 +28,62 @@ export function marksOf(t: Timeline): Marks {
   return m;
 }
 
+/** The expression showing at ms: the latest one started that hasn't ended, else the one before it, and so on. */
+export function expressionAt(m: Marks, ms: number): Expression {
+  for (let j = m.expressions.length - 1; j >= 0; j--) {
+    const e = m.expressions[j];
+    if (e.startMs <= ms && (e.endMs === undefined || ms < e.endMs)) return e.expression;
+  }
+  return 'neutral';
+}
+
+/** When the showing expression last changed at or before ms (a start or an end), for the morph between them. */
+export function lastExpressionChange(m: Marks, ms: number): number {
+  let at = 0;
+  for (const e of m.expressions) {
+    if (e.startMs > ms) break;
+    at = Math.max(at, e.startMs, e.endMs !== undefined && e.endMs <= ms ? e.endMs : 0);
+  }
+  return at;
+}
+
+/** Starts an expression at ms, holding until the next one; one it lands inside is cut there (same start: swapped). */
 export function addExpression(m: Marks, ms: number, expression: Expression): Marks {
   const at = Math.max(0, Math.round(ms));
-  const rest = m.expressions.filter((e) => e.startMs !== at);
-  const expressions = [...rest, { startMs: at, expression }].sort((a, b) => a.startMs - b.startMs);
+  const same = m.expressions.find((e) => e.startMs === at);
+  const rest = m.expressions.filter((e) => e !== same).map((e) => {
+    if (e.startMs >= at || e.endMs === undefined || e.endMs <= at) return e;
+    const { endMs: _cut, ...held } = e;
+    return held;
+  });
+  const expressions = [...rest, { ...same, startMs: at, expression }].sort((a, b) => a.startMs - b.startMs);
   return { ...m, expressions };
 }
 
-export function moveExpression(m: Marks, i: number, ms: number): Marks {
+/** Moves an expression (and its end, keeping its length) between its neighbours. */
+export function moveExpression(m: Marks, i: number, ms: number, durationMs = Infinity): Marks {
   if (i <= 0 || i >= m.expressions.length) return m;
-  const next = m.expressions[i + 1]?.startMs ?? Infinity;
-  const startMs = clamp(Math.round(ms), m.expressions[i - 1].startMs + 1, next - 1);
-  return { ...m, expressions: m.expressions.map((e, j) => (j === i ? { ...e, startMs } : e)) };
+  const e = m.expressions[i], prev = m.expressions[i - 1];
+  const len = e.endMs === undefined ? undefined : e.endMs - e.startMs;
+  const lo = prev.endMs ?? prev.startMs + 1;
+  const hi = len === undefined ? (m.expressions[i + 1]?.startMs ?? Infinity) - 1 : Math.min(m.expressions[i + 1]?.startMs ?? durationMs, durationMs) - len;
+  const startMs = clamp(Math.round(ms), lo, Math.max(lo, hi));
+  const moved = len === undefined ? { ...e, startMs } : { ...e, startMs, endMs: startMs + len };
+  return { ...m, expressions: m.expressions.map((x, j) => (j === i ? moved : x)) };
+}
+
+/**
+ * Sets when an expression ends (the one before it shows again), at least MIN_EXPRESSION_MS after its start. Stretched
+ * up to the next expression or the end of the audio, it holds again. The first expression always holds.
+ */
+export function resizeExpression(m: Marks, i: number, endMs: number, durationMs: number): Marks {
+  if (i <= 0 || i >= m.expressions.length) return m;
+  const e = m.expressions[i];
+  const hi = Math.min(m.expressions[i + 1]?.startMs ?? durationMs, durationMs);
+  const end = Math.max(Math.round(endMs), e.startMs + MIN_EXPRESSION_MS);
+  const { endMs: _old, ...held } = e;
+  const next = end >= hi ? held : { ...held, endMs: end };
+  return { ...m, expressions: m.expressions.map((x, j) => (j === i ? next : x)) };
 }
 
 export function removeExpression(m: Marks, i: number): Marks {

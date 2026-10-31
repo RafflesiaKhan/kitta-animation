@@ -3,7 +3,7 @@ import { EXPRESSIONS, GESTURES } from '../../shared/types';
 import type { ActionMark, AnyCharacter, Expression, FrameState, Marks, Timeline } from '../../shared/types';
 import { CharacterView } from '../../shared/character/CharacterView';
 import { frameAt } from '../../shared/timeline';
-import { addAction, addExpression, marksOf, moveAction, moveExpression, removeAction, removeExpression, resizeAction } from '../../shared/marks';
+import { addAction, addExpression, marksOf, moveAction, moveExpression, removeAction, removeExpression, resizeAction, resizeExpression } from '../../shared/marks';
 import { peaks } from '../waveform';
 
 interface Props {
@@ -16,7 +16,7 @@ interface Props {
 
 type Action = ActionMark['gesture'];
 type Kind = 'expression' | 'action';
-type Drag = { kind: Kind | 'resize'; i: number; x: number; ms: number; base: Marks; width: number; moved: boolean };
+type Drag = { kind: Kind | `${Kind}End`; i: number; x: number; ms: number; base: Marks; width: number; moved: boolean };
 
 const ACTIONS = GESTURES.filter((g): g is Action => g !== 'none');
 const NAMES: Partial<Record<Action, string>> = { lookDown: 'look down' };
@@ -79,7 +79,9 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
       if (!d.moved && Math.abs(dx) < 3) return;
       d.moved = true;
       const ms = d.ms + (dx / d.width) * timeline.durationMs;
-      const next = d.kind === 'expression' ? moveExpression(d.base, d.i, ms) : d.kind === 'action' ? moveAction(d.base, d.i, ms, timeline.durationMs) : resizeAction(d.base, d.i, ms, timeline.durationMs);
+      const total = timeline.durationMs;
+      const next = d.kind === 'expression' ? moveExpression(d.base, d.i, ms, total) : d.kind === 'action' ? moveAction(d.base, d.i, ms, total)
+        : d.kind === 'expressionEnd' ? resizeExpression(d.base, d.i, ms, total) : resizeAction(d.base, d.i, ms, total);
       onMarks(() => next);
     };
     const up = (e: globalThis.PointerEvent) => { move(e); drag.current = null; }; // a quick flick may end past its last move
@@ -126,7 +128,7 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
   const lane = { onDragOver: (e: DragEvent) => e.preventDefault(), onDrop: drop, onClick: seek };
   const grab = (kind: Drag['kind'], i: number, ms: number) => (e: PointerEvent<HTMLElement>) => {
     e.stopPropagation();
-    if (kind !== 'resize') setSelected({ kind, i });
+    if (kind === 'expression' || kind === 'action') setSelected({ kind, i });
     const row = (e.currentTarget.closest('.lane') ?? e.currentTarget).getBoundingClientRect();
     drag.current = { kind, i, x: e.clientX, ms, base: marks, width: row.width || 1, moved: false };
   };
@@ -137,7 +139,7 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
         onPointerDown={grab(kind, i, startMs)} onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); remove(kind, i); } }}>{label}</button>
       {isSel(kind, i) && !(kind === 'expression' && i === 0) && <button className="mark-x" aria-label={`Remove ${label}`} onClick={(e) => { e.stopPropagation(); remove(kind, i); }}>×</button>}
-      {kind === 'action' && <span className="mark-grip" aria-hidden onPointerDown={grab('resize', i, endMs)} onClick={(e) => e.stopPropagation()} />}
+      {!(kind === 'expression' && i === 0) && <span className="mark-grip" data-testid={`end-${kind}-${i}`} title="Drag to change when it ends" aria-hidden onPointerDown={grab(`${kind}End`, i, endMs)} onClick={(e) => e.stopPropagation()} />}
     </div>
   );
 
@@ -177,7 +179,7 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
           </div>
           <div className="track"><span className="track-label">Expression</span>
             <div className="lane" data-testid="row-expression" {...lane}>
-              {marks.expressions.map((m, i) => block('expression', i, m.startMs, marks.expressions[i + 1]?.startMs ?? timeline.durationMs, m.expression))}
+              {marks.expressions.map((m, i) => block('expression', i, m.startMs, m.endMs ?? marks.expressions[i + 1]?.startMs ?? timeline.durationMs, m.expression))}
             </div>
           </div>
           <div className="track"><span className="track-label">Actions</span>

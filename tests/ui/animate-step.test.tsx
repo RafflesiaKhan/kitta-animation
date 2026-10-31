@@ -91,3 +91,12 @@ it('moves a block to where the pointer is released, even with no moves in betwee
   fireEvent.pointerUp(window, { clientX: 100 }); // 100 px of 400 = 1 s earlier
   expect(result(onMarks).expressions[2]).toEqual({ startMs: 1000, expression: 'sad' });
 });
+
+it('drags the end of an expression to set how long it lasts', () => {
+  const onMarks = setup();
+  vi.spyOn(screen.getByTestId('row-expression'), 'getBoundingClientRect').mockReturnValue({ left: 0, width: 400, top: 0, height: 20, right: 400, bottom: 20, x: 0, y: 0, toJSON: () => ({}) });
+  expect(screen.queryByTestId('end-expression-0')).toBeNull(); // the first one always holds
+  fireEvent.pointerDown(screen.getByTestId('end-expression-1'), { clientX: 200 }); // happy currently runs to 2000 ms
+  fireEvent.pointerUp(window, { clientX: 120 }); // 80 px of 400 = 0.8 s shorter
+  expect(result(onMarks).expressions[1]).toEqual({ startMs: 100, endMs: 1200, expression: 'happy' });
+});
