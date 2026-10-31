@@ -21,6 +21,7 @@ interface Props {
   onAddExpressions: () => void;
   uploadLines: Line[] | null; // lines of the uploaded timeline; null unless the current audio was uploaded
   onEditUploadLine: (i: number, patch: Pick<Line, 'expression'> | Pick<Line, 'gesture'>) => void;
+  handAnimated?: boolean; // the Animate step now drives the animation, not these lines' tags
 }
 
 type TabProps = Props;
@@ -46,7 +47,7 @@ function TagSelects({ busy, expression, gesture, onExpression, onGesture }: {
   );
 }
 
-function UploadTab({ busy, error, onUpload, onAddExpressions, uploadLines, onEditUploadLine, geminiOk, ttsProviders }: TabProps) {
+function UploadTab({ busy, error, onUpload, onAddExpressions, uploadLines, onEditUploadLine, geminiOk, ttsProviders, handAnimated }: TabProps) {
   // Transcription works with Gemini or a local VoiceStudio (then the lines come untagged).
   const canListen = geminiOk || ttsProviders.includes('voicestudio');
   return (
@@ -69,6 +70,7 @@ function UploadTab({ busy, error, onUpload, onAddExpressions, uploadLines, onEdi
       {uploadLines && (
         <>
           <button className="btn" disabled={busy || !canListen} title={canListen ? undefined : NEEDS_KEY} onClick={onAddExpressions}>✨ Add expressions</button>
+          {handAnimated && <p className="hint">Animated in the Animate step: the expressions and gestures below no longer change the video.</p>}
           {uploadLines.map((l, i) => (
             <div key={i} className="line-card" data-testid="upload-line">
               <div className="line-chips">

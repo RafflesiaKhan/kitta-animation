@@ -1,5 +1,6 @@
 import type { FrameState, Timeline } from './types';
 import { analyzeSpeech, beatLevel, blinkAt, drift, talkLevel } from './motion';
+import { marksOf } from './marks';
 
 export const FPS = 30;
 
@@ -48,22 +49,29 @@ export function frameAt(t: Timeline, ms: number): FrameState {
   const line = li >= 0 ? t.lines[li] : undefined;
   const inLine = line !== undefined && ms < line.endMs;
 
-  // A line's expression morphs in from the one before it over its first TRANSITION_MS.
-  const fromExpression = li >= 1 ? t.lines[li - 1].expression : 'neutral';
-  const blend = line ? smooth(Math.min(1, (ms - line.startMs) / TRANSITION_MS)) : 1;
+  // Expressions and actions come from the marks (hand-placed, or the lines' own). An expression morphs in from the one
+  // before it over its first TRANSITION_MS; an action's progress runs 0..1 over its clip.
+  const marks = marksOf(t);
+  const ei = Math.max(0, lastStartedIndex(marks.expressions, ms));
+  const mark = marks.expressions[ei];
+  const expression = mark?.expression ?? 'neutral';
+  const fromExpression = ei >= 1 ? marks.expressions[ei - 1].expression : 'neutral';
+  const blend = mark && fromExpression !== expression ? smooth(Math.min(1, (ms - mark.startMs) / TRANSITION_MS)) : 1;
+  const ai = lastStartedIndex(marks.actions, ms);
+  const action = ai >= 0 && ms < marks.actions[ai].endMs ? marks.actions[ai] : undefined;
 
   // Speech-driven motion: nods and hand beats on stressed syllables, brow lifts on phrase openers, sway while talking.
   const speech = analyzeSpeech(t);
   const talk = talkLevel(speech, ms);
 
   return {
-    expression: line ? line.expression : 'neutral',
+    expression,
     fromExpression,
     blend,
     glance: inLine ? 0 : glanceAt(ms),
     mouth: cue ? cue.shape : 'X',
-    gesture: inLine ? line.gesture : 'none',
-    gestureProgress: inLine ? (ms - line.startMs) / (line.endMs - line.startMs) : 0,
+    gesture: action ? action.gesture : 'none',
+    gestureProgress: action ? (ms - action.startMs) / (action.endMs - action.startMs) : 0,
     blink: blinkAt(speech, ms),
     bob: 2 * Math.sin((2 * Math.PI * ms) / BOB_PERIOD_MS),
     talk,

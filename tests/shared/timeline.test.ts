@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { frameAt, frameCount, FPS, TRANSITION_MS } from '../../shared/timeline';
 import type { Timeline } from '../../shared/types';
+import { marksFromLines } from '../../shared/marks';
 
 const t: Timeline = {
   durationMs: 4000,
@@ -74,6 +75,21 @@ describe('frameAt gesture', () => {
     expect(frameAt(t, 50).gesture).toBe('none');
     expect(frameAt(t, 1000).gesture).toBe('none');
     expect(frameAt(t, 1500)).toMatchObject({ gesture: 'none', gestureProgress: 0 });
+  });
+});
+
+describe('frameAt with marks', () => {
+  // Looks the same: blend only matters when the expression changes.
+  const look = (f: ReturnType<typeof frameAt>) => (f.fromExpression === f.expression ? { ...f, blend: 1 } : f);
+  it('animates exactly as the lines do when the marks come from the lines', () => {
+    const marked: Timeline = { ...t, marks: marksFromLines(t.lines) };
+    for (let ms = 0; ms <= 4000; ms += 50) expect(look(frameAt(marked, ms))).toEqual(look(frameAt(t, ms)));
+  });
+  it('follows hand-placed expressions and actions instead of the lines', () => {
+    const marked: Timeline = { ...t, marks: { expressions: [{ startMs: 0, expression: 'neutral' }, { startMs: 500, expression: 'angry' }], actions: [{ startMs: 1000, endMs: 3000, gesture: 'shrug' }] } };
+    expect(frameAt(marked, 600)).toMatchObject({ expression: 'angry', fromExpression: 'neutral' });
+    expect(frameAt(marked, 2000)).toMatchObject({ expression: 'angry', gesture: 'shrug', gestureProgress: 0.5 });
+    expect(frameAt(marked, 3500)).toMatchObject({ gesture: 'none', gestureProgress: 0 });
   });
 });
 

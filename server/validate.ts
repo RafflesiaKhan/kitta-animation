@@ -10,6 +10,17 @@ const CHARACTER_KEYS = ['starter', 'skin', 'hairStyle', 'hairColor', 'eyeStyle',
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
+/** Hand-placed animation: expressions sorted from 0; actions sorted, non-empty, not overlapping, inside the audio. */
+function validMarks(marks: unknown, durationMs: number): boolean {
+  if (!isObj(marks) || !Array.isArray(marks.expressions) || !Array.isArray(marks.actions)) return false;
+  const ex = marks.expressions as Record<string, unknown>[];
+  const ac = marks.actions as Record<string, unknown>[];
+  const exOk = ex.length > 0 && ex[0]?.startMs === 0 && ex.every((e, i) => isObj(e) && num(e.startMs) && EXPRESSIONS.includes(e.expression as never) && (i === 0 || (ex[i - 1].startMs as number) < e.startMs));
+  const acOk = ac.every((a, i) => isObj(a) && num(a.startMs) && num(a.endMs) && a.gesture !== 'none' && GESTURES.includes(a.gesture as never) &&
+    a.startMs >= (i === 0 ? 0 : (ac[i - 1].endMs as number)) && a.endMs > a.startMs && a.endMs <= durationMs);
+  return exOk && acOk;
+}
+
 /** Returns the typed export request, or null when the body is malformed. */
 // An AI character only needs its id here; the route loads the rest from the library.
 export function validateExport(body: unknown): { character: AnyCharacter; timeline: Timeline; format: ExportFormat } | null {
@@ -25,6 +36,7 @@ export function validateExport(body: unknown): { character: AnyCharacter; timeli
   const cuesOk = cues.every((c) => isObj(c) && num(c.startMs) && num(c.endMs) && SHAPES.includes(c.shape as string));
   const linesOk = lines.every((l) => isObj(l) && num(l.startMs) && num(l.endMs) && EXPRESSIONS.includes(l.expression as never) && GESTURES.includes(l.gesture as never));
   if (!cuesOk || !linesOk || !sorted(cues as never) || !sorted(lines as never)) return null;
+  if (timeline.marks !== undefined && !validMarks(timeline.marks, timeline.durationMs)) return null;
   return {
     character: art ? ({ kind: 'art', id: character.id, name: '', prompt: '', style: '', images: {} } as ArtCharacter) : (character as unknown as AnyCharacter),
     timeline: timeline as unknown as Timeline,
