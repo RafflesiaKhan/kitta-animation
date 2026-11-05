@@ -3,7 +3,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSy
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildScene, saveScene, loadScene, sceneImages, SceneError, SCENES_DIR, validSceneName } from '../../server/scene';
+import { buildScene, captureScene, saveScene, loadScene, sceneImages, SceneError, SCENES_DIR, validSceneName } from '../../server/scene';
 import { AUDIO_DIR } from '../../server/audio';
 import { CHARACTERS_DIR } from '../../server/characters';
 import { STARTERS } from '../../shared/character/starters';
@@ -104,6 +104,9 @@ describe('saveScene and loadScene', () => {
     copyFileSync(robot, join(dir, current));
     writeFileSync(join(dir, 'meta.json'), JSON.stringify({ ...actor, images: { neutral: { file: current, mouth: null } } }));
     rmSync(join(dir, old));
+    const captured = await captureScene(scene);
+    expect(captured.scene.actors[0].character).toMatchObject({ images: { neutral: { file: current } } });
+    expect(Object.keys(captured.images[id])).toEqual([current]);
     for (const name of [modern, legacy]) {
       const loaded = (await loadScene(name))!;
       expect(await sceneImages(loaded)).toEqual({ [id]: { [current]: 'data:image/png;base64,' + readFileSync(robot).toString('base64') } });

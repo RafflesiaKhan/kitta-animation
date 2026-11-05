@@ -9,7 +9,7 @@ import type { Scene } from '../shared/scene';
 import { isArt } from '../shared/types';
 import { AUDIO_DIR } from './audio';
 import { renderScene } from './render';
-import { hydrateScene, loadScene, sceneImages, snapshotScene } from './scene';
+import { hydrateScene, loadScene, captureScene, snapshotScene } from './scene';
 import { getCharacter } from './characters';
 
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
@@ -234,7 +234,7 @@ export function projectRoutes(root = resolve('data/projects'), {
     const temp = mkdtempSync(join(tmpdir(), 'kitta-project-render-'));
     const outPath = join(temp, 'scene.mp4');
     try {
-      await renderScene({ scene: loaded.scene, images: await sceneImages(loaded.scene), audioPath: loaded.audioPath, outPath });
+      await renderScene({ ...await captureScene(loaded.scene), audioPath: loaded.audioPath, outPath });
       res.download(outPath, 'scene.mp4', error => {
         rmSync(temp, { recursive: true, force: true });
         if (error) next(error);

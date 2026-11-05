@@ -4,7 +4,7 @@ import { basename, join, resolve } from 'node:path';
 import { AUDIO_DIR } from './audio';
 import { ensureVoiceStudio } from './launch';
 import { renderScene } from './render';
-import { SCENES_DIR, SceneError, buildScene, loadScene, saveScene, sceneImages, validSceneName } from './scene';
+import { SCENES_DIR, SceneError, buildScene, loadScene, saveScene, captureScene, validSceneName } from './scene';
 import { speakLine } from './speech';
 import type { SceneSource } from '../shared/scene';
 
@@ -50,7 +50,7 @@ async function main() {
   const started = Date.now();
   let frames = 0;
   await renderScene({
-    scene, images: await sceneImages(scene), audioPath: join(AUDIO_DIR, `${scene.audioId}.wav`), outPath,
+    ...await captureScene(scene), audioPath: join(AUDIO_DIR, `${scene.audioId}.wav`), outPath,
     onProgress: (f, total) => { frames = total; process.stdout.write(`\rFrame ${f}/${total}`); },
   });
   const seconds = (Date.now() - started) / 1000;

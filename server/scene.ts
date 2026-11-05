@@ -5,7 +5,7 @@ import type { SavedScene, Scene, SceneSource } from '../shared/scene';
 import { isArt } from '../shared/types';
 import type { AnyCharacter, ScriptLineInput } from '../shared/types';
 import { concatWithGaps } from './audio';
-import { CharacterError, getCharacter, imageDataUris } from './characters';
+import { captureCharacter, CharacterError, getCharacter, imageDataUris } from './characters';
 import { runRhubarb } from './rhubarb';
 import { plainText } from './speech';
 
@@ -100,4 +100,17 @@ export async function sceneImages(scene: Scene): Promise<Record<string, Record<s
   const out: Record<string, Record<string, string>> = {};
   for (const a of scene.actors) if (isArt(a.character)) out[a.character.id] = await imageDataUris(a.character);
   return out;
+}
+
+export async function captureScene(scene: Scene) {
+  const captured = new Map<string, Awaited<ReturnType<typeof captureCharacter>>>();
+  const actors: Scene['actors'] = [];
+  for (const actor of scene.actors) {
+    if (!isArt(actor.character)) { actors.push(actor); continue; }
+    const id = actor.character.id;
+    const current = captured.get(id) ?? await captureCharacter(id);
+    captured.set(id, current);
+    actors.push({ ...actor, character: current.character });
+  }
+  return { scene: { ...scene, actors }, images: Object.fromEntries([...captured].map(([id, current]) => [id, current.images])) };
 }

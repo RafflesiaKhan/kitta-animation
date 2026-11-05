@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ART_POSES } from '../shared/types';
 import type { ArtCharacter, ArtPose, ImageProvider, MouthBox } from '../shared/types';
@@ -63,6 +63,17 @@ async function readMeta(id: string): Promise<ArtCharacter> {
   }
 }
 
+async function saveMeta(character: ArtCharacter): Promise<void> {
+  const dir = dirOf(character.id);
+  const temp = join(dir, 'meta-' + randomUUID() + '.tmp');
+  try {
+    await writeFile(temp, JSON.stringify(character, null, 2), { flag: 'wx' });
+    await rename(temp, join(dir, 'meta.json'));
+  } finally {
+    await rm(temp, { force: true });
+  }
+}
+
 /** Mouth lookup is best effort: without it the character still works, it just doesn't move its lips. */
 async function mouthOf(png: Buffer) {
   try {
@@ -92,7 +103,7 @@ async function savePose(c: ArtCharacter, pose: ArtPose, png: Buffer): Promise<Ar
   await writeFile(join(dir, file), png);
   const old = c.images[pose]?.file;
   const next: ArtCharacter = { ...c, images: { ...c.images, [pose]: { file, mouth: await mouthFor(c, pose, png) } } };
-  await writeFile(join(dir, 'meta.json'), JSON.stringify(next, null, 2));
+  await saveMeta(next);
   if (old && old !== file) await rm(join(dir, old), { force: true });
   return next;
 }
@@ -151,7 +162,7 @@ export async function measureMouths(id: string): Promise<ArtCharacter> {
       if (p) images[pose] = { ...im, mouth: await measureFrom(p, seed) };
     }
     const next: ArtCharacter = { ...c, mouthsMeasured: true, images };
-    await writeFile(join(dirOf(id), 'meta.json'), JSON.stringify(next, null, 2));
+    await saveMeta(next);
     return next;
   });
 }
@@ -178,4 +189,20 @@ export async function imageDataUris(c: ArtCharacter): Promise<Record<string, str
     if (p) out[im.file] = `data:image/png;base64,${(await readFile(p)).toString('base64')}`;
   }
   return out;
+}
+
+export function captureCharacter(id: string) {
+  return withLock(id, async () => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const character = await readMeta(id);
+      try {
+        const images = await imageDataUris(character);
+        if (Object.values(character.images).every(image => !image || Object.hasOwn(images, image.file))) return { character, images };
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+      // A repaint in another process can remove a pose after we read its metadata.
+    }
+    throw new Error('Character pose images changed or are missing. Try rendering again.');
+  });
 }
