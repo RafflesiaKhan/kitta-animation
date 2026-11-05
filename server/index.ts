@@ -18,6 +18,7 @@ import { imageProviders } from './images';
 import type { Line, ScriptLineInput } from '../shared/types';
 import { runRhubarb, rhubarbAvailable } from './rhubarb';
 import { renderVideo } from './render';
+import { loadScene } from './scene';
 import { validateExport, validScriptLine } from './validate';
 import { CharacterError, createCharacter, deleteCharacter, generatePose, getCharacter, imageDataUris, imagePath, listCharacters, measureMouths } from './characters';
 import { ART_STYLES } from '../shared/character/art';
@@ -129,6 +130,12 @@ export function createApp() {
     const p = audioPath(req.params.id);
     if (!p || !existsSync(p)) return res.status(404).json({ error: 'Audio not found' });
     res.type('audio/wav').sendFile(p, { root: process.cwd() });
+  });
+
+  app.get('/api/scenes/:name', async (req, res) => {
+    const scene = await loadScene(req.params.name);
+    if (!scene) return res.status(404).json({ error: 'Scene not found. Run npm run scene first.' });
+    res.json(scene);
   });
 
   app.post('/api/lipsync', async (req, res) => {

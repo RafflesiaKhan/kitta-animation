@@ -1,5 +1,6 @@
 import type { TtsProvider, VoiceStudioInfo } from '../shared/voices';
 import type { UsageReport } from '../shared/usage';
+import type { Scene } from '../shared/scene';
 import type { AnyCharacter, ArtCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, Marks, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
 
 async function post<T>(url: string, init: RequestInit): Promise<T> {
@@ -150,6 +151,19 @@ export async function exportVideo(body: ExportBody, onProgress: (p: number) => v
   handle(buffer);
   if (!url) throw new Error('Export failed. Please try again.');
   return url;
+}
+
+/** A saved scene, built by `npm run scene`. */
+export async function getScene(name: string): Promise<Scene> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/scenes/${encodeURIComponent(name)}`);
+  } catch {
+    throw new Error('Could not reach the server. Is it running?');
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof body.error === 'string' ? body.error : `Request failed (${res.status})`);
+  return body as Scene;
 }
 
 /** Token telemetry from the server; null if it can't be reached. */
