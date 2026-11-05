@@ -20,7 +20,7 @@ it('creates a character from a description and selects it', async () => {
   vi.mocked(api.createCharacter).mockResolvedValue(robo);
   render(<App />);
   fireEvent.click(screen.getByRole('button', { name: /Create with AI/ }));
-  const create = screen.getByRole('button', { name: '✨ Create character' }) as HTMLButtonElement;
+  const create = screen.getByRole('button', { name: 'Create character' }) as HTMLButtonElement;
   expect(create.disabled).toBe(true); // nothing described yet
   fireEvent.change(screen.getByLabelText('Describe your character'), { target: { value: '  a robot  ' } });
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Robo' } });
@@ -70,7 +70,7 @@ it('lets you pick OpenAI when both providers have keys, and works with only Open
   fireEvent.click(screen.getByRole('button', { name: /Create with AI/ }));
   fireEvent.change(await screen.findByLabelText('Drawn by'), { target: { value: 'openai' } });
   fireEvent.change(screen.getByLabelText('Describe your character'), { target: { value: 'a robot' } });
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: '✨ Create character' })); });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Create character' })); });
   expect(vi.mocked(api.createCharacter).mock.calls[0][0].provider).toBe('openai');
   await waitFor(() => expect(screen.getByText(/anime · OpenAI · a robot/)).toBeTruthy());
 });
@@ -80,7 +80,7 @@ it('enables creation with only an OpenAI key', async () => {
   render(<App />);
   fireEvent.click(screen.getByRole('button', { name: /Create with AI/ }));
   fireEvent.change(screen.getByLabelText('Describe your character'), { target: { value: 'a robot' } });
-  await waitFor(() => expect((screen.getByRole('button', { name: '✨ Create character' }) as HTMLButtonElement).disabled).toBe(false));
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Create character' }) as HTMLButtonElement).disabled).toBe(false));
 });
 
 it('disables creation without any image key', async () => {
@@ -89,7 +89,7 @@ it('disables creation without any image key', async () => {
   fireEvent.click(screen.getByRole('button', { name: /Create with AI/ }));
   await screen.findByText('Add GEMINI_API_KEY or OPENAI_API_KEY to .env to create characters.');
   fireEvent.change(screen.getByLabelText('Describe your character'), { target: { value: 'a robot' } });
-  expect((screen.getByRole('button', { name: '✨ Create character' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole('button', { name: 'Create character' }) as HTMLButtonElement).disabled).toBe(true);
 });
 
 it('finds missing mouths again from the character sheet', async () => {

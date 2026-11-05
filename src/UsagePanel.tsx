@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { UsageEntry, UsageReport, UsageRow, UsageTotals } from '../shared/usage';
 import * as api from './api';
+import { Icon } from './Icon';
 
 const NAMES = { gemini: 'Gemini', openai: 'OpenAI', voicestudio: 'VoiceStudio' } as const;
 const fmt = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${Math.round(n / 1e3)}k` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
@@ -20,7 +21,7 @@ export function UsagePanel({ refreshKey }: { refreshKey: unknown }) {
   return (
     <div className="usage">
       <button className="pill usage-pill" aria-expanded={open} onClick={() => setOpen(!open)} title="AI token usage">
-        🔢 {s ? `${fmt(s.total)} tokens` : 'Usage'}
+        <Icon name="chart" /> {s ? `${fmt(s.total)} tokens` : 'Usage'}
       </button>
       {open && report && (
         <div className="usage-panel" role="dialog" aria-label="AI usage">

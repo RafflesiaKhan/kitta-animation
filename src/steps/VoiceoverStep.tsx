@@ -4,6 +4,7 @@ import type { Expression, Gesture, Line, ScriptLineInput } from '../../shared/ty
 import { CUES, DEFAULT_SPEAKER, LANGUAGES, OPENAI_VOICES, PAUSES, PITCH_RANGE, SOUND_TAGS, SPEAKERS, SPEED_RANGE, TTS_PROVIDER_NAMES, VOICES, type TtsProvider, type VoiceStudioInfo } from '../../shared/voices';
 import * as api from '../api';
 import { splitScript } from '../../shared/direction';
+import { Icon } from '../Icon';
 
 interface Props {
   geminiOk: boolean; // auto-tag and transcription
@@ -55,7 +56,7 @@ function UploadTab({ busy, error, onUpload, onAddExpressions, uploadLines, onEdi
   return (
     <div>
       <label className="upload">
-        <span className="btn">⬆ Upload voiceover</span>
+        <span className="btn"><Icon name="upload" /> Upload voiceover</span>
         <input
           type="file"
           accept="audio/*"
@@ -71,7 +72,7 @@ function UploadTab({ busy, error, onUpload, onAddExpressions, uploadLines, onEdi
       <p className="hint">WAV, MP3, M4A… up to 3 minutes. Your character will lip-sync to it.</p>
       {uploadLines && (
         <>
-          <button className="btn" disabled={busy || !canListen} title={canListen ? undefined : NEEDS_KEY} onClick={onAddExpressions}>✨ Add expressions</button>
+          <button className="btn" disabled={busy || !canListen} title={canListen ? undefined : NEEDS_KEY} onClick={onAddExpressions}><Icon name="spark" /> Add expressions</button>
           {handAnimated && <p className="hint">Animated in the Animate step: the expressions and gestures below no longer change the video.</p>}
           {uploadLines.map((l, i) => (
             <div key={i} className="line-card" data-testid="upload-line">
@@ -172,6 +173,7 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
   return (
     <div>
       {!voiceOk && <p className="hint">Add GEMINI_API_KEY, OPENAI_API_KEY or VOICESTUDIO_URL to .env to generate voices.</p>}
+      <div className="voice-settings">
       {ttsProviders.length > 1 && (
         <label className="field">Voice by{' '}
           <select aria-label="Voice by" disabled={busy} value={ttsProvider} onChange={(e) => onTtsProvider(e.target.value as TtsProvider)}>
@@ -210,9 +212,10 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
           </select>
         </label>
       )}
+      </div>
       {cloneOnPlainEngine && <p className="hint">{engine!.label.split(' (')[0]} can't use saved or cloned voices, so it will speak in its own voice.</p>}
       {pasted === null ? (
-        <button className="btn secondary paste" disabled={busy} onClick={() => setPasted('')}>📋 Paste script</button>
+        <button className="btn secondary paste" disabled={busy} onClick={() => setPasted('')}><Icon name="clipboard" /> Paste script</button>
       ) : (
         <div className="line-card">
           <textarea aria-label="Whole script" rows={6} value={pasted} onChange={(e) => setPasted(e.target.value)}
@@ -229,6 +232,17 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
       )}
       {lines.map((l, i) => (
         <div key={i} className="line-card" data-testid="script-line">
+          <div className="line-chips">
+            <span className="line-n">{String(i + 1).padStart(2, '0')}</span>
+            <TagSelects busy={busy} expression={l.expression} gesture={l.gesture}
+              onExpression={(expression) => update(i, { expression })} onGesture={(gesture) => update(i, { gesture })} />
+            <input aria-label="Delivery note" disabled={busy} maxLength={200} placeholder="Delivery note (optional)" value={l.note ?? ''} onChange={(e) => update(i, { note: e.target.value })} />
+            <button className="mini" aria-label="Preview line" disabled={busy || previewing !== null || !voiceOk || !l.text.trim() || (studioOn && studio?.running === false)} onClick={() => preview(i)}>{previewing === i ? '…' : <Icon name="play" size={14} />}</button>
+            <button aria-label="Move up" disabled={busy || i === 0} onClick={() => move(i, -1)}><Icon name="up" /></button>
+            <button aria-label="Move down" disabled={busy || i === lines.length - 1} onClick={() => move(i, 1)}><Icon name="down" /></button>
+            <button aria-label="Delete line" disabled={busy || lines.length === 1} onClick={() => setLines(lines.filter((_, j) => j !== i))}><Icon name="close" /></button>
+          </div>
+          <textarea ref={(el) => { boxes.current[i] = el; }} aria-label="Line text" disabled={busy} rows={2} maxLength={500} placeholder="What should the character say?" value={l.text} onChange={(e) => update(i, { text: e.target.value })} />
           <div className="voice-bar">
             <span className="avatar" aria-hidden="true">{avatar(voices.find((v) => v.id === l.voice))}</span>
             <select aria-label="Line voice" disabled={busy} value={ids.includes(l.voice) ? l.voice : voice} onChange={(e) => update(i, { voice: e.target.value })}>
@@ -248,7 +262,7 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
               {PAUSES.map((p) => <option key={p} value={p}>{p.slice(7, -1)}</option>)}
             </select>
             <select aria-label="Insert cue" disabled={busy} value="" onChange={(e) => (e.target.value in CUES ? insert(i, `[${e.target.value}]`, `[/${e.target.value}]`) : insert(i, e.target.value))}>
-              <option value="">✦ Cue</option>
+              <option value="">Cue</option>
               <optgroup label="Delivery">{Object.keys(CUES).map((c) => <option key={c} value={c}>{c}</option>)}</optgroup>
               {soundsOk && <optgroup label="Sounds">{SOUND_TAGS.map((t) => <option key={t} value={`[${t}]`}>{t}</option>)}</optgroup>}
             </select>
@@ -258,26 +272,16 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
                 <option value="varied">Varied takes</option>
               </select>
             )}
-            <button className="mini" aria-label="Preview line" disabled={busy || previewing !== null || !voiceOk || !l.text.trim() || (studioOn && studio?.running === false)} onClick={() => preview(i)}>{previewing === i ? '…' : '▶'}</button>
           </div>
-          <div className="line-chips">
-            <TagSelects busy={busy} expression={l.expression} gesture={l.gesture}
-              onExpression={(expression) => update(i, { expression })} onGesture={(gesture) => update(i, { gesture })} />
-            <input aria-label="Delivery note" disabled={busy} maxLength={200} placeholder="Delivery note (optional)" value={l.note ?? ''} onChange={(e) => update(i, { note: e.target.value })} />
-            <button aria-label="Move up" disabled={busy || i === 0} onClick={() => move(i, -1)}>↑</button>
-            <button aria-label="Move down" disabled={busy || i === lines.length - 1} onClick={() => move(i, 1)}>↓</button>
-            <button aria-label="Delete line" disabled={busy || lines.length === 1} onClick={() => setLines(lines.filter((_, j) => j !== i))}>✕</button>
-          </div>
-          <textarea ref={(el) => { boxes.current[i] = el; }} aria-label="Line text" disabled={busy} rows={2} maxLength={500} placeholder="What should the character say?" value={l.text} onChange={(e) => update(i, { text: e.target.value })} />
         </div>
       ))}
       <div className="line-actions">
         <button className="btn secondary" disabled={busy || lines.length >= 50} onClick={() => setLines([...lines, { text: '', voice, expression: 'neutral', gesture: 'none', ...carried(lines[lines.length - 1]) }])}>+ Line</button>
-        <button className="btn" disabled={busy || !voiceOk || !ids.length || (studioOn && studio?.running === false)} title={voiceOk ? undefined : NEEDS_VOICE} onClick={onGenerate}>▶ Generate voice</button>
-        <button className="btn secondary" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={onAutoTag}>✨ Auto-tag expressions</button>
+        <button className="btn" disabled={busy || !voiceOk || !ids.length || (studioOn && studio?.running === false)} title={voiceOk ? undefined : NEEDS_VOICE} onClick={onGenerate}><Icon name="play" size={14} /> Generate voice</button>
+        <button className="btn secondary" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={onAutoTag}><Icon name="spark" /> Auto-tag expressions</button>
       </div>
       <p className="hint">
-        Tip: "Add pause" and "✦ Cue" put tags in the line at the cursor, e.g. [pause 1s] or [excited]…[/excited] around selected words{soundsOk ? ', and sounds like [laughter] and [sigh]' : ''}.
+        Tip: "Add pause" and "Cue" put tags in the line at the cursor, e.g. [pause 1s] or [excited]…[/excited] around selected words{soundsOk ? ', and sounds like [laughter] and [sigh]' : ''}.
         {studioOn ? ' VoiceStudio whispers for real; it has no emotions, so other cues are approximated with a little speed and pitch.' : ''}
         {' '}Powered by {TTS_PROVIDER_NAMES[ttsProvider]}{ttsProvider === 'gemini' ? ' TTS' : ''}.
       </p>
@@ -292,10 +296,11 @@ export function VoiceoverStep(props: Props) {
   const [tab, setTab] = useState<'upload' | 'script'>('upload');
   return (
     <div>
+      <p className="eyebrow">Step 2</p>
       <h2>Add a voiceover</h2>
       <div className="tabs">
-        <button className={`tab${tab === 'upload' ? ' active' : ''}`} onClick={() => setTab('upload')}>⬆ Upload</button>
-        <button className={`tab${tab === 'script' ? ' active' : ''}`} onClick={() => setTab('script')}>✍ Write script</button>
+        <button className={`tab${tab === 'upload' ? ' active' : ''}`} onClick={() => setTab('upload')}><Icon name="upload" /> Upload</button>
+        <button className={`tab${tab === 'script' ? ' active' : ''}`} onClick={() => setTab('script')}><Icon name="pen" /> Write script</button>
       </div>
       {tab === 'upload' ? <UploadTab {...props} /> : <ScriptTab {...props} />}
     </div>
