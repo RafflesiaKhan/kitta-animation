@@ -13,6 +13,7 @@ import { plainText } from './speech';
 
 export const SCENES_DIR = join('data', 'scenes');
 const NAME_RE = /^[a-z0-9-]{1,64}$/;
+export const validSceneName = (name: string): boolean => NAME_RE.test(name);
 const BACKGROUND_TYPES: Record<string, string> = { '.svg': 'image/svg+xml', '.png': 'image/png' };
 
 export class SceneError extends Error {

@@ -3,7 +3,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSy
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildScene, saveScene, loadScene, sceneImages, SceneError, SCENES_DIR } from '../../server/scene';
+import { buildScene, saveScene, loadScene, sceneImages, SceneError, SCENES_DIR, validSceneName } from '../../server/scene';
 import { AUDIO_DIR } from '../../server/audio';
 import { CHARACTERS_DIR } from '../../server/characters';
 import { STARTERS } from '../../shared/character/starters';
@@ -105,4 +105,11 @@ describe('sceneImages', () => {
     expect(Object.keys(images)).toEqual([id]);
     expect(images[id]['neutral-a1.png'].startsWith('data:image/png;base64,')).toBe(true);
   }, 30_000);
+});
+
+describe('validSceneName', () => {
+  it('accepts lowercase letters, digits and dashes only', () => {
+    expect(validSceneName('first-scene-2')).toBe(true);
+    for (const bad of ['My_Scene', 'Scene', 'a b', '', 'a'.repeat(65)]) expect(validSceneName(bad)).toBe(false);
+  });
 });

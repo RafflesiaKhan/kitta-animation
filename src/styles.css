@@ -95,6 +95,7 @@ input[type=file]::file-selector-button:hover { background: var(--accent-tint); }
 .tile.create.selected { border-style: solid; }
 .tile .plus { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--accent); color: var(--white); }
 .tile img, .expression img { object-fit: contain; }
+.tile > svg, .expression > svg, .trigger > svg { overflow: hidden; }
 .expressions { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
 .expression { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; border: 1px solid var(--sand); border-radius: var(--r-md); background: var(--cream); font-size: 12px; line-height: 16px; font-weight: 600; text-align: center; text-transform: capitalize; }
 .pose-missing { width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--taupe); border-radius: var(--r-sm); color: var(--gray); font-size: 11px; font-weight: 400; text-transform: none; }

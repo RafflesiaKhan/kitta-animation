@@ -4,7 +4,7 @@ import { basename, join, resolve } from 'node:path';
 import { AUDIO_DIR } from './audio';
 import { ensureVoiceStudio } from './launch';
 import { renderScene } from './render';
-import { SCENES_DIR, SceneError, buildScene, loadScene, saveScene, sceneImages } from './scene';
+import { SCENES_DIR, SceneError, buildScene, loadScene, saveScene, sceneImages, validSceneName } from './scene';
 import { speakLine } from './speech';
 import type { SceneSource } from '../shared/scene';
 
@@ -37,6 +37,7 @@ async function main() {
     source = { ...source, actors: source.actors.map((a, i) => (i === 0 ? { ...a, character: { artId } } : a)) };
     name += '-art';
   }
+  if (!validSceneName(name)) fail([`Scene folder name must use only lowercase letters, numbers and dashes: ${name}`]);
 
   let scene = rebuild ? null : await loadScene(name);
   if (!scene) {

@@ -9,7 +9,7 @@ Sample: "The Missing Mango", `samples/first-scene`. 4 lines, 5 shots, 10.11 s, 3
 | Two SVG starters (`first-scene`) | 4.1 s | about 24 s |
 | AI character Max + SVG starter (`first-scene-art`) | 20.0 s | about 119 s |
 
-Per video minute = render seconds / (10.111 s / 60). The times are from the re-export after the clip fix (the first export measured 6.8 s and 22.1 s; the difference is machine load, not the fix). They cover frame rendering and encoding only, not the VoiceStudio build (the whole first command took about 37 s wall time including the voices). The AI version is about 4.9 times slower (cause not investigated).
+Per video minute = render seconds / (10.111 s / 60). The times are from the re-export after the clip fix (the first export measured 6.8 s and 22.1 s; the difference between the runs was not investigated). They cover frame rendering and encoding only, not the VoiceStudio build (the whole first command took about 37 s wall time including the voices). The AI version is about 4.9 times slower (cause not investigated). Two AI characters remain unmeasured: only one AI character plus one SVG character was exported, and no second character was painted to measure it.
 
 ## What I observed
 

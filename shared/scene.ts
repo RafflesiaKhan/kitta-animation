@@ -1,4 +1,5 @@
 import type { ActionMark, AnyCharacter, CharacterConfig, Expression, Gesture, Line, MouthCue, Timeline } from './types';
+import { EXPRESSIONS, GESTURES } from './types';
 import { addAction, addExpression, marksFromLines } from './marks';
 
 // A scene is hand-written source (actors, lines, shots, listener reactions) resolved against the built audio into a
@@ -24,7 +25,10 @@ export function sceneProblems(source: SceneSource): string[] {
   const out: string[] = [];
   if (!source.lines.length) out.push('The scene has no lines');
   const ids = new Set(source.actors.map((a) => a.id));
-  source.lines.forEach((l, i) => { if (!ids.has(l.actor)) out.push(`Line ${i + 1}: unknown actor "${l.actor}"`); });
+  source.lines.forEach((l, i) => { if (!ids.has(l.actor)) out.push(`Line ${i + 1}: unknown actor "${l.actor}"`);
+    if (!EXPRESSIONS.includes(l.expression)) out.push(`Line ${i + 1}: unknown expression "${l.expression}"`);
+    if (!GESTURES.includes(l.gesture)) out.push(`Line ${i + 1}: unknown gesture "${l.gesture}"`);
+  });
   source.shots.forEach((s) => {
     if (!validLine(source, s.line)) out.push(`Shot "${s.name}": no line ${s.line}`);
     if (!validAt(s.at)) out.push(`Shot "${s.name}": at must be 0..1`);
@@ -39,6 +43,8 @@ export function sceneProblems(source: SceneSource): string[] {
     if (!ids.has(r.actor)) out.push(`Reaction ${i + 1}: unknown actor "${r.actor}"`);
     if (!validLine(source, r.line)) out.push(`Reaction ${i + 1}: no line ${r.line}`);
     if (!validAt(r.at)) out.push(`Reaction ${i + 1}: at must be 0..1`);
+    if (r.expression && !EXPRESSIONS.includes(r.expression)) out.push(`Reaction ${i + 1}: unknown expression "${r.expression}"`);
+    if (r.gesture && (r.gesture === ('none' as string) || !GESTURES.includes(r.gesture))) out.push(`Reaction ${i + 1}: unknown gesture "${r.gesture}"`);
   });
   return out;
 }

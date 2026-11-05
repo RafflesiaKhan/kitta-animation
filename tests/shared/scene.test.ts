@@ -76,5 +76,10 @@ describe('sceneProblems', () => {
     expect(sceneProblems({ ...good, shots: [{ ...shot, zoom: 0.5 }] })).toContain('Shot "wide": zoom must be at least 1');
     expect(sceneProblems({ ...good, reactions: [{ actor: 'mina', line: 0, at: 2 }] })).toContain('Reaction 1: at must be 0..1');
     expect(sceneProblems({ ...good, lines: [] })).toContain('The scene has no lines');
+    expect(sceneProblems({ ...good, lines: [{ ...line, expression: 'angri' as never }] })).toContain('Line 1: unknown expression "angri"');
+    expect(sceneProblems({ ...good, lines: [{ ...line, gesture: 'x' as never }] })).toContain('Line 1: unknown gesture "x"');
+    expect(sceneProblems({ ...good, reactions: [{ actor: 'mina', line: 0, at: 0, expression: 'x' as never }] })).toContain('Reaction 1: unknown expression "x"');
+    expect(sceneProblems({ ...good, reactions: [{ actor: 'mina', line: 0, at: 0, gesture: 'x' as never }] })).toContain('Reaction 1: unknown gesture "x"');
+    expect(sceneProblems({ ...good, reactions: [{ actor: 'mina', line: 0, at: 0, gesture: 'none' as never }] })).toContain('Reaction 1: unknown gesture "none"');
   });
 });
