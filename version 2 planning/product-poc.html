@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kitta • Cartoon Studio</title>
+<style>
+:root{--paper:#f8f5ef;--ink:#29231f;--dim:#615951;--line:#dfd6ca;--accent:#8f391f;--dark:#25221e;--gold:#f5bf73}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 system-ui,sans-serif}header{display:flex;justify-content:space-between;align-items:center;padding:16px 5%;background:var(--dark);color:white}header strong{font-size:20px}header span{color:var(--gold)}button,input,textarea,select{font:inherit}button{cursor:pointer;padding:9px 14px;border:1px solid var(--line);border-radius:8px;background:white;color:var(--ink);font-weight:650}button:hover{border-color:var(--accent)}button:disabled{cursor:default;opacity:.52}button.primary{background:var(--accent);color:white;border-color:var(--accent)}:focus-visible{outline:3px solid #9e542f;outline-offset:3px}input,textarea,select{width:100%;border:1px solid #aa9a8b;border-radius:8px;background:white;color:var(--ink);padding:9px}label{display:block;font-weight:650;margin:10px 0}label input,label textarea,label select{display:block;margin-top:4px}textarea{min-height:80px;resize:vertical}h1,h2,h3,p{margin:0}h1{font:700 clamp(30px,5vw,56px)/1.06 Georgia,serif;letter-spacing:-.04em;margin:7px 0 12px}h2{font:700 26px Georgia,serif;margin:0 0 9px}h3{font-size:15px}.eyebrow{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);font-weight:850}.muted,small{color:var(--dim)}.welcome{max-width:1040px;margin:48px auto;padding:0 20px;display:grid;grid-template-columns:1.15fr 1fr;gap:24px;align-items:start}.card,.hero{border:1px solid var(--line);border-radius:16px;padding:20px;background:#fffdf8}.hero{background:#f6e2c5}.hero svg{display:block;width:100%;height:auto;margin-top:16px;border-radius:10px}.actions,.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.shell{max-width:1560px;margin:auto;padding:22px;display:grid;grid-template-columns:190px minmax(0,1fr) 310px;gap:18px;align-items:start}.nav,.director{position:sticky;top:12px}.nav button{display:block;width:100%;text-align:left;margin-top:6px}.nav button[aria-current=page]{background:#f4dfc7;border-color:#b66b40}.nav small{display:block;font-weight:400}.intro{margin-bottom:17px}.stack{display:grid;gap:12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px}.tile{padding:12px;border:1px solid var(--line);border-radius:10px;background:white}.tile b{display:block}.tile small{display:block}.tag{display:inline-block;background:#efe4d5;border-radius:20px;padding:3px 9px;font-size:11px;font-weight:750;color:#5b4234}.step{display:grid;grid-template-columns:35px minmax(0,1fr) auto;align-items:center;gap:10px}.step strong:first-child{font:700 23px Georgia;color:var(--accent)}.director{background:#2d2924;color:#fcf6eb;border-radius:15px;padding:17px}.director h2{font-size:22px}.director small{color:#e3c9af}.director button{font-size:12px}.director textarea{min-height:65px}.chat{max-height:270px;overflow:auto;margin:12px 0;display:grid;gap:8px}.bubble{border-radius:9px;padding:9px;background:#443a30;font-size:13px;white-space:pre-wrap}.bubble.user{background:#594235}.scene-top{display:flex;justify-content:space-between;align-items:start;gap:10px}.review{padding:10px;background:#f3e8d8;border-radius:8px;margin-top:10px}.review ol{padding-left:23px}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.line{border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:8px}.line p{margin:3px 0}.note{margin-top:12px;color:var(--dim)}[hidden]{display:none!important}dialog{max-width:460px;width:calc(100% - 24px);border:1px solid var(--line);border-radius:14px;background:var(--paper);color:var(--ink);padding:20px}dialog::backdrop{background:#211b17a0}
+@media(max-width:1100px){.shell{grid-template-columns:145px minmax(0,1fr)}.director{grid-column:2;position:static}}@media(max-width:700px){.welcome,.shell{display:block;margin:0;padding:12px}.welcome .hero{margin-bottom:12px}.nav{position:static;margin-bottom:12px}.nav nav{display:flex;flex-wrap:wrap;gap:5px}.nav button{width:auto}.nav small{display:none}.director{margin-top:14px}.step{grid-template-columns:26px 1fr}.step button{grid-column:2;justify-self:start}}
+
+.shell{grid-template-columns:190px minmax(0,1fr)}
+.director{position:fixed;right:20px;bottom:86px;top:auto;width:min(390px,calc(100vw - 40px));max-height:calc(100dvh - 105px);overflow:auto;z-index:10;box-shadow:0 16px 55px #24190f55}
+.director-heading{display:flex;justify-content:space-between;align-items:start;gap:10px}
+#robot{position:fixed;right:20px;bottom:20px;z-index:11;width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:#3478da;color:white;border:1px solid #c3deff;box-shadow:0 6px 22px #215b9e66;padding:0}
+#robot svg{width:32px;height:32px}.media{width:100%;margin-top:8px}.tile img{aspect-ratio:16/9;object-fit:contain;background:#f3e8d8}.tile audio{height:36px}
+#storageStatus{padding:6px 5%;color:#743015;background:#fff1dc}
+@media(max-width:1100px){.shell{grid-template-columns:145px minmax(0,1fr)}}
+@media(max-width:700px){.shell{padding-bottom:82px}}
+</style>
+<header><strong><span>✦</span> Kitta Cartoon Studio</strong><span>Interactive product POC</span></header>
+<p id="storageStatus" role="status" hidden></p><main>
+<section class="welcome" id="welcome">
+ <div class="hero"><div class="eyebrow">Make a 2D cartoon</div><h1>Build a world.<br>Tell a story.</h1><p>Create a project, make a cast you can reuse, then turn an episode script into animated scenes with help from an AI Director.</p>
+ <svg viewBox="0 0 420 190" role="img" aria-label="Illustrated village with a market stall and two cartoon characters"><rect width="420" height="190" fill="#eec88f"/><circle cx="343" cy="44" r="25" fill="#fff2c6"/><path d="M0 113Q65 31 151 108Q263 52 420 104V190H0Z" fill="#a2ab77"/><path d="M0 137Q200 103 420 138V190H0Z" fill="#c68a61"/><path d="M44 148V75h148v73" fill="#e6b17e" stroke="#68443a" stroke-width="4"/><path d="M33 84 62 49h113l27 35z" fill="#a64c40"/><path d="M69 49h18L69 84H49zm51 0h18l2 35h-22zm37 0h18l27 35h-21z" fill="#f4c899"/><g stroke="#513a38" stroke-width="3"><path d="M233 160q-3-43 24-43t26 43z" fill="#b65d45"/><circle cx="258" cy="106" r="19" fill="#b97853"/><path d="M238 101q1-24 23-22q18 1 19 20q-14 1-22-8q-8 11-20 10z" fill="#4a3435"/><path d="M292 160q-3-41 22-41t28 41z" fill="#52786d"/><circle cx="315" cy="109" r="18" fill="#c58961"/><path d="M296 103q10-27 34-9l7 9z" fill="#58716e"/></g><g fill="#463433"><circle cx="253" cy="106" r="2"/><circle cx="264" cy="106" r="2"/><circle cx="310" cy="109" r="2"/><circle cx="321" cy="109" r="2"/></g></svg></div>
+ <form class="card" id="projectForm"><div class="eyebrow">Project setup</div><h2>Create a cartoon project</h2><p class="muted">A project holds the assets and creative direction you can use in every episode.</p><label>Project name<input name="name" placeholder="e.g. Mango Lane" required maxlength="70"></label><label>What is the series about?<textarea name="premise" placeholder="Who lives in this world? What kinds of stories happen here?"></textarea></label><div class="actions"><button class="primary">Create project</button><button type="button" id="demo">Explore a sample project</button></div></form>
+</section>
+<section class="shell" id="shell" hidden>
+ <aside class="card nav"><div class="eyebrow">Project</div><h3 id="projectName"></h3><nav aria-label="Project workspace" id="nav"></nav></aside>
+ <section id="work" aria-label="Workspace"></section>
+ <button id="robot" aria-label="Open AI Director" title="AI Director" aria-expanded="false" aria-controls="director"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M16 5v4M4 15H2v7h2m24-7h2v7h-2"/><circle cx="16" cy="4" r="2" fill="currentColor"/><rect x="5" y="9" width="22" height="17" rx="6"/><circle cx="12" cy="17" r="1.4" fill="currentColor"/><circle cx="20" cy="17" r="1.4" fill="currentColor"/><path d="M12 21q4 3 8 0"/></svg></button>
+ <aside class="director" id="director" aria-label="AI Director" hidden><div class="director-heading"><div><small>PROJECT ASSISTANT</small><h2>AI Director</h2></div><button id="closeChat" aria-label="Close AI Director">×</button></div><p id="context"></p><div class="chat" id="chat" role="log" aria-label="Director conversation"></div><div class="actions"><button type="button" id="suggest">Suggest the next step</button><button type="button" id="plan">Draft a scene plan</button></div><form id="chatForm"><label>Ask for direction<textarea name="message" required placeholder="e.g. How should the characters react?"></textarea></label><button>Send</button></form><div id="proposal" class="review" style="color:var(--ink)" hidden><b>Proposed scenes</b><ol id="proposedScenes"></ol><button id="accept">Add scenes to episode</button></div><p class="note" style="color:#e3c9af">Local demo · scripted responses. Try “Generate a night market background” or “Write a script about a lost kite.”</p></aside>
+</section>
+</main>
+<dialog id="assetDialog"><form id="assetForm"><h2>Add a project asset</h2><label>Type<select name="kind"><option>Character</option><option>Background</option><option>Scene template</option><option>Prop</option><option>Creature</option><option>Audio</option></select></label><label>Name<input name="name" required></label><label>Design brief<textarea name="brief" placeholder="Appearance, pose, lighting, or how to use it"></textarea></label><label>Source<select name="source"><option>Describe for AI generation</option><option>Import a media file</option><option>Record an existing design</option></select></label><label>Media file <small>(optional for briefs)</small><input name="media" type="file" accept="image/*,.svg,audio/*"></label><div class="actions"><button class="primary">Save asset</button><button type="button" id="cancelAsset">Cancel</button></div></form></dialog>
+<script>
+const $ = id => document.getElementById(id);
+const pages = [
+ ['Project','Series brief and next steps'],['Assets','Characters, sets and props'],['Episode','Script and voice approach'],
+ ['Scene plan','Cast, setting and motion'],['Edit & review','Sequence and production checks']
+];
+const sampleAssets = [
+ {kind:'Character',name:'Mina',brief:'Market keeper · orange sari · dry sense of humour'},
+ {kind:'Character',name:'Rafi',brief:'Apprentice · teal cap · nervous improviser'},
+ {kind:'Background',name:'Market stall',brief:'Warm afternoon, canvas awning, room for a two-shot'},
+ {kind:'Background',name:'Courtyard',brief:'Quiet yard with a tree and a clear path'},
+ {kind:'Prop',name:'Mango basket',brief:'Woven basket with an optional mango'},
+ {kind:'Creature',name:'Courtyard bird',brief:'Small bird with a reusable hop'}
+];
+const sampleScript = 'Mina finds the market basket empty and asks Rafi about the last mango.\nA trail of juice leads to Rafi’s bag in the courtyard.\nBack at the stall, Rafi offers half a mango and an apology.';
+const stages = ['Setup','Discovery','Payoff'];
+let project, page = 0, proposal = [], targetScene = null;
+const mediaUrls = [];
+function storageError(){
+ $('storageStatus').textContent='Project storage is unavailable. Changes in this tab may be lost on reload.';
+ $('storageStatus').hidden=false;
+}
+const database = new Promise((resolve,reject)=>{
+ const request=indexedDB.open('kitta-cartoon-studio',1);
+ request.onupgradeneeded=()=>request.result.createObjectStore('workspace');
+ request.onsuccess=()=>resolve(request.result);
+ request.onerror=()=>reject(request.error);
+});
+async function persist(){
+ try{
+  const db=await database;
+  await new Promise((resolve,reject)=>{
+   const transaction=db.transaction('workspace','readwrite');
+   transaction.objectStore('workspace').put(project,'current');
+   transaction.oncomplete=resolve;
+   transaction.onabort=()=>reject(transaction.error);
+  });
+  return true;
+ }catch{storageError();return false;}
+}
+function setChat(open){
+ $('director').hidden=!open;
+ $('robot').setAttribute('aria-expanded',String(open));
+ $('robot').setAttribute('aria-label',open?'Close AI Director':'Open AI Director');
+ if(open)$('chatForm').elements.message.focus();
+ else if(document.activeElement!==$('robot'))$('robot').focus();
+}
+function mediaPreview(asset){
+ if(!asset.media)return '';
+ const url=URL.createObjectURL(asset.media);mediaUrls.push(url);
+ if(asset.media.type.startsWith('audio/')||asset.kind==='Audio')return '<audio class="media" controls preload="none" src="'+url+'"></audio>';
+ return '<img class="media" src="'+url+'" alt="'+esc(asset.name)+'">';
+}
+function addBackground(message){
+ const brief=message.replace(/^(?:please\s+)?(?:generate|create|make|add|design)\s+/i,'').trim();
+ const night=/night|moon|dark/i.test(brief);
+ const market=/market|stall/i.test(brief);
+ const sky=night?'#192743':'#edbf8c';
+ const ground=night?'#414c63':'#d9a673';
+ const building=market?'<path d="M235 265V130h170v135" fill="#bc8262"/><path d="m212 144 45-57h129l43 57z" fill="#a64c40"/><path d="M258 181h122v55H258z" fill="#ffd892"/>':'<path d="M228 267V157h178v110" fill="#bc8262"/><path d="m208 168 107-80 110 80z" fill="#a64c40"/><path d="M300 208h40v59h-40z" fill="#ffd892"/>';
+ const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360"><rect width="640" height="360" fill="'+sky+'"/><circle cx="510" cy="73" r="35" fill="#fff1c4"/><path d="M0 220Q140 72 310 204Q474 80 640 210V360H0Z" fill="#708976"/><path d="M0 268Q320 222 640 268v92H0z" fill="'+ground+'"/>'+building+'</svg>';
+ let name=brief.slice(0,68).replace(/[.!?]+$/,'')||'New background';
+ const base=name;
+ for(let i=2;names('Background').includes(name);i++)name=base+' '+i;
+ project.assets.push({kind:'Background',name,brief,source:'Template generated · SVG',media:new Blob([svg],{type:'image/svg+xml'})});
+ return name;
+}
+
+const esc = value => String(value ?? '').replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+function say(text, author='director'){
+ const line=document.createElement('p'); line.className='bubble '+author; line.textContent=text;
+ $('chat').append(line); $('chat').scrollTop=$('chat').scrollHeight;
+}
+function start(name,premise,demo){
+ project={name,premise,demo,assets:demo?sampleAssets.map(asset=>({...asset,source:'Sample asset'})):[], title:demo?'The Missing Mango':'', script:demo?sampleScript:'', mode:'dialogue', voices:{}, scenes:[]};
+ openProject();
+ persist();
+}
+function openProject(){
+ $('welcome').hidden=true; $('shell').hidden=false; $('projectName').textContent=project.name;
+ say('Start with a character you want to bring back in future episodes. I can help plan scenes once you have an episode script.');
+ show(0);
+}
+function intro(step,title,copy){return '<div class="intro"><div class="eyebrow">'+step+'</div><h1>'+title+'</h1><p class="muted">'+copy+'</p></div>'}
+function names(kind){return project.assets.filter(asset=>asset.kind===kind).map(asset=>asset.name)}
+function opts(values,current){return values.map(v=>'<option'+(v===current?' selected':'')+'>'+esc(v)+'</option>').join('')}
+function show(index){page=index;render();$('work').querySelector('h1').focus()}
+function render(){
+ mediaUrls.splice(0).forEach(url=>URL.revokeObjectURL(url));
+ $('nav').innerHTML=pages.map(([name,hint],i)=>'<button data-page="'+i+'" '+(i===page?'aria-current="page"':'')+'>'+name+'<small>'+hint+'</small></button>').join('');
+ $('context').textContent=project.name+' · '+project.assets.length+' assets'+(project.title?' · '+project.title:'');
+ const body=[projectPage,assetsPage,episodePage,scenePage,reviewPage][page]();
+ $('work').innerHTML=body;
+ $('work').querySelector('h1').tabIndex=-1;
+}
+function projectPage(){
+ return intro('Series workspace',esc(project.name),esc(project.premise||'Your project is ready. Begin with a reusable character or jump to any stage.'))+
+ '<div class="stack"><section class="card hero"><div class="eyebrow">Recommended first step</div><h2>Create your first character</h2><p>Give your cast a name, a visual identity, and a role in the story. Keep them in this project for the next episode.</p><div class="actions"><button class="primary" data-asset="Character">Create a character</button><button data-page="1">Open asset library</button></div></section>'+
+ [['01','Build the world','Create backgrounds, props, creatures and reusable scene templates.',1],['02','Write an episode','Choose narration or character dialogue and assign voices.',2],['03','Direct the scenes','Review an AI draft and choose the cast, locations and action.',3],['04','Edit and review','Order the scenes and check the finished flow.',4]].map(([n,t,d,p])=>'<div class="card step"><strong>'+n+'</strong><div><h3>'+t+'</h3><p class="muted">'+d+'</p></div><button data-page="'+p+'">Open</button></div>').join('')+'</div>';
+}
+function assetsPage(){
+ return intro('Project library','Assets','Create here once and reuse across episodes.')+'<div class="card"><div class="scene-top"><h2>Project assets</h2><button class="primary" data-asset="Character">Add asset</button></div><div class="grid">'+project.assets.map(a=>'<div class="tile"><span class="tag">'+esc(a.kind)+'</span><b>'+esc(a.name)+'</b><small>'+esc(a.brief)+'</small><small>'+esc(a.source)+'</small>'+mediaPreview(a)+'</div>').join('')+'</div>'+(project.assets.length?'':'<p class="note">Your library is empty. Add a character brief to start.</p>')+'<div class="chips">'+['Background','Scene template','Prop','Creature','Audio'].map(kind=>'<button data-asset="'+kind+'">+ '+kind+'</button>').join('')+'</div></div>';
+}
+function episodePage(){
+ const cast=project.mode==='narration'?['Narrator']:names('Character');
+ return intro('Episode setup','Script & voices','Choose how the audience hears the story before planning the performance.')+'<div class="stack"><div class="card"><label>Episode title<input data-episode="title" value="'+esc(project.title)+'"></label><label>Episode script<textarea data-episode="script" rows="5" placeholder="Enter the story or dialogue. Use a new paragraph for each major beat.">'+esc(project.script)+'</textarea></label></div><div class="card"><h2>How is the story told?</h2><div class="two">'+[['narration','Narrated story','One narrator. Characters act silently.'],['dialogue','Character dialogue','Each speaking character gets a voice and lip sync.']].map(([id,name,hint])=>'<button data-mode="'+id+'" aria-pressed="'+(id===project.mode)+'" style="'+(id===project.mode?'background:#f4dfc7;border-color:#b66b40':'')+'"><b>'+name+'</b><br><small>'+hint+'</small></button>').join('')+'</div><p class="note">Voice assignments describe the intended VoiceStudio performance.</p>'+cast.map((name,i)=>'<label>'+esc(name)+' voice<input data-voice="'+i+'" value="'+esc(project.voices[name])+'" placeholder="e.g. Warm, measured, adult"></label>').join('')+(cast.length?'':'<p class="note">Add speaking characters in Assets to assign their voices.</p>')+'<div class="actions"><button class="primary" data-draft>Draft a scene plan with Director</button></div></div></div>';
+}
+function scenePage(){
+ return intro('Episode direction','Scene plan','Choose what appears on screen and how the cast performs each story beat.')+(project.scenes.length?'<div class="stack">'+project.scenes.map((s,i)=>'<article class="card"><div class="scene-top"><div><span class="eyebrow">Scene '+(i+1)+'</span><h2>'+esc(s.title)+'</h2></div><span class="tag">Draft</span></div><p>'+esc(s.beat)+'</p><div class="two"><label>Background<select data-scene="'+i+'" data-field="background">'+opts(['Choose a background',...names('Background')],s.background)+'</select></label><label>Camera<select data-scene="'+i+'" data-field="camera">'+opts(['Wide','Two-shot','Speaker close-up','Reaction close-up'],s.camera)+'</select></label></div><div class="actions"><button data-asset="Background" data-target="'+i+'">+ Brief a new background</button></div><label>Dialogue or narration cue<textarea data-scene="'+i+'" data-field="cue">'+esc(s.cue)+'</textarea></label><div class="stack">'+(names('Character').map((name,j)=>{const role=s.cast[name];return '<div class="line"><label><input style="width:auto;display:inline" type="checkbox" data-member="'+j+'" data-scene="'+i+'" '+(role?'checked':'')+'> '+esc(name)+'</label>'+(role?'<p class="muted">'+esc(project.mode==='narration'?'Silent performance':project.voices[name]||'Voice pending')+'</p><div class="two"><label>Motion<select data-scene="'+i+'" data-actor="'+j+'" data-field="motion">'+opts(['Hold','Walk in','Turn to speaker','Point','Nod'],role.motion)+'</select></label><label>Expression<select data-scene="'+i+'" data-actor="'+j+'" data-field="expression">'+opts(['Neutral','Curious','Surprised','Worried','Amused'],role.expression)+'</select></label></div>':'')+'</div>'}).join('')||'<p class="note">Add a character in Assets to cast this scene.</p>')+'</div></article>').join('')+'</div>':'<div class="card"><h2>No scenes planned yet</h2><p>Write the episode script, then ask the Director to propose scene breaks. Review the draft before it enters your episode.</p><div class="actions"><button data-page="2">Open episode script</button><button class="primary" data-draft>Draft scenes</button></div></div>');
+}
+function reviewPage(){
+ return intro('Episode assembly','Edit & review','Check scene order, transitions, voices and continuity before rendering.')+'<div class="card"><h2>Episode sequence</h2>'+(project.scenes.map((s,i)=>'<div class="line"><b>'+(i+1)+'. '+esc(s.title)+'</b><p class="muted">'+esc(s.background||'Background pending')+' · '+Object.keys(s.cast).length+' cast</p><div class="actions"><button data-move="'+i+'" data-by="-1" '+(i===0?'disabled':'')+'>Move earlier</button><button data-move="'+i+'" data-by="1" '+(i===project.scenes.length-1?'disabled':'')+'>Move later</button></div>'+(i<project.scenes.length-1?'<label>Transition into next scene<select data-scene="'+i+'" data-field="transition">'+opts(['Cut','Dissolve','Fade through black'],s.transition)+'</select></label>':'')+'</div>').join('')||'<p>Accept a scene plan to assemble the episode.</p>')+'<div class="note">Production stages · Approve shots → review a sample with sound → assemble the episode → final playback and export.</div><div class="actions"><button data-page="3">Back to scene plan</button><button disabled>Render episode · future integration</button></div></div>';
+}
+function draft(){
+ setChat(true);
+ if(!project.script.trim()){say('Add an episode script first. I need the story beats to propose a scene plan.');show(2);$('work').querySelector('[data-episode="script"]').focus();return;}
+ proposal=project.script.trim().split(/\n+/).filter(s=>s.trim()).map((beat,i)=>({title:project.demo&&project.script===sampleScript?['The empty basket','Follow the trail','A fair trade'][i]:stages[i]||'Story beat '+(i+1),beat,background:project.demo&&project.script===sampleScript?['Market stall','Courtyard','Market stall'][i]:'',camera:'Wide',cue:beat,transition:'Cut',cast:Object.fromEntries(names('Character').filter(name=>new RegExp('(?:^|[^\\p{L}])'+name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?:$|[^\\p{L}])','iu').test(beat)).map(name=>[name,{motion:'Hold',expression:'Neutral'}]))}));
+ $('proposedScenes').replaceChildren(...proposal.map(scene=>{const li=document.createElement('li');li.textContent=scene.title+' · '+scene.beat;return li}));
+ $('proposal').hidden=false;
+ $('accept').textContent=project.scenes.length?'Append draft scenes':'Add scenes to episode';
+ say('Here’s a draft based on the paragraphs in your script. Review the proposed breaks before adding them.');
+}
+$('projectForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.target);if(data.get('name').trim())start(data.get('name').trim(),data.get('premise').trim(),false)});
+$('demo').onclick=()=>start('Mango Lane','A village market comedy where small misunderstandings become big stories.',true);
+$('nav').onclick=event=>{const button=event.target.closest('[data-page]');if(button)show(Number(button.dataset.page))};
+$('work').onclick=event=>{
+ const button=event.target.closest('button');if(!button)return;
+ const d=button.dataset;
+ if(d.page!==undefined)show(Number(d.page));
+ if(d.asset){targetScene=d.target===undefined?null:Number(d.target);$('assetForm').reset();$('assetForm').elements.kind.value=d.asset;$('assetDialog').showModal()}
+ if(d.mode){project.mode=d.mode;persist();render();$('work').querySelector('[data-mode="'+d.mode+'"]').focus()}
+ if(d.draft!==undefined){draft();if(!$('proposal').hidden)$('accept').focus()}
+ if(d.move!==undefined){const i=Number(d.move),j=i+Number(d.by);[project.scenes[i],project.scenes[j]]=[project.scenes[j],project.scenes[i]];persist();render();$('work').querySelector('[data-move="'+j+'"]:enabled')?.focus()}
+};
+$('work').addEventListener('input',event=>{
+ const d=event.target.dataset;
+ if(d.episode){project[d.episode]=event.target.value;$('context').textContent=project.name+' · '+project.assets.length+' assets'+(project.title?' · '+project.title:'')}
+ if(d.voice!==undefined){const cast=project.mode==='narration'?['Narrator']:names('Character');project.voices[cast[d.voice]]=event.target.value}
+ if(d.field){const scene=project.scenes[d.scene];const target=d.actor===undefined?scene:scene.cast[names('Character')[d.actor]];target[d.field]=event.target.value}
+ if(d.episode||d.voice!==undefined||d.field)persist();
+});
+$('work').addEventListener('change',event=>{
+ const d=event.target.dataset;
+ if(d.member===undefined)return;
+ const name=names('Character')[d.member];const cast=project.scenes[d.scene].cast;
+ if(event.target.checked)cast[name]={motion:'Hold',expression:'Neutral'};else delete cast[name];
+ persist();
+ render();$('work').querySelector('[data-scene="'+d.scene+'"][data-member="'+d.member+'"]').focus();
+});
+$('cancelAsset').onclick=()=>$('assetDialog').close();
+$('assetForm').onsubmit=event=>{
+ event.preventDefault();
+ const asset=Object.fromEntries(new FormData(event.target));asset.name=asset.name.trim();
+ const input=event.target.elements.name;
+ if(asset.media.size){
+  asset.source='Imported media';
+ }else{
+  delete asset.media;
+  if(asset.source==='Import a media file'){event.target.elements.media.reportValidity();event.target.elements.media.focus();return;}
+ }
+ input.setCustomValidity(!asset.name?'Enter a name.':names(asset.kind).includes(asset.name)?'That name is already in this asset category.':'');
+ if(!input.reportValidity())return;
+ project.assets.push(asset);
+ if(targetScene!==null&&asset.kind==='Background')project.scenes[targetScene].background=asset.name;
+ persist();$('assetDialog').close();show(targetScene===null?1:3);
+};
+$('assetForm').elements.name.oninput=event=>event.target.setCustomValidity('');
+$('assetForm').elements.kind.onchange=()=>$('assetForm').elements.name.setCustomValidity('');
+$('assetDialog').addEventListener('close',()=>$('assetForm').elements.name.setCustomValidity(''));
+$('suggest').onclick=()=>say(!names('Character').length?'Create a recurring character in Assets. Give them a strong silhouette and a role in the series.':!project.script.trim()?'Write a short episode script, then pick narration or character dialogue.':!project.scenes.length?'Draft scenes from the script. Decide which story beats deserve their own shots.':'Review a two-character exchange. Use a wide shot to establish the set, then cut to the listener’s reaction.');
+$('plan').onclick=draft;
+$('chatForm').onsubmit=async event=>{
+ event.preventDefault();
+ const input=event.target.elements.message;
+ const message=input.value.trim();
+ if(!message)return;
+ say(message,'user');
+ input.value='';
+ if(/background/i.test(message)&&/generate|create|make|add|design/i.test(message)){
+  const name=addBackground(message);
+  const saved=await persist();
+  render();
+  say('“'+name+'” is in Assets as a sample SVG'+(saved?' and saved locally.':'. Storage is unavailable.'));
+ }else if(/script/i.test(message)&&/write|draft|create/i.test(message)&&!/split|scene plan|break down/i.test(message)){
+  if(project.script.trim()){
+   say('This episode already has a script. Open Episode to revise it, or ask me to break it into scenes.');
+   return;
+  }
+  const topic=message.match(/\babout\s+(.+)/i)?.[1].replace(/[.!?]+$/,'')||'a lost kite';
+  const [lead='The lead character',friend='a friend']=names('Character');
+  project.title=project.title||'The search for '+topic;
+  project.script=lead+' sets out to find '+topic+'.\n'+friend+' points out a clue that sends the search in the wrong direction.\n'+lead+' spots the real clue, and the two discover the answer together.';
+  const saved=await persist();
+  show(2);
+  say('I drafted a three-beat script in Episode.'+(saved?' The draft is saved locally.':' Storage is unavailable.'));
+ }else if(/split|scene plan|break down/i.test(message))draft();
+ else $('suggest').click();
+};
+$('robot').onclick=()=>setChat($('director').hidden);
+$('closeChat').onclick=()=>setChat(false);
+$('director').addEventListener('keydown',event=>{if(event.key==='Escape')setChat(false)});
+database.then(db=>{
+ const request=db.transaction('workspace').objectStore('workspace').get('current');
+ request.onsuccess=()=>{if(request.result&&!project){project=request.result;openProject()}};
+ request.onerror=storageError;
+}).catch(storageError);
+$('accept').onclick=()=>{project.scenes.push(...proposal);persist();proposal=[];$('proposal').hidden=true;say('Draft scenes added. Choose backgrounds, assign the cast and refine each performance.');show(3)};
+</script></html>
