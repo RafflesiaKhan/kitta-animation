@@ -80,6 +80,24 @@ describe('renderScene', () => {
     expect(probes.some(([x, y]) => px(before, x, y).join() !== px(after, x, y).join())).toBe(true);
   }, 60_000);
 
+  it('draws a pointing hand past the character box', async () => {
+    const pointing: Scene = {
+      ...scene,
+      actors: [{ ...scene.actors[0], timeline: { ...timeline, lines: [{ ...timeline.lines[0], gesture: 'point' }] } }],
+      shots: [{ startMs: 0, name: 'wide', zoom: 1, focusX: 0.5, focusY: 0.5 }],
+    };
+    const file = join(tmp, 'point.mp4');
+    await renderScene({ scene: pointing, audioPath: wav, outPath: file });
+    const buf = frameAtSec(file, 0.9);
+    const boxRight = 960 + (1080 * 0.8) / 2; // 1392: the character box is centred at x = 0.5
+    let beyond = 0;
+    for (let y = 0; y < 1080; y++) for (let x = boxRight + 4; x < boxRight + 150; x++) {
+      const [r, g, b] = px(buf, x, y);
+      if (r < 200 || g > 60 || b > 60) beyond++;
+    }
+    expect(beyond).toBeGreaterThan(200);
+  }, 60_000);
+
   it('rejects when ffmpeg exits non-zero', async () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
     await expect(renderScene({ scene, audioPath: wav, outPath: join(tmp, 'no-such-dir', 'x.mp4') })).rejects.toThrow('ffmpeg failed');

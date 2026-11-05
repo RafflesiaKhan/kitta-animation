@@ -357,7 +357,7 @@ export function Character({ config, frame, width = 1000, height = 1000 }: Charac
   const browY = L.eye.y - eyeR * f.eyeScale - 40 - (config.eyeStyle === 'glasses' ? 22 : 0) - (frame.browLift ?? 0) * 12 * Math.min(1.2, energy);
   const pivotY = h.cy + h.ry * 0.85; // the head tilts about the neck
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width={width} height={height}>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" overflow="visible" width={width} height={height}>
       <g data-part="character" transform={`translate(${n(sway * 0.6)} ${n(frame.bob + hop + f.slump * 0.25)})`}>
         <Body config={config} layout={L} />
         <Arm side="left" layout={L} config={config} raise={raiseL} bend={bendL} />
