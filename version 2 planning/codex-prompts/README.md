@@ -19,6 +19,5 @@ Paste the whole file as the prompt. Each one points Codex to [shared-rules.md](s
 
 ## Decisions for you
 
-- **Before step 2:** does "desktop-first" mean today's local web app or a packaged desktop app? The step 2 prompt assumes the local web app. Change that line if you decide otherwise.
 - **After step 5a:** read the proposal and write your choice under its "Owner's decision" heading before running step 5b.
 - **Before step 9:** decide whether you want walking yet.

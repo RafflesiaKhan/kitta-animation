@@ -59,4 +59,7 @@ Don't use CMU for small acting moves such as "leans forward" or "hand over heart
 ## Open decisions
 
 - **How Kitta writes code for each scene (before step 5):** the [character decision](first-scene-findings.md#character-decision) has Kitta write the code for each scene in the SVG style. Today, AI only picks from fixed expressions and actions, and the script director design ruled out generating code at run time. Decide what that code may do, and how it stays safe to run.
-- **Packaging (before step 2):** decide whether "desktop-first" means today's local web app or a packaged desktop app.
+
+## Decisions made
+
+- **Packaging:** version 2 stays a local web app, with no packaged desktop app.

@@ -17,7 +17,7 @@ Creators can have several projects, each with its own episodes and asset library
 - Saved AI characters in `data/characters/` must remain available and be usable in a project. Don't move or delete those files.
 - Save the first scene into an episode, in a form that renders through `renderScene` and `SceneView`.
 
-Assume "desktop-first" means today's local web app: no packaged desktop app work.
+The owner decided Kitta stays a local web app, so do no packaged desktop app work.
 
 ## Carry over from the step 1 review
 
