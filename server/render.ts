@@ -3,6 +3,8 @@ import { createElement } from 'react';
 import { Resvg } from '@resvg/resvg-js';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { CharacterView } from '../shared/character/CharacterView';
+import { SceneView } from '../shared/SceneView';
+import { STAGE_W, STAGE_H, cameraAt, type Scene } from '../shared/scene';
 import { FPS, frameAt, frameCount } from '../shared/timeline';
 import type { AnyCharacter, ExportFormat, Timeline } from '../shared/types';
 
@@ -37,9 +39,11 @@ function unpremultiply(px: Buffer) {
   }
 }
 
-export async function renderVideo({ character, images = {}, timeline, audioPath, format, outPath, onProgress }: RenderOptions): Promise<void> {
-  const [w, h] = format.aspect === '16:9' ? [1920, 1080] : [1080, 1920];
-  const total = frameCount(timeline.durationMs);
+/** Pipes rasterized frames into ffmpeg. `keyAt(i)` names a frame's state so identical consecutive frames are rasterized once. */
+async function encodeFrames(
+  [w, h]: [number, number], format: ExportFormat, audioPath: string, outPath: string, total: number,
+  keyAt: (i: number) => string, svgAt: (i: number) => string, onProgress?: (frame: number, total: number) => void,
+): Promise<void> {
   const codec = format.transparent
     ? ['-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-c:a', 'libopus']
     : ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart'];
@@ -67,10 +71,9 @@ export async function renderVideo({ character, images = {}, timeline, audioPath,
     let lastKey = '';
     let rgba: Buffer | undefined;
     for (let i = 0; i < total; i++) {
-      const frame = frameAt(timeline, (i * 1000) / FPS);
-      const key = JSON.stringify(frame);
+      const key = keyAt(i);
       if (!rgba || key !== lastKey) {
-        rgba = Buffer.from(new Resvg(frameSvg(character, frame, w, h, images), { background: format.transparent ? undefined : '#ffffff', font: { loadSystemFonts: false } }).render().pixels);
+        rgba = Buffer.from(new Resvg(svgAt(i), { background: format.transparent ? undefined : '#ffffff', font: { loadSystemFonts: false } }).render().pixels);
         if (format.transparent) unpremultiply(rgba);
         lastKey = key;
       }
@@ -83,4 +86,30 @@ export async function renderVideo({ character, images = {}, timeline, audioPath,
     throw e;
   }
   await closed;
+}
+
+export async function renderVideo({ character, images = {}, timeline, audioPath, format, outPath, onProgress }: RenderOptions): Promise<void> {
+  const size: [number, number] = format.aspect === '16:9' ? [1920, 1080] : [1080, 1920];
+  const frameAtI = (i: number) => frameAt(timeline, (i * 1000) / FPS);
+  return encodeFrames(size, format, audioPath, outPath, frameCount(timeline.durationMs),
+    (i) => JSON.stringify(frameAtI(i)),
+    (i) => frameSvg(character, frameAtI(i), size[0], size[1], images),
+    onProgress);
+}
+
+export interface RenderSceneOptions {
+  scene: Scene;
+  /** Data URIs keyed by character id, then file name, for art characters' images. */
+  images?: Record<string, Record<string, string>>;
+  audioPath: string;
+  outPath: string;
+  onProgress?: (frame: number, total: number) => void;
+}
+
+export async function renderScene({ scene, images = {}, audioPath, outPath, onProgress }: RenderSceneOptions): Promise<void> {
+  const msAt = (i: number) => (i * 1000) / FPS;
+  return encodeFrames([STAGE_W, STAGE_H], { aspect: '16:9', transparent: false }, audioPath, outPath, frameCount(scene.durationMs),
+    (i) => JSON.stringify([scene.actors.map((a) => frameAt(a.timeline, msAt(i), a.idleOffsetMs)), cameraAt(scene, msAt(i))]),
+    (i) => renderToStaticMarkup(createElement(SceneView, { scene, ms: msAt(i), resolve: (id: string, file: string) => images[id]?.[file] ?? '' })),
+    onProgress);
 }
