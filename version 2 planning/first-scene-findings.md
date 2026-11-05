@@ -13,7 +13,7 @@ Per video minute = render seconds / (10.111 s / 60). The times are from the re-e
 
 ## What I observed
 
-Frame checks were done from extracted MP4 frames (one per shot, both videos). The AI version replaces only Mina with Max; Rafi stays the SVG Milo. Controller browser results: at five paused moments the shot names and cameras were correct, only the speaker's mouth was open, a paused scene held still, and the preview matched the MP4 frame at 1.0 s. Across 304 frames the two characters never blinked together and their sway was never identical.
+Frame checks were done from extracted MP4 frames (one per shot, both videos). The AI version replaces only Mina with Max; Rafi stays the SVG Milo. Controller browser results: at five paused moments the shot names and cameras were correct, only the speaker's mouth was open, a paused scene held still, and the preview matched the MP4 frames at all five shots. Across 304 frames the two characters never blinked together and their sway was never identical.
 
 - Audio is 10.111 s and video is 10.133 s, a 0.022 s gap, inside the 0.05 s limit. Same for both files.
 - All five shots frame the characters with heads inside the frame. No framing numbers needed changing.
@@ -28,12 +28,16 @@ Frame checks were done from extracted MP4 frames (one per shot, both videos). Th
 - Per-actor timelines and shots resolved from one source worked without change: no schema problem showed up.
 - A per-character ground or feet anchor, so scale and placement do not cut the body at the frame bottom.
 - Render time scales with character type, so a progress estimate should depend on whether a character is painted.
+- A project records its visual style, because each project uses one style.
 
 ## Character decision
 
-Pending the owner's review.
+The owner watched both videos and found the scene convincing, then decided:
 
-Which views, which motions, and which character types a v2 character must support is for the owner to decide after watching both videos:
+- **Types:** support both SVG and AI characters, with one style per project.
+- **SVG style:** Kitta writes the code for each scene.
+- **Later option:** Kitta can use external image and video generation models for each scene, through the OpenArt MCP, to generate each scene's illustration as an image and video.
+- **Views:** front only for now.
+- **Motions:** today's gestures and listener reactions. Walking comes later.
 
-- `data/scenes/first-scene/first-scene.mp4`
-- `data/scenes/first-scene-art/first-scene-art.mp4`
+The videos reviewed are `data/scenes/first-scene/first-scene.mp4` and `data/scenes/first-scene-art/first-scene-art.mp4`.
