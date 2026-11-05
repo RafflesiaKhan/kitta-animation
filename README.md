@@ -61,6 +61,17 @@ While the character talks it nods slightly and moves its hands on stressed sylla
 
 When a provider is overloaded or rate-limited, each line is retried for about 25 seconds before giving up; the error then suggests the other providers you have set up. The server terminal logs the provider's own error message for every failure.
 
+## First scene
+
+A two-character scene lives in `samples/first-scene` (`scene.json` plus its `set.svg`). Export it with VoiceStudio running:
+
+```bash
+npm run scene -- samples/first-scene --rebuild
+npm run scene -- samples/first-scene --rebuild --art <characterId>
+```
+
+The first uses the two SVG starters; the second swaps the first actor for a saved AI character. Output lands in `data/scenes/`. Open `?scene=first-scene` on the dev server to preview it.
+
 ## Token usage
 
 The token button in the header shows how many tokens Gemini and OpenAI used this session; click it for a breakdown per provider and model (calls, input, output, total), all-time totals and the latest calls. The counts are the ones each provider reports. OpenAI speech and VoiceStudio report none, so they show as calls only. Every call is also logged in the server terminal (`[usage] gemini gemini-3.8-flash-tts voice: 42 in + 1210 out = 1252 tokens`) and kept in `data/usage.jsonl`. "Reset" clears it.
