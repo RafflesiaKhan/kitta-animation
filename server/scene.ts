@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import { resolveScene, sceneProblems } from '../shared/scene';
-import type { Scene, SceneSource } from '../shared/scene';
+import type { SavedScene, Scene, SceneSource } from '../shared/scene';
 import { isArt } from '../shared/types';
 import type { AnyCharacter, ScriptLineInput } from '../shared/types';
 import { concatWithGaps } from './audio';
@@ -64,18 +64,31 @@ export async function buildScene(source: SceneSource, sourceDir: string, speak: 
   return resolveScene(source, { audioId, durationMs, spans, cues, background, characters });
 }
 
+export function snapshotScene(scene: Scene): SavedScene {
+  return { ...scene, actors: scene.actors.map(a => ({ ...a, character: isArt(a.character) ? { artId: a.character.id } : a.character })) };
+}
+
+export async function hydrateScene(scene: SavedScene | Scene): Promise<Scene> {
+  const actors = await Promise.all(scene.actors.map(async a => {
+    const character = a.character;
+    if ('artId' in character) return { ...a, character: await getCharacter(character.artId) };
+    return isArt(character) ? { ...a, character: await getCharacter(character.id) } : { ...a, character };
+  }));
+  return { ...scene, actors };
+}
+
 const builtPath = (name: string) => join(SCENES_DIR, name, 'built.json');
 
 export async function saveScene(name: string, scene: Scene): Promise<void> {
   if (!NAME_RE.test(name)) throw new SceneError([`Scene name "${name}" must be lowercase letters, digits and dashes (up to 64)`]);
   await mkdir(join(SCENES_DIR, name), { recursive: true });
-  await writeFile(builtPath(name), JSON.stringify(scene));
+  await writeFile(builtPath(name), JSON.stringify(snapshotScene(scene)));
 }
 
 export async function loadScene(name: string): Promise<Scene | null> {
   if (!NAME_RE.test(name)) return null;
   try {
-    return JSON.parse(await readFile(builtPath(name), 'utf8')) as Scene;
+    return await hydrateScene(JSON.parse(await readFile(builtPath(name), 'utf8')) as SavedScene | Scene);
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw e;

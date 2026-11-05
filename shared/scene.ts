@@ -18,6 +18,9 @@ export interface SceneActor { id: string; character: AnyCharacter; x: number; sc
 export interface Shot { startMs: number; name: string; zoom: number; focusX: number; focusY: number }
 export interface Scene { title: string; audioId: string; durationMs: number; background: string; actors: SceneActor[]; shots: Shot[] } // background is a data URI
 
+export type SavedActor = Omit<SceneActor, 'character'> & { character: CharacterConfig | { artId: string } };
+export type SavedScene = Omit<Scene, 'actors'> & { actors: SavedActor[] };
+
 const validLine = (source: SceneSource, line: number) => Number.isInteger(line) && line >= 0 && line < source.lines.length;
 const validAt = (at: number) => at >= 0 && at <= 1;
 

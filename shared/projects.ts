@@ -1,3 +1,6 @@
+import type { SavedActor, SavedScene, Scene } from './scene';
+import type { MouthCue, Timeline } from './types';
+
 export type ProjectStyle = 'svg' | 'ai';
 
 export interface MediaAsset {
@@ -6,7 +9,7 @@ export interface MediaAsset {
   kind: 'image' | 'svg' | 'audio';
   mime: string;
   location: string;
-  provenance: 'imported';
+  provenance: 'imported' | 'first-scene';
 }
 
 export interface CharacterAsset {
@@ -19,9 +22,22 @@ export interface CharacterAsset {
 
 export type ProjectAsset = MediaAsset | CharacterAsset;
 
+export interface ProjectScene extends Omit<SavedScene, 'audioId' | 'background' | 'actors'> {
+  id: string;
+  audioAssetId: string;
+  backgroundAssetId: string;
+  actors: (Omit<SavedActor, 'timeline'> & { timeline: Omit<Timeline, 'cues'> & { cues: (MouthCue & { id: string })[] } })[];
+}
+
+export interface ProjectScenePreview {
+  scene: Scene;
+  audioUrl: string;
+}
+
 export interface Episode {
   id: string;
   title: string;
+  projectScene?: ProjectScene;
 }
 
 export interface Project {

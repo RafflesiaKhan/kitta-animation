@@ -1,9 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import { lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { Router } from 'express';
 import multer from 'multer';
-import type { MediaAsset, Project, ProjectAsset } from '../shared/projects';
+import type { MediaAsset, Project, ProjectAsset, ProjectScene } from '../shared/projects';
+import type { Scene } from '../shared/scene';
+import { isArt } from '../shared/types';
+import { AUDIO_DIR } from './audio';
+import { renderScene } from './render';
+import { hydrateScene, loadScene, sceneImages, snapshotScene } from './scene';
 import { getCharacter } from './characters';
 
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
@@ -30,7 +36,9 @@ function matchesMedia(mime: string, bytes: Buffer): boolean {
   }
 }
 
-export function projectRoutes(root = resolve('data/projects')) {
+export function projectRoutes(root = resolve('data/projects'), {
+  loadSample = () => loadScene('first-scene'), audioDir = AUDIO_DIR,
+}: { loadSample?: () => Promise<Scene | null>; audioDir?: string } = {}) {
   const router = Router();
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
   const dir = (id: string) => join(root, id);
@@ -58,6 +66,23 @@ export function projectRoutes(root = resolve('data/projects')) {
     } finally {
       rmSync(temp, { force: true });
     }
+  };
+
+  const assetPath = (project: Project, asset: MediaAsset): string | undefined => {
+    if (!uuid.test(asset.id) || !Object.hasOwn(mediaTypes, asset.mime)) return;
+    const expected = 'media/' + asset.id;
+    // Draft uploads used UUID filenames directly in the project directory.
+    if (asset.location !== undefined && (asset.location !== expected || !lstatSync(join(dir(project.id), 'media'), { throwIfNoEntry: false })?.isDirectory())) return;
+    const path = join(dir(project.id), asset.location ?? asset.id);
+    if (lstatSync(path, { throwIfNoEntry: false })?.isFile()) return path;
+  };
+  const writeMedia = (project: Project, asset: MediaAsset, bytes: Buffer): string => {
+    const mediaDir = join(dir(project.id), 'media');
+    mkdirSync(mediaDir, { recursive: true });
+    if (!lstatSync(mediaDir).isDirectory()) throw new Error('Invalid project media directory');
+    const path = join(dir(project.id), asset.location);
+    writeFileSync(path, bytes, { flag: 'wx' });
+    return path;
   };
 
   router.get('/', (_req, res) => {
@@ -99,11 +124,7 @@ export function projectRoutes(root = resolve('data/projects')) {
       const id = randomUUID();
       const name = clean(basename(req.file.originalname.replaceAll('\\', '/')), 140) || 'Imported media';
       asset = { id, name, kind, mime, location: 'media/' + id, provenance: 'imported' };
-      const mediaDir = join(dir(project.id), 'media');
-      mkdirSync(mediaDir, { recursive: true });
-      if (!lstatSync(mediaDir).isDirectory()) throw new Error('Invalid project media directory');
-      mediaPath = join(dir(project.id), asset.location);
-      writeFileSync(mediaPath, req.file.buffer, { flag: 'wx' });
+      mediaPath = writeMedia(project, asset, req.file.buffer);
     } else {
       if (project.style !== 'ai') return res.status(400).json({ error: 'Saved AI characters require an AI project.' });
       const characterId = req.body?.characterId;
@@ -128,12 +149,8 @@ export function projectRoutes(root = resolve('data/projects')) {
     if (!uuid.test(req.params.assetId)) return res.status(404).end();
     const project = read(req.params.id);
     const asset = project?.assets.find(item => item.id === req.params.assetId);
-    if (!project || !asset || asset.kind === 'character' || !Object.hasOwn(mediaTypes, asset.mime)) return res.status(404).end();
-    const expected = 'media/' + asset.id;
-    // Draft uploads used UUID filenames directly in the project directory.
-    if (asset.location !== undefined && (asset.location !== expected || !lstatSync(join(dir(project.id), 'media'), { throwIfNoEntry: false })?.isDirectory())) return res.status(404).end();
-    const path = join(dir(project.id), asset.location ?? asset.id);
-    if (!lstatSync(path, { throwIfNoEntry: false })?.isFile()) return res.status(404).end();
+    const path = project && asset && asset.kind !== 'character' ? assetPath(project, asset) : undefined;
+    if (!path || !asset || asset.kind === 'character') return res.status(404).end();
     res.set({ 'Content-Security-Policy': "sandbox; default-src 'none'", 'X-Content-Type-Options': 'nosniff' });
     if (asset.kind === 'svg') res.attachment(asset.name);
     res.type(asset.mime).sendFile(resolve(path));
@@ -148,6 +165,86 @@ export function projectRoutes(root = resolve('data/projects')) {
     save(project);
     res.status(201).json(episode);
   });
+  const episodeFor = (project: Project | undefined, episodeId: string) =>
+    project?.episodes.find(episode => episode.id === episodeId);
+  const readProjectScene = async (project: Project, record: ProjectScene) => {
+    const audio = project.assets.find(asset => asset.id === record.audioAssetId);
+    const background = project.assets.find(asset => asset.id === record.backgroundAssetId);
+    if (audio?.kind !== 'audio' || (background?.kind !== 'svg' && background?.kind !== 'image')) return;
+    const audioPath = assetPath(project, audio);
+    const backgroundPath = assetPath(project, background);
+    if (!audioPath || !backgroundPath) return;
+    const { title, durationMs, actors, shots } = record;
+    const scene = await hydrateScene({ title, durationMs, actors, shots, audioId: audio.id,
+      background: 'data:' + background.mime + ';base64,' + readFileSync(backgroundPath).toString('base64') });
+    return { scene, audioPath, audioUrl: '/api/projects/' + project.id + '/assets/' + audio.id };
+  };
+
+  router.post('/:id/episodes/:episodeId/sample', async (req, res) => {
+    const initial = read(req.params.id);
+    const oldEpisode = episodeFor(initial, req.params.episodeId);
+    if (!initial || !oldEpisode) return res.status(404).json({ error: 'Episode not found.' });
+    if (oldEpisode.projectScene) return res.json(oldEpisode.projectScene);
+    if (initial.style !== 'svg') return res.status(400).json({ error: 'The first scene requires an SVG project.' });
+    const sample = await loadSample();
+    if (!sample || !uuid.test(sample.audioId)) return res.status(409).json({ error: 'Build the first scene with npm run scene -- samples/first-scene.' });
+    const sourceAudio = join(audioDir, sample.audioId + '.wav');
+    if (!lstatSync(sourceAudio, { throwIfNoEntry: false })?.isFile()) return res.status(409).json({ error: 'The sample audio is missing. Run npm run scene -- samples/first-scene --rebuild.' });
+    const sourceBackground = /^data:(image\/(?:svg\+xml|png));base64,([A-Za-z0-9+/=]+)$/.exec(sample.background);
+    if (!sourceBackground || sample.actors.some(actor => isArt(actor.character))) return res.status(409).json({ error: 'The built first scene must use SVG characters and a valid set.' });
+    const project = read(req.params.id);
+    const episode = episodeFor(project, req.params.episodeId);
+    if (!project || !episode) return res.status(404).json({ error: 'Episode not found.' });
+    if (episode.projectScene) return res.json(episode.projectScene);
+    const audioId = randomUUID();
+    const backgroundId = randomUUID();
+    const [, mime, encoded] = sourceBackground;
+    const audio: MediaAsset = { id: audioId, name: 'First scene dialogue.wav', kind: 'audio', mime: 'audio/wav', location: 'media/' + audioId, provenance: 'first-scene' };
+    const background: MediaAsset = { id: backgroundId, name: 'First scene set', kind: mime === 'image/svg+xml' ? 'svg' : 'image', mime, location: 'media/' + backgroundId, provenance: 'first-scene' };
+    const { title, durationMs, actors, shots } = snapshotScene(sample);
+    const record: ProjectScene = { id: randomUUID(), title, durationMs, shots, audioAssetId: audioId, backgroundAssetId: backgroundId,
+      actors: actors.map(actor => ({ ...actor, timeline: { ...actor.timeline, cues: actor.timeline.cues.map(cue => ({ ...cue, id: randomUUID() })) } })) };
+    const written: string[] = [];
+    try {
+      written.push(writeMedia(project, audio, readFileSync(sourceAudio)));
+      written.push(writeMedia(project, background, Buffer.from(encoded, 'base64')));
+      project.assets.push(audio, background);
+      episode.projectScene = record;
+      save(project);
+    } catch (error) {
+      for (const path of written) rmSync(path, { force: true });
+      throw error;
+    }
+    res.status(201).json(record);
+  });
+
+  router.get('/:id/episodes/:episodeId/scene', async (req, res) => {
+    const project = read(req.params.id);
+    const record = episodeFor(project, req.params.episodeId)?.projectScene;
+    const loaded = project && record && await readProjectScene(project, record);
+    if (!loaded) return res.status(404).json({ error: 'Saved scene or media not found.' });
+    res.json({ scene: loaded.scene, audioUrl: loaded.audioUrl });
+  });
+
+  router.post('/:id/episodes/:episodeId/render', async (req, res, next) => {
+    const project = read(req.params.id);
+    const record = episodeFor(project, req.params.episodeId)?.projectScene;
+    const loaded = project && record && await readProjectScene(project, record);
+    if (!loaded) return res.status(404).json({ error: 'Saved scene or media not found.' });
+    const temp = mkdtempSync(join(tmpdir(), 'kitta-project-render-'));
+    const outPath = join(temp, 'scene.mp4');
+    try {
+      await renderScene({ scene: loaded.scene, images: await sceneImages(loaded.scene), audioPath: loaded.audioPath, outPath });
+      res.download(outPath, 'scene.mp4', error => {
+        rmSync(temp, { recursive: true, force: true });
+        if (error) next(error);
+      });
+    } catch (error) {
+      rmSync(temp, { recursive: true, force: true });
+      throw error;
+    }
+  });
+
   router.use((error: unknown, _req: unknown, res: import('express').Response, next: import('express').NextFunction) => {
     if (error instanceof multer.MulterError) return res.status(400).json({ error: 'Upload one media file up to 25 MB.' });
     next(error);

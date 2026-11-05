@@ -1,4 +1,9 @@
 // @vitest-environment node
+import { execFileSync } from 'node:child_process';
+import { renderScene } from '../../server/render';
+import { randomUUID } from 'node:crypto';
+import { STARTERS } from '../../shared/character/starters';
+import type { Scene } from '../../shared/scene';
 import express from 'express';
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -87,3 +92,56 @@ it('contains traversal requests and preserves legacy project records', async () 
     await rm(base, { recursive: true, force: true });
   }
 });
+
+it('saves the sample once and reopens it with project-owned audio and timing', async () => {
+  const base = await mkdtemp(join(tmpdir(), 'kitta-project-scene-'));
+  const audioDir = join(base, 'source-audio');
+  const audioId = randomUUID();
+  const source = join(audioDir, audioId + '.wav');
+  const wav = await readFile('tests/fixtures/hello.wav');
+  const svg = await readFile('samples/first-scene/set.svg');
+  const scene: Scene = {
+    title: 'The Missing Mango', audioId, durationMs: 100,
+    background: 'data:image/svg+xml;base64,' + svg.toString('base64'),
+    shots: [{ startMs: 0, name: 'wide', zoom: 1, focusX: 0.5, focusY: 0.5 }],
+    actors: [{ id: 'mina', character: STARTERS.pip, x: 0.5, scale: 0.8, idleOffsetMs: 0,
+      timeline: { durationMs: 100, cues: [{ startMs: 0, endMs: 100, shape: 'A' }], lines: [] } }],
+  };
+  const loadSample = vi.fn(async () => scene);
+  const app = () => express().use(express.json()).use('/projects', projectRoutes(join(base, 'projects'), { loadSample, audioDir }));
+  try {
+    await mkdir(audioDir);
+    await writeFile(source, wav);
+    const first = request(app());
+    const { body: project } = await first.post('/projects').send({ name: 'Mango Lane', style: 'svg' }).expect(201);
+    const path = '/projects/' + project.id;
+    const { body: episode } = await first.post(path + '/episodes').send({ title: 'Episode 1' }).expect(201);
+    const url = path + '/episodes/' + episode.id;
+    const { body: saved } = await first.post(url + '/sample').expect(201);
+    expect(saved.id).toMatch(/^[a-f0-9-]{36}$/);
+    expect(saved.actors[0].timeline.cues[0].id).toMatch(/^[a-f0-9-]{36}$/);
+    const baseline = join(base, 'baseline.mp4');
+    await renderScene({ scene, audioPath: source, outPath: baseline });
+    await rm(source);
+    const reopened = request(app());
+    await reopened.post(url + '/sample').expect(200, saved);
+    expect(loadSample).toHaveBeenCalledTimes(1);
+    const { body: preview } = await reopened.get(url + '/scene').expect(200);
+    expect(preview.scene).toMatchObject({ ...scene, audioId: saved.audioAssetId });
+    expect(preview.audioUrl).toBe('/api' + path + '/assets/' + saved.audioAssetId);
+    await reopened.get(path + '/assets/' + saved.audioAssetId).expect('Content-Type', /audio\/wav/).expect(200);
+    expect(await readFile(join(base, 'projects', project.id, 'media', saved.audioAssetId))).toEqual(wav);
+    const output = join(base, 'reopened.mp4');
+    const rendered = await reopened.post(url + '/render').buffer(true)
+      .parse((res, callback) => {
+        const chunks: Buffer[] = [];
+        res.on('data', chunk => chunks.push(chunk));
+        res.on('end', () => callback(null, Buffer.concat(chunks)));
+      }).expect('Content-Type', /video\/mp4/).expect(200);
+    await writeFile(output, rendered.body);
+    const hashes = (file: string) => execFileSync('ffmpeg', ['-v', 'error', '-i', file, '-f', 'framemd5', '-']).toString();
+    expect(hashes(output)).toBe(hashes(baseline));
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+}, 30_000);

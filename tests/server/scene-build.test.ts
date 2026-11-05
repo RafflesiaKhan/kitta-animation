@@ -83,6 +83,33 @@ describe('saveScene and loadScene', () => {
     expect(await loadScene(name)).toEqual(scene);
   }, 30_000);
 
+  it('stores AI references and refreshes replaced poses in new and legacy scenes', async () => {
+    const id = randomUUID();
+    artIds.push(id);
+    const dir = join(CHARACTERS_DIR, id);
+    mkdirSync(dir, { recursive: true });
+    const old = 'neutral-a1.png';
+    const current = 'neutral-a2.png';
+    copyFileSync(robot, join(dir, old));
+    const actor: ArtCharacter = { kind: 'art', id, name: 'Robo', prompt: 'p', style: 's', images: { neutral: { file: old, mouth: null } } };
+    writeFileSync(join(dir, 'meta.json'), JSON.stringify(actor));
+    const scene = await tracked({ ...source, actors: [{ ...source.actors[0], character: { artId: id } }, source.actors[1]] });
+    const modern = sceneName();
+    const legacy = sceneName();
+    await saveScene(modern, scene);
+    const built = (name: string) => join(SCENES_DIR, name, 'built.json');
+    expect(JSON.parse(readFileSync(built(modern), 'utf8')).actors[0].character).toEqual({ artId: id });
+    mkdirSync(join(SCENES_DIR, legacy), { recursive: true });
+    writeFileSync(built(legacy), JSON.stringify(scene));
+    copyFileSync(robot, join(dir, current));
+    writeFileSync(join(dir, 'meta.json'), JSON.stringify({ ...actor, images: { neutral: { file: current, mouth: null } } }));
+    rmSync(join(dir, old));
+    for (const name of [modern, legacy]) {
+      const loaded = (await loadScene(name))!;
+      expect(await sceneImages(loaded)).toEqual({ [id]: { [current]: 'data:image/png;base64,' + readFileSync(robot).toString('base64') } });
+    }
+  }, 30_000);
+
   it('refuses names that are not plain slugs', async () => {
     const scene = await tracked(source);
     await expect(saveScene('../x', scene)).rejects.toBeInstanceOf(SceneError);
