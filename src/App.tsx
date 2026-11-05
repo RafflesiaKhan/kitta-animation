@@ -15,7 +15,7 @@ import { UsagePanel } from './UsagePanel';
 export interface State { character: AnyCharacter; timeline: Timeline | null; audioId: string | null; source: 'upload' | 'script' | null }
 
 const NEW_LINE: ScriptLineInput = { text: '', voice: VOICES[0], expression: 'neutral', gesture: 'none' };
-const STEPS = ['1 Character', '2 Voiceover', '3 Animate', '4 Export'];
+const STEPS = ['Character', 'Voiceover', 'Animate', 'Export'];
 const { name: _name, ...KIT } = STARTERS.kit;
 
 /**
@@ -170,13 +170,14 @@ export function App() {
   return (
     <div className="app">
       <header>
+        <span className="logo" aria-hidden="true">K</span>
         <div className="brand">
           <h1>Kitta Animation</h1>
           <span className="tagline">Lip-synced cartoon videos from your voice</span>
         </div>
         <nav className="pills">
           {STEPS.map((label, i) => (
-            <button key={label} className={`pill${i === step ? ' active' : ''}`} onClick={() => setStep(i)}>{label}</button>
+            <button key={label} className={`pill${i === step ? ' active' : ''}`} aria-current={i === step ? 'step' : undefined} onClick={() => setStep(i)}><span className="step-n">{i + 1}</span> {label}</button>
           ))}
         </nav>
         <UsagePanel refreshKey={busy} />

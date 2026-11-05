@@ -4,6 +4,7 @@ import type { ActionMark, AnyCharacter, Expression, FrameState, Marks, Timeline 
 import { CharacterView } from '../../shared/character/CharacterView';
 import { frameAt } from '../../shared/timeline';
 import { addAction, addExpression, marksOf, moveAction, moveExpression, removeAction, removeExpression, resizeAction, resizeExpression } from '../../shared/marks';
+import { Icon } from '../Icon';
 import { peaks } from '../waveform';
 
 interface Props {
@@ -95,6 +96,7 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
   if (!timeline || !marks) {
     return (
       <section className="panel">
+        <p className="eyebrow">Step 3</p>
         <h2>Animate</h2>
         <p className="hint">Add a voiceover first. Then drag expressions and actions onto its timeline here.</p>
       </section>
@@ -138,7 +140,7 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
       <button className="mark-body" aria-label={`${label} at ${clock(startMs)}`} title={`${label} at ${clock(startMs)}`}
         onPointerDown={grab(kind, i, startMs)} onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); remove(kind, i); } }}>{label}</button>
-      {isSel(kind, i) && !(kind === 'expression' && i === 0) && <button className="mark-x" aria-label={`Remove ${label}`} onClick={(e) => { e.stopPropagation(); remove(kind, i); }}>×</button>}
+      {isSel(kind, i) && !(kind === 'expression' && i === 0) && <button className="mark-x" aria-label={`Remove ${label}`} onClick={(e) => { e.stopPropagation(); remove(kind, i); }}><Icon name="close" size={12} /></button>}
       {!(kind === 'expression' && i === 0) && <span className="mark-grip" data-testid={`end-${kind}-${i}`} title="Drag to change when it ends" aria-hidden onPointerDown={grab(`${kind}End`, i, endMs)} onClick={(e) => e.stopPropagation()} />}
     </div>
   );
@@ -146,6 +148,7 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
   return (
     <>
       <section className="panel palette">
+        <p className="eyebrow">Step 3</p>
         <h2>Animate</h2>
         <h3>Expressions</h3>
         <div className="triggers">

@@ -31,7 +31,7 @@ it('shows progress then a download link', async () => {
   expect(screen.getByRole('progressbar', { name: 'Export progress' }).getAttribute('value')).toBe('50');
   expect(screen.getByText('50%')).toBeTruthy();
   await act(async () => { finish('/api/exports/x.webm'); });
-  expect(screen.getByRole('link', { name: '⬇ Download video' }).getAttribute('href')).toBe('/api/exports/x.webm');
+  expect(screen.getByRole('link', { name: 'Download video' }).getAttribute('href')).toBe('/api/exports/x.webm');
   expect(screen.queryByRole('progressbar')).toBeNull();
 });
 

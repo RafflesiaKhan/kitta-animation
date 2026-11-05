@@ -47,6 +47,7 @@ export function Preview({ character, timeline, audioUrl, status, audioRef: share
 
   return (
     <div className="preview">
+      <div className="preview-head"><span>Preview</span>{timeline && <span className="ready">Lip sync ready</span>}</div>
       <div className="stage" data-testid="stage" data-starter={isArt(character) ? `art:${character.id}` : character.starter}>
         <CharacterView config={character} frame={frame} width={420} height={420} />
         {status && <div className="status">{status}</div>}

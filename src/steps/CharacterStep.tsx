@@ -5,6 +5,7 @@ import { Character } from '../../shared/character/Character';
 import { OPTIONS, STARTERS } from '../../shared/character/starters';
 import { ART_STYLES } from '../../shared/character/art';
 import * as api from '../api';
+import { Icon } from '../Icon';
 
 const REST: FrameState = { expression: 'neutral', mouth: 'X', gesture: 'none', gestureProgress: 0, blink: false, bob: 0 };
 const NEEDS_KEY = 'Needs GEMINI_API_KEY or OPENAI_API_KEY';
@@ -42,6 +43,7 @@ export function CharacterStep({ character, onChange, library, imageProviders, bu
   const selected = (c: ArtCharacter) => !creating && isArt(character) && character.id === c.id;
   return (
     <div>
+      <p className="eyebrow">Step 1</p>
       <h2>Pick a character</h2>
       <div className="tiles">
         {(Object.keys(STARTERS) as StarterId[]).map((id) => {
@@ -60,7 +62,7 @@ export function CharacterStep({ character, onChange, library, imageProviders, bu
           </button>
         ))}
         <button className={`tile create${creating ? ' selected' : ''}`} aria-pressed={creating} onClick={() => setCreating(true)}>
-          <span className="plus">＋</span>
+          <span className="plus"><Icon name="plus" size={22} /></span>
           <span>Create with AI</span>
         </button>
       </div>
@@ -112,7 +114,7 @@ function CreateForm({ busy, providers, onCreate, onCancel }: { busy: boolean; pr
       </label>
       <div className="line-actions">
         <button className="btn" disabled={!ready} title={geminiOk ? undefined : NEEDS_KEY}
-          onClick={() => onCreate({ description: description.trim(), name: name.trim(), style, provider, reference })}>✨ Create character</button>
+          onClick={() => onCreate({ description: description.trim(), name: name.trim(), style, provider, reference })}><Icon name="spark" /> Create character</button>
         <button className="btn secondary" disabled={busy} onClick={onCancel}>Cancel</button>
       </div>
       <p className="hint">{provider ? PROVIDER_NAMES[provider] : 'The AI'} paints the character first. Then you draw its expressions and actions from it, so it stays the same character. Image generation is usually paid (Gemini's free tier may not include it).</p>
@@ -133,7 +135,7 @@ function ArtSheet({ character: c, busy, geminiOk, onDraw, onFindMouths, onDelete
         <figcaption>{label}</figcaption>
         {pose !== 'neutral' && (
           <button className="mini" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY}
-            aria-label={`${url ? 'Redraw' : 'Draw'} ${label}`} onClick={() => onDraw(c.id, [pose])}>{url ? '↻' : 'Draw'}</button>
+            aria-label={`${url ? 'Redraw' : 'Draw'} ${label}`} onClick={() => onDraw(c.id, [pose])}>{url ? <Icon name="redo" size={14} /> : 'Draw'}</button>
         )}
       </figure>
     );
@@ -155,7 +157,7 @@ function ArtSheet({ character: c, busy, geminiOk, onDraw, onFindMouths, onDelete
       )}
       {missing.length > 0 && (
         <button className="btn" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={() => onDraw(c.id, missing)}>
-          ✨ Draw {missing.length === 1 ? 'the missing pose' : `all ${missing.length} missing poses`}
+          <Icon name="spark" /> Draw {missing.length === 1 ? 'the missing pose' : `all ${missing.length} missing poses`}
         </button>
       )}
       <h3>Expressions</h3>

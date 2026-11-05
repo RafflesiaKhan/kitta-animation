@@ -21,7 +21,7 @@ const btn = (name: string) => screen.getByRole('button', { name }) as HTMLButton
 const openScript = async () => {
   render(<App />);
   fireEvent.click(screen.getByRole('button', { name: '2 Voiceover' }));
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: '✍ Write script' })); });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Write script' })); });
 };
 const upload = async () => {
   vi.mocked(api.uploadAudio).mockResolvedValue({ audioId: 'abc', durationMs: 5000 });
@@ -40,7 +40,7 @@ it('script tab: Auto-tag fills chips, skips empty lines, and shows status', asyn
   const boxes = screen.getAllByLabelText('Line text');
   fireEvent.change(boxes[0], { target: { value: 'Hooray' } });
   fireEvent.change(boxes[2], { target: { value: 'Bye' } });
-  fireEvent.click(btn('✨ Auto-tag expressions'));
+  fireEvent.click(btn('Auto-tag expressions'));
   expect(screen.getByText('Tagging expressions…')).toBeTruthy();
   expect(api.autoTag).toHaveBeenCalledWith(['Hooray', 'Bye']);
   expect((screen.getAllByLabelText('Line text')[0] as HTMLTextAreaElement).disabled).toBe(true);
@@ -58,15 +58,15 @@ it('script tab: Auto-tag fills chips, skips empty lines, and shows status', asyn
 it('script tab: disabled with tooltip when there is no key; shows API errors', async () => {
   vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: false });
   await openScript();
-  expect(btn('✨ Auto-tag expressions').disabled).toBe(true);
-  expect(btn('✨ Auto-tag expressions').title).toBe('Needs GEMINI_API_KEY');
+  expect(btn('Auto-tag expressions').disabled).toBe(true);
+  expect(btn('Auto-tag expressions').title).toBe('Needs GEMINI_API_KEY');
 });
 
 it('script tab: shows an inline error when tagging fails', async () => {
   vi.mocked(api.autoTag).mockRejectedValue(new Error('Free Gemini limit reached, try again later'));
   await openScript();
   fireEvent.change(screen.getByLabelText('Line text'), { target: { value: 'hi' } });
-  await act(async () => { fireEvent.click(btn('✨ Auto-tag expressions')); });
+  await act(async () => { fireEvent.click(btn('Auto-tag expressions')); });
   expect(screen.getByRole('alert').textContent).toContain('Free Gemini limit reached');
 });
 
@@ -77,11 +77,11 @@ it('upload tab: hidden before upload; transcribe then tag replaces the lines', a
   vi.mocked(api.autoTag).mockReturnValue(tg.promise);
   render(<App />);
   fireEvent.click(screen.getByRole('button', { name: '2 Voiceover' }));
-  expect(screen.queryByRole('button', { name: '✨ Add expressions' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Add expressions' })).toBeNull();
   cleanup();
   await upload();
   await act(async () => {});
-  fireEvent.click(btn('✨ Add expressions'));
+  fireEvent.click(btn('Add expressions'));
   expect(screen.getByText('Listening…')).toBeTruthy();
   expect(api.transcribe).toHaveBeenCalledWith('abc');
   await act(async () => { tr.resolve([{ text: 'Hi', startMs: 0, endMs: 1000 }, { text: 'Oh no', startMs: 1200, endMs: 2500 }]); });
@@ -101,7 +101,7 @@ it('upload tab: no speech shows an error and leaves the timeline unchanged', asy
   vi.mocked(api.transcribe).mockResolvedValue([]);
   await upload();
   const before = lastProps!.timeline;
-  await act(async () => { fireEvent.click(btn('✨ Add expressions')); });
+  await act(async () => { fireEvent.click(btn('Add expressions')); });
   expect(screen.getByRole('alert').textContent).toBe("Couldn't find any speech to tag.");
   expect(api.autoTag).not.toHaveBeenCalled();
   expect(lastProps!.timeline).toBe(before);
@@ -110,8 +110,8 @@ it('upload tab: no speech shows an error and leaves the timeline unchanged', asy
 it('upload tab: disabled with tooltip without a key; health fetched once', async () => {
   vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: false });
   await upload();
-  expect(btn('✨ Add expressions').disabled).toBe(true);
-  expect(btn('✨ Add expressions').title).toBe('Needs GEMINI_API_KEY');
+  expect(btn('Add expressions').disabled).toBe(true);
+  expect(btn('Add expressions').title).toBe('Needs GEMINI_API_KEY');
   expect(api.health).toHaveBeenCalledTimes(1);
 });
 
@@ -119,9 +119,9 @@ it('after generating a script, Add expressions and the upload line list are hidd
   vi.mocked(api.tts).mockResolvedValue({ audioId: 'zzz', durationMs: 2000, cues, lines: [{ text: 'hi', startMs: 0, endMs: 2000, expression: 'sad', gesture: 'none' }] });
   await openScript();
   fireEvent.change(screen.getByLabelText('Line text'), { target: { value: 'hi' } });
-  await act(async () => { fireEvent.click(btn('▶ Generate voice')); });
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: '⬆ Upload' })); });
-  expect(screen.queryByRole('button', { name: '✨ Add expressions' })).toBeNull();
+  await act(async () => { fireEvent.click(btn('Generate voice')); });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Upload' })); });
+  expect(screen.queryByRole('button', { name: 'Add expressions' })).toBeNull();
   expect(screen.queryByTestId('upload-line')).toBeNull();
 });
 
