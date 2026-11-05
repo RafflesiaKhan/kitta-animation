@@ -19,6 +19,7 @@ import type { Line, ScriptLineInput } from '../shared/types';
 import { runRhubarb, rhubarbAvailable } from './rhubarb';
 import { renderVideo } from './render';
 import { loadScene } from './scene';
+import { projectRoutes } from './projects';
 import { validateExport, validScriptLine } from './validate';
 import { CharacterError, createCharacter, deleteCharacter, generatePose, getCharacter, imageDataUris, imagePath, listCharacters, measureMouths } from './characters';
 import { ART_STYLES } from '../shared/character/art';
@@ -61,6 +62,7 @@ function sendGeminiError(res: express.Response, e: unknown, failed: string): boo
 export function createApp() {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
+  app.use('/api/projects', projectRoutes());
   const upload = multer({ dest: UPLOAD_DIR, limits: { fileSize: 100 * 1024 * 1024 } });
   const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 
