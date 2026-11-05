@@ -180,6 +180,7 @@ export function App() {
             <button key={label} className={`pill${i === step ? ' active' : ''}`} aria-current={i === step ? 'step' : undefined} onClick={() => setStep(i)}><span className="step-n">{i + 1}</span> {label}</button>
           ))}
         </nav>
+        <a className="pill" href="/">Projects</a>
         <UsagePanel refreshKey={busy} />
       </header>
       {step === 2 ? (

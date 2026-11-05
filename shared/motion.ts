@@ -96,11 +96,11 @@ export function hash01(n: number): number {
  * Natural blinking: one blink somewhere in every 3.8 s slot (so gaps vary from ~1.5 to ~6 s), an occasional double
  * blink, and a blink just after each phrase ends.
  */
-export function blinkAt(s: Speech | null, ms: number): boolean {
+export function blinkAt(s: Speech | null, ms: number, includeIdle = true): boolean {
   const slot = Math.floor(ms / BLINK_SLOT_MS);
   const start = slot * BLINK_SLOT_MS + 300 + hash01(slot) * 2600;
-  if (ms >= start && ms < start + BLINK_MS) return true;
-  if (hash01(slot * 7 + 3) < 0.15 && ms >= start + 300 && ms < start + 300 + BLINK_MS) return true; // double blink
+  if (includeIdle && ms >= start && ms < start + BLINK_MS) return true;
+  if (includeIdle && hash01(slot * 7 + 3) < 0.15 && ms >= start + 300 && ms < start + 300 + BLINK_MS) return true; // double blink
   if (s) {
     const i = lowerBound(s.phraseEnds, ms - 60 - BLINK_MS, (x) => x);
     const end = s.phraseEnds[i];

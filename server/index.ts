@@ -18,6 +18,8 @@ import { imageProviders } from './images';
 import type { Line, ScriptLineInput } from '../shared/types';
 import { runRhubarb, rhubarbAvailable } from './rhubarb';
 import { renderVideo } from './render';
+import { createSceneSample } from './scene-sample';
+import { projectRoutes } from './projects';
 import { validateExport, validScriptLine } from './validate';
 import { CharacterError, createCharacter, deleteCharacter, generatePose, getCharacter, imageDataUris, imagePath, listCharacters, measureMouths } from './characters';
 import { ART_STYLES } from '../shared/character/art';
@@ -60,6 +62,7 @@ function sendGeminiError(res: express.Response, e: unknown, failed: string): boo
 export function createApp() {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
+  app.use('/api/projects', projectRoutes(EXPORT_DIR));
   const upload = multer({ dest: UPLOAD_DIR, limits: { fileSize: 100 * 1024 * 1024 } });
   const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 
@@ -312,6 +315,22 @@ export function createApp() {
     const p = imagePath(req.params.id, req.params.file);
     if (!p) return res.status(404).json({ error: 'Image not found' });
     res.type('image/png').sendFile(p, { root: process.cwd() });
+  });
+
+  let buildingSample = false;
+  app.post('/api/scene-sample', async (_req, res) => {
+    if (buildingSample) return res.status(409).json({ error: 'A scene sample is already rendering.' });
+    buildingSample = true;
+    try {
+      res.json(await createSceneSample(EXPORT_DIR));
+    } catch (error) {
+      if (!sendGeminiError(res, error, 'Could not create the scene sample.')) {
+        console.error('Scene sample failed:', error);
+        res.status(500).json({ error: 'Could not create the scene sample. Check VoiceStudio and FFmpeg.' });
+      }
+    } finally {
+      buildingSample = false;
+    }
   });
 
   app.post('/api/export', async (req, res) => {

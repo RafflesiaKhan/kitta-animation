@@ -6,16 +6,21 @@ import { CharacterView } from '../shared/character/CharacterView';
 import { FPS, frameAt, frameCount } from '../shared/timeline';
 import type { AnyCharacter, ExportFormat, Timeline } from '../shared/types';
 
-export interface RenderOptions {
+import { SceneView, type SceneSample } from '../shared/SceneView';
+
+interface SingleCharacter {
   character: AnyCharacter;
   /** Data URIs by file name for an AI character's images (resvg can't fetch URLs). */
   images?: Record<string, string>;
   timeline: Timeline;
+}
+
+export type RenderOptions = (SingleCharacter | { scene: SceneSample }) & {
   audioPath: string;
   format: ExportFormat;
   outPath: string;
   onProgress?: (frame: number, total: number) => void;
-}
+};
 
 /** The character's square box is 80% of the frame height, centred horizontally and anchored to the bottom edge (portrait-style crop). */
 function frameSvg(character: AnyCharacter, frame: ReturnType<typeof frameAt>, w: number, h: number, images: Record<string, string>) {
@@ -37,9 +42,10 @@ function unpremultiply(px: Buffer) {
   }
 }
 
-export async function renderVideo({ character, images = {}, timeline, audioPath, format, outPath, onProgress }: RenderOptions): Promise<void> {
+export async function renderVideo(options: RenderOptions): Promise<void> {
+  const { audioPath, format, outPath, onProgress } = options;
   const [w, h] = format.aspect === '16:9' ? [1920, 1080] : [1080, 1920];
-  const total = frameCount(timeline.durationMs);
+  const total = frameCount('scene' in options ? options.scene.durationMs : options.timeline.durationMs);
   const codec = format.transparent
     ? ['-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-c:a', 'libopus']
     : ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart'];
@@ -67,10 +73,13 @@ export async function renderVideo({ character, images = {}, timeline, audioPath,
     let lastKey = '';
     let rgba: Buffer | undefined;
     for (let i = 0; i < total; i++) {
-      const frame = frameAt(timeline, (i * 1000) / FPS);
-      const key = JSON.stringify(frame);
+      const ms = (i * 1000) / FPS;
+      const frame = 'scene' in options ? undefined : frameAt(options.timeline, ms);
+      const key = frame ? JSON.stringify(frame) : String(i);
       if (!rgba || key !== lastKey) {
-        rgba = Buffer.from(new Resvg(frameSvg(character, frame, w, h, images), { background: format.transparent ? undefined : '#ffffff', font: { loadSystemFonts: false } }).render().pixels);
+        rgba = Buffer.from(new Resvg('scene' in options
+          ? renderToStaticMarkup(createElement(SceneView, { scene: options.scene, ms, width: w, height: h }))
+          : frameSvg(options.character, frame!, w, h, options.images ?? {}), { background: format.transparent ? undefined : '#ffffff', font: { loadSystemFonts: false } }).render().pixels);
         if (format.transparent) unpremultiply(rgba);
         lastKey = key;
       }

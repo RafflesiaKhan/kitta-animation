@@ -1,0 +1,8 @@
+{
+  "title": "The Last Mango",
+  "lines": [
+    {"actor": "mina", "text": "Rafi, where did the last mango go?", "voice": "default", "speaker": "woman", "language": "en", "expression": "thinking", "gesture": "point"},
+    {"actor": "rafi", "text": "I put it somewhere very safe.", "voice": "default", "speaker": "man", "language": "en", "expression": "worried", "gesture": "shrug"},
+    {"actor": "mina", "text": "Then why is your pocket dripping?", "voice": "default", "speaker": "woman", "language": "en", "expression": "happy", "gesture": "none"}
+  ]
+}
