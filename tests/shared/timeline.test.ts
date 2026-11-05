@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { blinkAt } from '../../shared/motion';
 import { frameAt, frameCount, FPS, TRANSITION_MS } from '../../shared/timeline';
 import type { Timeline } from '../../shared/types';
 import { marksFromLines } from '../../shared/marks';
@@ -174,5 +175,27 @@ describe('speech motion', () => {
     expect(quiet.beat).toBe(0);
     expect(Math.abs(quiet.tilt!)).toBeLessThanOrEqual(0.8);
     expect(frameAt(talk, 1234)).toEqual(frameAt(talk, 1234));
+  });
+});
+
+describe('idle offset', () => {
+  const quiet: Timeline = { durationMs: 20000, cues: [], lines: [] };
+
+  it('shifts bob, sway, tilt and glance by the idle offset', () => {
+    const shifted = frameAt(quiet, 5500, 9000), later = frameAt(quiet, 14500);
+    expect([shifted.bob, shifted.sway, shifted.tilt, shifted.glance]).toEqual([later.bob, later.sway, later.tilt, later.glance]);
+  });
+  it('shifts the regular blinks but keeps phrase-end blinks on the real time', () => {
+    for (let ms = 0; ms < 8000; ms += 10) expect(blinkAt(null, ms, 1000)).toBe(blinkAt(null, ms + 1000));
+    const speech = { beats: [], spans: [], phraseEnds: [2000] };
+    expect(blinkAt(speech, 2100, 5000)).toBe(true);
+  });
+  it('gives two offsets different blinks', () => {
+    let differs = 0;
+    for (let ms = 0; ms < 20000; ms += 33) if (frameAt(quiet, ms).blink !== frameAt(quiet, ms, 1900).blink) differs++;
+    expect(differs).toBeGreaterThan(0);
+  });
+  it('leaves frames unchanged with no offset', () => {
+    for (let ms = 0; ms < 4000; ms += 50) expect(frameAt(t, ms, 0)).toEqual(frameAt(t, ms));
   });
 });

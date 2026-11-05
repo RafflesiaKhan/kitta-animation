@@ -94,13 +94,15 @@ export function hash01(n: number): number {
 
 /**
  * Natural blinking: one blink somewhere in every 3.8 s slot (so gaps vary from ~1.5 to ~6 s), an occasional double
- * blink, and a blink just after each phrase ends.
+ * blink, and a blink just after each phrase ends. `idleOffsetMs` shifts the regular blinks so characters differ.
  */
-export function blinkAt(s: Speech | null, ms: number): boolean {
-  const slot = Math.floor(ms / BLINK_SLOT_MS);
+export function blinkAt(s: Speech | null, ms: number, idleOffsetMs = 0): boolean {
+  // The regular blinks run on the character's own idle clock; phrase-end blinks stay on the real time.
+  const idle = ms + idleOffsetMs;
+  const slot = Math.floor(idle / BLINK_SLOT_MS);
   const start = slot * BLINK_SLOT_MS + 300 + hash01(slot) * 2600;
-  if (ms >= start && ms < start + BLINK_MS) return true;
-  if (hash01(slot * 7 + 3) < 0.15 && ms >= start + 300 && ms < start + 300 + BLINK_MS) return true; // double blink
+  if (idle >= start && idle < start + BLINK_MS) return true;
+  if (hash01(slot * 7 + 3) < 0.15 && idle >= start + 300 && idle < start + 300 + BLINK_MS) return true; // double blink
   if (s) {
     const i = lowerBound(s.phraseEnds, ms - 60 - BLINK_MS, (x) => x);
     const end = s.phraseEnds[i];

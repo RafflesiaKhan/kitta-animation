@@ -41,7 +41,9 @@ function glanceAt(ms: number): number {
   return side * smooth(Math.min(1, into / 300, (GLANCE_MS - into) / 300));
 }
 
-export function frameAt(t: Timeline, ms: number): FrameState {
+/** `idleOffsetMs` shifts only the idle motion (bob, sway, tilt drift, glance, regular blinks) so characters differ. */
+export function frameAt(t: Timeline, ms: number, idleOffsetMs = 0): FrameState {
+  const idle = ms + idleOffsetMs;
   const ci = lastStartedIndex(t.cues, ms);
   const cue = ci >= 0 && ms < t.cues[ci].endMs ? t.cues[ci] : undefined;
 
@@ -68,17 +70,17 @@ export function frameAt(t: Timeline, ms: number): FrameState {
     expression,
     fromExpression,
     blend,
-    glance: inLine ? 0 : glanceAt(ms),
+    glance: inLine ? 0 : glanceAt(idle),
     mouth: cue ? cue.shape : 'X',
     gesture: action ? action.gesture : 'none',
     gestureProgress: action ? (ms - action.startMs) / (action.endMs - action.startMs) : 0,
-    blink: blinkAt(speech, ms),
-    bob: 2 * Math.sin((2 * Math.PI * ms) / BOB_PERIOD_MS),
+    blink: blinkAt(speech, ms, idleOffsetMs),
+    bob: 2 * Math.sin((2 * Math.PI * idle) / BOB_PERIOD_MS),
     talk,
     nod: 7 * beatLevel(speech, ms, 320),
     beat: talk > 0 ? beatLevel(speech, ms, 420) : 0,
     browLift: beatLevel(speech, ms, 450, 0.9),
-    tilt: drift(ms, 2300, 3700, 1.3) * (0.8 + 1.6 * talk), // degrees
-    sway: drift(ms, 4100, 6700, 0.7) * 4, // px
+    tilt: drift(idle, 2300, 3700, 1.3) * (0.8 + 1.6 * talk), // degrees
+    sway: drift(idle, 4100, 6700, 0.7) * 4, // px
   };
 }
