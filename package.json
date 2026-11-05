@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "scene": "tsx server/scene-cli.ts",
     "dev": "concurrently -k -n web,api \"vite\" \"tsx watch server/index.ts\"",
     "test": "vitest run"
   },
