@@ -19,6 +19,12 @@ A project has reusable characters and backgrounds, and an episode can use them w
 
 The character and set belong to the project. Expressions, gestures, placement in a shot, and voice overrides belong to the episode. Changing one episode must never change another.
 
+## Carry over from the step 2 review
+
+- **Imported SVGs become sets here for the first time.** Step 2 only checks an SVG's opening tags, so a file can still contain scripts, external links, or XML entities. Before a set is drawn, make sure no script runs in the preview, and that neither the browser nor `resvg` loads an external URL or a local file. Add tests with a hostile SVG.
+- **No AI scene has been saved in a project yet.** Step 2 only tested this with fixtures. Add the saved character Max to an `ai` project, use it in an episode's scene, then reopen and render it for real. This uses existing pictures, so it paints nothing new.
+- **Asset list:** asset links are now pill buttons with bullets beside them. Tidy this into a simple list or grid while you're adding set pickers.
+
 ## Not in this step
 
 New AI painting, unless the owner approves the cost for a specific check. Use characters already saved. Also not in this step: new views, walking, props, creatures, and scene templates.
@@ -30,3 +36,5 @@ New AI painting, unless the owner approves the cost for a specific check. Use ch
 3. An `svg` project doesn't offer AI characters, and an `ai` project doesn't offer SVG starters.
 4. A character placed with its ground anchor shows the intended amount of body in a wide shot. Compare a browser screenshot with an exported frame.
 5. Today's four-step flow still works.
+6. A scene using Max in an `ai` project reopens and exports, and its preview matches the export.
+7. A hostile SVG imported as a set runs no script and loads nothing external, in the preview or the export.
