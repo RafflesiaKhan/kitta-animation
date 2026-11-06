@@ -9,6 +9,7 @@ Give Codex one prompt at a time, in this order. After each one, ask Claude to re
 | 2a | [step-2-fixes.md](step-2-fixes.md) | Fixes from Claude's review of step 2. |
 | 3 | [step-3-characters-and-sets.md](step-3-characters-and-sets.md) | Reusable characters and backgrounds. |
 | 3a | [step-3-fixes.md](step-3-fixes.md) | Fixes from Claude's review of step 3. |
+| 3b | [step-3-fixes-2.md](step-3-fixes-2.md) | A last small fix so real Figma and Illustrator SVGs work as sets. |
 | 4 | [step-4-scripts-and-voices.md](step-4-scripts-and-voices.md) | Episode scripts, narration or dialogue, and voices. |
 | 5 | [step-5a-scene-code-proposal.md](step-5a-scene-code-proposal.md) | A written proposal for how Kitta writes scene code. No code. |
 | 6 | [step-5b-scene-editing.md](step-5b-scene-editing.md) | Placing the cast, poses, cameras, and shot timelines. |
