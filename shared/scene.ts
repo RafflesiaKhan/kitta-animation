@@ -14,7 +14,7 @@ export interface ShotSource extends LineMoment { name: string; zoom: number; foc
 export interface ReactionSource extends LineMoment { actor: string; expression?: Expression; gesture?: ActionMark['gesture'] }
 export interface SceneSource { title: string; background: string; actors: SceneActorSource[]; lines: SceneLineSource[]; shots: ShotSource[]; reactions: ReactionSource[] }
 
-export interface SceneActor { id: string; character: AnyCharacter; x: number; scale: number; flip?: boolean; idleOffsetMs: number; timeline: Timeline }
+export interface SceneActor { id: string; character: AnyCharacter; anchorY?: number; groundY?: number; x: number; scale: number; flip?: boolean; idleOffsetMs: number; timeline: Timeline }
 export interface Shot { startMs: number; name: string; zoom: number; focusX: number; focusY: number }
 export interface Scene { title: string; audioId: string; durationMs: number; background: string; actors: SceneActor[]; shots: Shot[] } // background is a data URI
 

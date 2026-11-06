@@ -43,6 +43,10 @@ describe('SceneView', () => {
   it('places an actor by x and scale, bottom-anchored', () => {
     expect(render(scene([actor({ id: 'mina', x: 0.25 })]))).toContain('data-actor="mina" transform="translate(48 216)"');
   });
+  it('aligns the calibrated anchor with the selected stage ground', () => {
+    const s = scene([actor({ id: 'mina', x: .25, groundY: .75, anchorY: .75 })]);
+    expect(render(s)).toContain('data-actor="mina" transform="translate(48 162)"');
+  });
   it('mirrors a flipped actor', () => {
     expect(render(scene([actor({ id: 'mina', x: 0.25, flip: true })]))).toContain('translate(864 0) scale(-1 1)');
   });

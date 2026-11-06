@@ -41,7 +41,7 @@ function unpremultiply(px: Buffer) {
 
 /** Pipes rasterized frames into ffmpeg. `keyAt(i)` names a frame's state so identical consecutive frames are rasterized once. */
 async function encodeFrames(
-  [w, h]: [number, number], format: ExportFormat, audioPath: string, outPath: string, total: number,
+  [w, h]: [number, number], format: ExportFormat, audioPath: string | undefined, outPath: string, total: number,
   keyAt: (i: number) => string, svgAt: (i: number) => string, onProgress?: (frame: number, total: number) => void,
 ): Promise<void> {
   const codec = format.transparent
@@ -50,7 +50,7 @@ async function encodeFrames(
   const ff = spawn('ffmpeg', [
     '-y', '-loglevel', 'error',
     '-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${w}x${h}`, '-r', String(FPS), '-i', '-',
-    '-i', audioPath, ...codec, outPath,
+    ...(audioPath ? ['-i', audioPath] : []), ...codec, outPath,
   ], { stdio: ['pipe', 'ignore', 'pipe'] });
 
   let stderr = '';
@@ -101,7 +101,7 @@ export interface RenderSceneOptions {
   scene: Scene;
   /** Data URIs keyed by character id, then file name, for art characters' images. */
   images?: Record<string, Record<string, string>>;
-  audioPath: string;
+  audioPath?: string;
   outPath: string;
   onProgress?: (frame: number, total: number) => void;
 }

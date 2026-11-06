@@ -1,5 +1,7 @@
 import type { SavedActor, SavedScene, Scene } from './scene';
-import type { MouthCue, Timeline } from './types';
+import type { Expression, Gesture, MouthCue, Timeline } from './types';
+
+import type { TtsProvider } from './voices';
 
 export type ProjectStyle = 'svg' | 'ai';
 
@@ -29,15 +31,48 @@ export interface ProjectScene extends Omit<SavedScene, 'audioId' | 'background' 
   actors: (Omit<SavedActor, 'timeline'> & { timeline: Omit<Timeline, 'cues'> & { cues: (MouthCue & { id: string })[] } })[];
 }
 
+export interface ProjectVoice {
+  provider: TtsProvider;
+  voice: string;
+  engine: string;
+  speaker: string;
+  variability: 'steady' | 'varied';
+}
+
+export interface ProjectCharacterInput {
+  name: string;
+  anchorY: number;
+  voice: ProjectVoice;
+  character: SavedActor['character'];
+}
+
+export interface ProjectCharacter extends ProjectCharacterInput {
+  id: string;
+}
+
+export interface EpisodeSceneInput {
+  characterId: string;
+  backgroundAssetId: string;
+  expression: Expression;
+  gesture: Gesture;
+  x: number;
+  scale: number;
+  groundY: number;
+}
+
+export interface EpisodeScene extends EpisodeSceneInput {
+  id: string;
+}
+
 export interface ProjectScenePreview {
   scene: Scene;
-  audioUrl: string;
+  audioUrl: string | null;
 }
 
 export interface Episode {
   id: string;
   title: string;
-  projectScene?: ProjectScene;
+  projectScene?: ProjectScene | EpisodeScene;
 }
 
 export interface Project {
@@ -47,5 +82,6 @@ export interface Project {
   style: ProjectStyle;
   createdAt?: string;
   assets: ProjectAsset[];
+  characters?: ProjectCharacter[];
   episodes: Episode[];
 }

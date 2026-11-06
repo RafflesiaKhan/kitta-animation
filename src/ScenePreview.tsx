@@ -18,7 +18,7 @@ export function ScenePreview({ name }: { name: string }) {
   return <ScenePlayer scene={scene} audioUrl={'/api/audio/' + scene.audioId} />;
 }
 
-export function ScenePlayer({ scene, audioUrl }: { scene: Scene; audioUrl: string }) {
+export function ScenePlayer({ scene, audioUrl }: { scene: Scene; audioUrl: string | null }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [ms, setMs] = useState(0);
   useEffect(() => {
@@ -35,7 +35,7 @@ export function ScenePlayer({ scene, audioUrl }: { scene: Scene; audioUrl: strin
     <div className="preview">
       <div className="preview-head"><span>{scene.title}</span><span className="ready">{cameraAt(scene, ms).name}</span></div>
       <SceneView scene={scene} ms={ms} width={960} height={540} />
-      <audio ref={audioRef} src={audioUrl} controls />
+      {audioUrl && <audio ref={audioRef} src={audioUrl} controls />}
     </div>
   );
 }

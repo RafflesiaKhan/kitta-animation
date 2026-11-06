@@ -15,7 +15,7 @@ import { projectRoutes } from '../../server/projects';
 vi.mock(import('../../server/characters'), async importOriginal => {
   const actual = await importOriginal();
   return { ...actual, getCharacter: async (id: string) => id === '11d2def4-2c05-4eec-bd4e-724484b7e982'
-    ? { kind: 'art', id, name: 'Saved Mina', prompt: '', style: '', images: {} } : actual.getCharacter(id) };
+    ? { kind: 'art', id, name: 'Saved Mina', prompt: '', style: '', images: { neutral: { file: 'neutral-test.png', mouth: null } } } : actual.getCharacter(id) };
 });
 
 it('keeps imported media and episodes isolated and reloadable', async () => {
@@ -237,3 +237,66 @@ it('lists projects by creation date, with undated drafts last', async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+it('reuses a project character and safe set without sharing episode performance', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'kitta-project-cast-'));
+  const app = () => request(express().use(express.json()).use('/projects', projectRoutes(root)));
+  const voice = { provider: 'voicestudio', voice: 'default', engine: 'omni', speaker: 'man', variability: 'steady' };
+  const character = { name: 'Pip', character: STARTERS.pip, voice, anchorY: 0.75 };
+  try {
+    const client = app();
+    const { body: project } = await client.post('/projects').send({ name: 'Cast', style: 'svg' }).expect(201);
+    const path = '/projects/' + project.id;
+    const { body: updated } = await client.post(path + '/characters').send(character).expect(201);
+    const saved = updated.characters[0];
+    expect(saved).toMatchObject({ name: 'Pip', voice, anchorY: 0.75 });
+    const { body: revised } = await client.patch(path + '/characters/' + saved.id).send({ ...character, name: 'Pip revised' }).expect(200);
+    expect(revised.characters[0]).toMatchObject({ id: saved.id, name: 'Pip revised' });
+    const { body: painted } = await client.post('/projects').send({ name: 'Painted', style: 'ai' }).expect(201);
+    const paintedPath = '/projects/' + painted.id + '/characters';
+    await client.post(paintedPath).send(character).expect(400);
+    const { body: ai } = await client.post(paintedPath).send({ ...character, character: { artId: '11d2def4-2c05-4eec-bd4e-724484b7e982' } }).expect(201);
+    await client.post(path + '/characters').send({ ...character, character: { artId: randomUUID() } }).expect(400);
+    const { body: imported } = await client.post(path + '/assets').attach('media', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="24"><rect width="32" height="24" fill="red"/></svg>'), { filename: 'set.svg', contentType: 'image/svg+xml' }).expect(201);
+    const backgroundAssetId = imported.assets[0].id;
+    const { body: a } = await client.post(path + '/episodes').send({ title: 'First' }).expect(201);
+    const { body: b } = await client.post(path + '/episodes').send({ title: 'Second' }).expect(201);
+    const scenePath = (id: string) => path + '/episodes/' + id + '/scene';
+    const shot = { characterId: saved.id, backgroundAssetId, expression: 'neutral', gesture: 'wave', x: 0.5, scale: 0.7, groundY: 0.8 };
+    await client.put(scenePath(a.id)).send(shot).expect(200);
+    await client.put(scenePath(b.id)).send(shot).expect(200);
+    await client.put(scenePath(b.id)).send({ ...shot, expression: 'happy' }).expect(200);
+    await client.put(scenePath(b.id)).send({ ...shot, characterId: ai.characters[0].id }).expect(400);
+    await client.put(scenePath(b.id)).send({ ...shot, backgroundAssetId: randomUUID() }).expect(400);
+    const reopened = app();
+    const { body: first } = await reopened.get(scenePath(a.id)).expect(200);
+    const { body: second } = await reopened.get(scenePath(b.id)).expect(200);
+    expect(first).toMatchObject({ audioUrl: null, scene: { actors: [{ anchorY: .75, groundY: .8, timeline: { marks: { expressions: [{ expression: 'neutral' }] } } }] } });
+    expect(second.scene.actors[0].timeline.marks.expressions[0].expression).toBe('happy');
+    expect(first.scene.background).toMatch(/^data:image\/png;base64,/);
+    expect(second.scene.background).toBe(first.scene.background);
+    await client.post(path + '/episodes/' + b.id + '/render').expect('Content-Type', /video\/mp4/).expect(200);
+    const aiPath = '/projects/' + painted.id;
+    const { body: aiSet } = await client.post(aiPath + '/assets').attach('media', Buffer.from('<svg width="32" height="24"/>'),
+      { filename: 'set.svg', contentType: 'image/svg+xml' }).expect(201);
+    const { body: aiEpisode } = await client.post(aiPath + '/episodes').send({ title: 'AI shot' }).expect(201);
+    const aiScenePath = aiPath + '/episodes/' + aiEpisode.id + '/scene';
+    const aiShot = { ...shot, characterId: ai.characters[0].id, backgroundAssetId: aiSet.assets[0].id };
+    const { body: aiSaved } = await client.put(aiScenePath).send(aiShot).expect(200);
+    const aiRecordPath = join(root, painted.id, 'project.json');
+    const aiRecord = JSON.parse(await readFile(aiRecordPath, 'utf8'));
+    const stale = { ...ai.characters[0], id: randomUUID(), character: { artId: randomUUID() } };
+    aiRecord.characters.push(stale);
+    await writeFile(aiRecordPath, JSON.stringify(aiRecord));
+    await client.put(aiScenePath).send({ ...aiShot, characterId: stale.id }).expect(409,
+      { error: 'This scene uses an AI character that no longer exists.' });
+    const { body: aiReopened } = await client.get(aiPath).expect(200);
+    expect(aiReopened.episodes[0].projectScene).toEqual(aiSaved.projectScene);
+    await writeFile(join(root, project.id, 'media', backgroundAssetId), '<svg><script>alert(1)</script></svg>');
+    await reopened.get(scenePath(a.id)).expect(409);
+    await reopened.post(path + '/episodes/' + a.id + '/render').expect(409);
+    await reopened.put(scenePath(b.id)).send(shot).expect(409);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}, 15_000);
