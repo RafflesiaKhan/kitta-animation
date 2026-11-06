@@ -170,6 +170,7 @@ export function App() {
   return (
     <div className="app">
       <header>
+        <a className="pill" href="/">Projects</a>
         <span className="logo" aria-hidden="true">K</span>
         <div className="brand">
           <h1>Kitta Animation</h1>

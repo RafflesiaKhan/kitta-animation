@@ -1,3 +1,4 @@
+import type { Episode, Project, ProjectScene, ProjectScenePreview, ProjectStyle } from '../shared/projects';
 import type { TtsProvider, VoiceStudioInfo } from '../shared/voices';
 import type { UsageReport } from '../shared/usage';
 import type { Scene } from '../shared/scene';
@@ -178,4 +179,40 @@ export async function usage(): Promise<UsageReport | null> {
 
 export async function resetUsage(): Promise<void> {
   await fetch('/api/usage', { method: 'DELETE' }).catch(() => {});
+}
+
+const projectsUrl = '/api/projects';
+const projectUrl = (id: string) => projectsUrl + '/' + id;
+const episodeUrl = (projectId: string, id: string) => projectUrl(projectId) + '/episodes/' + id;
+
+async function getJson<T>(url: string): Promise<T> {
+  let response: Response;
+  try { response = await fetch(url); }
+  catch { throw new Error('Could not reach the server. Is it running?'); }
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof body.error === 'string' ? body.error : 'Request failed (' + response.status + ')');
+  return body as T;
+}
+
+function projectJson(body: object): RequestInit {
+  return { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+}
+
+export const listProjectCharacters = () => getJson<{ characters: ArtCharacter[] }>('/api/characters').then(body => body.characters);
+export const listProjects = () => getJson<Project[]>(projectsUrl);
+export const getProject = (id: string) => getJson<Project>(projectUrl(id));
+export const createProject = (body: { name: string; premise: string; style: ProjectStyle }) => post<Project>(projectsUrl, projectJson(body));
+export const importProjectAsset = (id: string, body: FormData) => post<Project>(projectUrl(id) + '/assets', { body });
+export const addProjectCharacter = (id: string, characterId: string) => post<Project>(projectUrl(id) + '/assets', projectJson({ characterId }));
+export const createEpisode = (id: string, title: string) => post<Episode>(projectUrl(id) + '/episodes', projectJson({ title }));
+export const saveFirstScene = (projectId: string, id: string) => post<ProjectScene>(episodeUrl(projectId, id) + '/sample', {});
+export const getEpisodeScene = (projectId: string, id: string) => getJson<ProjectScenePreview>(episodeUrl(projectId, id) + '/scene');
+
+export async function renderEpisodeScene(projectId: string, id: string): Promise<Blob> {
+  let response: Response;
+  try { response = await fetch(episodeUrl(projectId, id) + '/render', { method: 'POST' }); }
+  catch { throw new Error('Could not reach the server. Is it running?'); }
+  if (response.ok) return response.blob();
+  const body = await response.json().catch(() => ({}));
+  throw new Error(typeof body.error === 'string' ? body.error : 'Render failed (' + response.status + ')');
 }

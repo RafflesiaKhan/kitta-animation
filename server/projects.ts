@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { Router } from 'express';
@@ -81,7 +81,14 @@ export function projectRoutes(root = resolve('data/projects'), {
     mkdirSync(mediaDir, { recursive: true });
     if (!lstatSync(mediaDir).isDirectory()) throw new Error('Invalid project media directory');
     const path = join(dir(project.id), asset.location);
-    writeFileSync(path, bytes, { flag: 'wx' });
+    const file = openSync(path, 'wx');
+    try {
+      try { writeFileSync(file, bytes); }
+      finally { closeSync(file); }
+    } catch (error) {
+      rmSync(path, { force: true });
+      throw error;
+    }
     return path;
   };
 

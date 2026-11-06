@@ -1,8 +1,11 @@
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { Projects } from './Projects';
 import { ScenePreview } from './ScenePreview';
 import './styles.css';
 
-const scene = new URLSearchParams(window.location.search).get('scene');
+const query = new URLSearchParams(window.location.search);
+const scene = query.get('scene');
+const page = scene ? <ScenePreview name={scene} /> : query.has('character-studio') ? <App /> : <Projects />;
 
-createRoot(document.getElementById('root')!).render(scene ? <ScenePreview name={scene} /> : <App />);
+createRoot(document.getElementById('root')!).render(page);
