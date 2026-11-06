@@ -9,7 +9,7 @@ import type { Scene } from '../shared/scene';
 import { isArt } from '../shared/types';
 import { AUDIO_DIR } from './audio';
 import { renderScene } from './render';
-import { hydrateScene, loadScene, captureScene, snapshotScene } from './scene';
+import { hydrateScene, loadScene, captureScene, snapshotScene, MissingSceneCharacterError } from './scene';
 import { getCharacter } from './characters';
 
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
@@ -19,6 +19,45 @@ const mediaTypes: Record<string, MediaAsset['kind']> = {
 };
 const clean = (value: unknown, max: number) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 
+function hasSvgRoot(source: string): boolean {
+  let offset = source.charCodeAt(0) === 0xfeff ? 1 : 0;
+  for (;;) {
+    while (/[\t\n\r ]/.test(source[offset] ?? '')) offset++;
+    const comment = source.startsWith('<!--', offset);
+    if (comment || source.startsWith('<?', offset)) {
+      const marker = comment ? '-->' : '?>';
+      const end = source.indexOf(marker, offset + (comment ? 4 : 2));
+      if (end === -1) return false;
+      offset = end + marker.length;
+      continue;
+    }
+    if (!source.startsWith('<!DOCTYPE', offset) || !/[\t\n\r ]/.test(source[offset + 9] ?? '')) break;
+    offset += 9;
+    let subset = false;
+    while (offset < source.length) {
+      const comment = source.startsWith('<!--', offset);
+      if (comment || source.startsWith('<?', offset)) {
+        const marker = comment ? '-->' : '?>';
+        const end = source.indexOf(marker, offset + (comment ? 4 : 2));
+        if (end === -1) return false;
+        offset = end + marker.length;
+        continue;
+      }
+      const char = source[offset++];
+      if (char === '"' || char === "'") {
+        const end = source.indexOf(char, offset);
+        if (end === -1) return false;
+        offset = end + 1;
+      } else if (char === '[') subset = true;
+      else if (char === ']') subset = false;
+      else if (char === '>' && !subset) break;
+    }
+  }
+  const root = /<(?:[\p{L}_\u200c\u200d][\p{L}\p{N}\p{M}_.·‿⁀\u200c\u200d-]*:)?svg(?=[\t\n\r >]|\/>)/uy;
+  root.lastIndex = offset;
+  return root.test(source);
+}
+
 // shortcut: check common signatures at import, decode when an editor consumes the asset.
 function matchesMedia(mime: string, bytes: Buffer): boolean {
   const tag = (start: number, end: number) => bytes.toString('latin1', start, end);
@@ -26,7 +65,7 @@ function matchesMedia(mime: string, bytes: Buffer): boolean {
     case 'image/png': return bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
     case 'image/jpeg': return bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
     case 'image/webp': return tag(0, 4) === 'RIFF' && tag(8, 12) === 'WEBP';
-    case 'image/svg+xml': return /^(?:\s|<\?xml[^?]*\?>|<!--[\s\S]*?-->)*<svg(?:\s|\/>|>)/.test(bytes.toString('utf8'));
+    case 'image/svg+xml': return hasSvgRoot(bytes.toString('utf8'));
     case 'audio/wav':
     case 'audio/x-wav': return tag(0, 4) === 'RIFF' && tag(8, 12) === 'WAVE';
     case 'audio/mpeg': return tag(0, 3) === 'ID3' || (bytes[0] === 255 && (bytes[1] & 224) === 224);
@@ -40,7 +79,7 @@ export function projectRoutes(root = resolve('data/projects'), {
   loadSample = () => loadScene('first-scene'), audioDir = AUDIO_DIR,
 }: { loadSample?: () => Promise<Scene | null>; audioDir?: string } = {}) {
   const router = Router();
-  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1 } });
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024, files: 1 } });
   const dir = (id: string) => join(root, id);
   const jsonPath = (id: string) => join(dir(id), 'project.json');
   const read = (id: string | string[]): Project | undefined => {
@@ -103,6 +142,7 @@ export function projectRoutes(root = resolve('data/projects'), {
         console.warn('Skipping unreadable project', id);
       }
     }
+    projects.sort((a, b) => (typeof b.createdAt === 'string' ? b.createdAt : '').localeCompare(typeof a.createdAt === 'string' ? a.createdAt : ''));
     res.json(projects);
   });
   router.post('/', (req, res) => {
@@ -110,7 +150,7 @@ export function projectRoutes(root = resolve('data/projects'), {
     if (!name) return res.status(400).json({ error: 'Enter a project name.' });
     const style = req.body?.style;
     if (style !== 'svg' && style !== 'ai') return res.status(400).json({ error: 'Choose SVG or AI for this project.' });
-    const project: Project = { id: randomUUID(), name, style, premise: clean(req.body?.premise, 2000), assets: [], episodes: [] };
+    const project: Project = { id: randomUUID(), name, style, createdAt: new Date().toISOString(), premise: clean(req.body?.premise, 2000), assets: [], episodes: [] };
     save(project);
     res.status(201).json(project);
   });
@@ -119,13 +159,16 @@ export function projectRoutes(root = resolve('data/projects'), {
     if (!project) return res.status(404).json({ error: 'Project not found.' });
     res.json(project);
   });
-  router.post('/:id/assets', upload.single('media'), async (req, res) => {
+  router.post('/:id/assets', (req, res, next) => {
+    if (!read(req.params.id)) return res.status(404).json({ error: 'Project not found.' });
+    next();
+  }, upload.single('media'), async (req, res) => {
     let project = read(req.params.id);
     if (!project) return res.status(404).json({ error: 'Project not found.' });
     let asset: ProjectAsset;
     let mediaPath: string | undefined;
     if (req.file) {
-      const mime = req.file.mimetype;
+      const mime = req.file.mimetype === 'audio/x-m4a' ? 'audio/mp4' : req.file.mimetype;
       const kind = Object.hasOwn(mediaTypes, mime) ? mediaTypes[mime] : undefined;
       if (!kind || !matchesMedia(mime, req.file.buffer)) return res.status(400).json({ error: 'Choose a supported image, SVG or audio file.' });
       const id = randomUUID();
@@ -253,7 +296,8 @@ export function projectRoutes(root = resolve('data/projects'), {
   });
 
   router.use((error: unknown, _req: unknown, res: import('express').Response, next: import('express').NextFunction) => {
-    if (error instanceof multer.MulterError) return res.status(400).json({ error: 'Upload one media file up to 25 MB.' });
+    if (error instanceof MissingSceneCharacterError) return res.status(409).json({ error: error.message });
+    if (error instanceof multer.MulterError) return res.status(400).json({ error: 'Upload one media file up to 100 MB.' });
     next(error);
   });
   return router;

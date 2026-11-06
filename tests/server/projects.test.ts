@@ -12,7 +12,11 @@ import request from 'supertest';
 import { expect, it, vi } from 'vitest';
 import { projectRoutes } from '../../server/projects';
 
-vi.mock('../../server/characters', () => ({ getCharacter: async () => ({ name: 'Saved Mina' }) }));
+vi.mock(import('../../server/characters'), async importOriginal => {
+  const actual = await importOriginal();
+  return { ...actual, getCharacter: async (id: string) => id === '11d2def4-2c05-4eec-bd4e-724484b7e982'
+    ? { kind: 'art', id, name: 'Saved Mina', prompt: '', style: '', images: {} } : actual.getCharacter(id) };
+});
 
 it('keeps imported media and episodes isolated and reloadable', async () => {
   const root = await mkdtemp(join(tmpdir(), 'kitta-projects-'));
@@ -141,7 +145,95 @@ it('saves the sample once and reopens it with project-owned audio and timing', a
     await writeFile(output, rendered.body);
     const hashes = (file: string) => execFileSync('ffmpeg', ['-v', 'error', '-i', file, '-f', 'framemd5', '-']).toString();
     expect(hashes(output)).toBe(hashes(baseline));
+    const recordPath = join(base, 'projects', project.id, 'project.json');
+    const record = JSON.parse(await readFile(recordPath, 'utf8'));
+    record.episodes[0].projectScene.actors[0].character = { artId: randomUUID() };
+    await writeFile(recordPath, JSON.stringify(record));
+    const error = { error: 'This scene uses an AI character that no longer exists.' };
+    await reopened.get(url + '/scene').expect(409, error);
+    await reopened.post(url + '/render').expect(409, error);
   } finally {
     await rm(base, { recursive: true, force: true });
   }
 }, 30_000);
+
+async function withAssetRoute(run: (client: ReturnType<typeof request>, path: string) => Promise<void>) {
+  const root = await mkdtemp(join(tmpdir(), 'kitta-project-assets-'));
+  try {
+    const client = request(express().use(express.json()).use('/projects', projectRoutes(root)));
+    const { body } = await client.post('/projects').send({ name: 'Uploads', style: 'svg' }).expect(201);
+    await run(client, '/projects/' + body.id + '/assets');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+it.each([
+  '\ufeff<?xml version="1.0"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg xmlns="http://www.w3.org/2000/svg"/>',
+  '<!DOCTYPE svg [<!ENTITY example "quoted > ]"> <!-- ] -->]><svg/>',
+  '<?xml version="1.0"?><!-- vector --><svg:svg xmlns:svg="http://www.w3.org/2000/svg"/>',
+])('accepts an SVG prolog and root in %s', async source => {
+  await withAssetRoute(async (client, path) => {
+    await client.post(path).attach('media', Buffer.from(source), { filename: 'vector.svg', contentType: 'image/svg+xml' }).expect(201);
+    await client.post(path).attach('media', Buffer.from('not an svg'), { filename: 'fake.svg', contentType: 'image/svg+xml' }).expect(400);
+  });
+});
+
+it('normalizes a browser M4A MIME type and rejects invalid bytes', async () => {
+  await withAssetRoute(async (client, path) => {
+    const options = { filename: 'voice.m4a', contentType: 'audio/x-m4a' };
+    const { body } = await client.post(path).attach('media', Buffer.from('\x00\x00\x00\x0cftypM4A '), options).expect(201);
+    expect(body.assets[0].mime).toBe('audio/mp4');
+    await client.post(path).attach('media', Buffer.from('invalid'), options).expect(400);
+  });
+});
+
+it('accepts a 30 MiB WAV upload', async () => {
+  await withAssetRoute(async (client, path) => {
+    const bytes = Buffer.alloc(30 * 1024 * 1024);
+    bytes.write('RIFF');
+    bytes.write('WAVE', 8);
+    await client.post(path).attach('media', bytes, { filename: 'long.wav', contentType: 'audio/wav' }).expect(201);
+  });
+});
+
+it('checks the project before parsing a multipart upload', async () => {
+  await withAssetRoute(async (client, path) => {
+    const malformed = (url: string) => client.post(url).set('Content-Type', 'multipart/form-data').send('missing boundary');
+    // Multer cannot parse this body. Only the existing project's request reaches it.
+    await malformed('/projects/' + randomUUID() + '/assets').expect(404, { error: 'Project not found.' });
+    expect((await malformed(path)).status).not.toBe(404);
+  });
+});
+
+it('accepts an SVG after 100,000 comments and responds to the next request', async () => {
+  await withAssetRoute(async (client, path) => {
+    const comments = '<!--a-->'.repeat(100_000);
+    const options = { filename: 'comments.svg', contentType: 'image/svg+xml' };
+    const start = performance.now();
+    await client.post(path).attach('media', Buffer.from(comments + '<html/>'), options).expect(400);
+    await client.get(path.slice(0, -'/assets'.length)).expect(200);
+    await client.post(path).attach('media', Buffer.from(comments + '<svg/>'), options).expect(201);
+    await client.get(path.slice(0, -'/assets'.length)).expect(200);
+    expect(performance.now() - start).toBeLessThan(2_000);
+  });
+});
+
+it('lists projects by creation date, with undated drafts last', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'kitta-project-order-'));
+  try {
+    const client = request(express().use(express.json()).use('/projects', projectRoutes(root)));
+    const { body: created } = await client.post('/projects').send({ name: 'Newest', style: 'svg' }).expect(201);
+    expect(new Date(created.createdAt).toISOString()).toBe(created.createdAt);
+    const older = { id: '00000000-0000-4000-8000-000000000002', name: 'Older', createdAt: '2020-01-01T00:00:00.000Z' };
+    const draft = { id: '00000000-0000-4000-8000-000000000001', name: 'Draft' };
+    for (const project of [draft, older]) {
+      await mkdir(join(root, project.id));
+      await writeFile(join(root, project.id, 'project.json'), JSON.stringify({ premise: '', assets: [], episodes: [], ...project }));
+    }
+    const { body } = await client.get('/projects').expect(200);
+    expect(body.map((project: { name: string }) => project.name)).toEqual(['Newest', 'Older', 'Draft']);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

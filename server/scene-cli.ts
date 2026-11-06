@@ -24,7 +24,6 @@ async function main() {
   if (artAt >= 0 && !artId) fail(['--art needs a character id']);
   const sourceDir = args.find((a, i) => !a.startsWith('--') && (artAt < 0 || i !== artAt + 1));
   if (!sourceDir) fail(['Usage: npm run scene -- <sourceDir> [--rebuild] [--art <characterId>]']);
-  if (!process.env.VOICESTUDIO_URL) fail(['Set VOICESTUDIO_URL in .env']);
 
   let source: SceneSource;
   try {
@@ -41,6 +40,7 @@ async function main() {
 
   let scene = rebuild ? null : await loadScene(name);
   if (!scene) {
+    if (!process.env.VOICESTUDIO_URL) fail(['Set VOICESTUDIO_URL in .env']);
     if (!(await ensureVoiceStudio())) fail(["VoiceStudio isn't running"]);
     scene = await buildScene(source, sourceDir!, (line) => speakLine('voicestudio', line));
     await saveScene(name, scene);

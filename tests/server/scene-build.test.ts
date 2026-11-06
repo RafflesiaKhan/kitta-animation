@@ -3,7 +3,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSy
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildScene, captureScene, saveScene, loadScene, sceneImages, SceneError, SCENES_DIR, validSceneName } from '../../server/scene';
+import { buildScene, captureScene, saveScene, loadScene, SceneError, SCENES_DIR, validSceneName } from '../../server/scene';
 import { AUDIO_DIR } from '../../server/audio';
 import { CHARACTERS_DIR } from '../../server/characters';
 import { STARTERS } from '../../shared/character/starters';
@@ -109,7 +109,7 @@ describe('saveScene and loadScene', () => {
     expect(Object.keys(captured.images[id])).toEqual([current]);
     for (const name of [modern, legacy]) {
       const loaded = (await loadScene(name))!;
-      expect(await sceneImages(loaded)).toEqual({ [id]: { [current]: 'data:image/png;base64,' + readFileSync(robot).toString('base64') } });
+      expect((await captureScene(loaded)).images).toEqual({ [id]: { [current]: 'data:image/png;base64,' + readFileSync(robot).toString('base64') } });
     }
   }, 30_000);
 
@@ -120,7 +120,7 @@ describe('saveScene and loadScene', () => {
   }, 30_000);
 });
 
-describe('sceneImages', () => {
+describe('captureScene', () => {
   it('loads the images of art actors, keyed by character id', async () => {
     const id = randomUUID();
     artIds.push(id);
@@ -131,7 +131,7 @@ describe('sceneImages', () => {
 
     const art: SceneSource = { ...source, actors: [{ ...source.actors[0], character: { artId: id } }, source.actors[1]] };
     const scene = await tracked(art);
-    const images = await sceneImages(scene);
+    const { images } = await captureScene(scene);
     expect(Object.keys(images)).toEqual([id]);
     expect(images[id]['neutral-a1.png'].startsWith('data:image/png;base64,')).toBe(true);
   }, 30_000);

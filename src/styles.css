@@ -217,7 +217,8 @@ main.animate .timeline { grid-column: 1 / -1; }
 .line-card textarea[aria-label="Whole script"] { width: 100%; }
 
 .project-form { display: grid; gap: 12px; margin: 16px 0; }
-.project-form label { display: grid; gap: 6px; }
+.project-form .field { margin: 0; }
+.project-form .field textarea { font-weight: 400; letter-spacing: 0; }
 .project-form button { justify-self: start; }
 .project-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
 .project-tabs [aria-pressed="true"] { font-weight: 800; }

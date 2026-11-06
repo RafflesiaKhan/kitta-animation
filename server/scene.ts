@@ -5,7 +5,7 @@ import type { SavedScene, Scene, SceneSource } from '../shared/scene';
 import { isArt } from '../shared/types';
 import type { AnyCharacter, ScriptLineInput } from '../shared/types';
 import { concatWithGaps } from './audio';
-import { captureCharacter, CharacterError, getCharacter, imageDataUris } from './characters';
+import { captureCharacter, CharacterError, getCharacter } from './characters';
 import { runRhubarb } from './rhubarb';
 import { plainText } from './speech';
 
@@ -21,6 +21,17 @@ export class SceneError extends Error {
     super(problems.join('\n'));
     this.name = 'SceneError';
   }
+}
+
+export class MissingSceneCharacterError extends SceneError {
+  constructor() {
+    super(['This scene uses an AI character that no longer exists.']);
+  }
+}
+
+function missingSceneCharacter(error: unknown): never {
+  if (error instanceof CharacterError && error.code === 'not_found') throw new MissingSceneCharacterError();
+  throw error;
 }
 
 async function readBackground(sourceDir: string, file: string): Promise<string> {
@@ -71,8 +82,8 @@ export function snapshotScene(scene: Scene): SavedScene {
 export async function hydrateScene(scene: SavedScene | Scene): Promise<Scene> {
   const actors = await Promise.all(scene.actors.map(async a => {
     const character = a.character;
-    if ('artId' in character) return { ...a, character: await getCharacter(character.artId) };
-    return isArt(character) ? { ...a, character: await getCharacter(character.id) } : { ...a, character };
+    if ('artId' in character) return { ...a, character: await getCharacter(character.artId).catch(missingSceneCharacter) };
+    return isArt(character) ? { ...a, character: await getCharacter(character.id).catch(missingSceneCharacter) } : { ...a, character };
   }));
   return { ...scene, actors };
 }
@@ -95,20 +106,13 @@ export async function loadScene(name: string): Promise<Scene | null> {
   }
 }
 
-/** Images of the scene's art actors as data URIs, keyed by character id, then file name. */
-export async function sceneImages(scene: Scene): Promise<Record<string, Record<string, string>>> {
-  const out: Record<string, Record<string, string>> = {};
-  for (const a of scene.actors) if (isArt(a.character)) out[a.character.id] = await imageDataUris(a.character);
-  return out;
-}
-
 export async function captureScene(scene: Scene) {
   const captured = new Map<string, Awaited<ReturnType<typeof captureCharacter>>>();
   const actors: Scene['actors'] = [];
   for (const actor of scene.actors) {
     if (!isArt(actor.character)) { actors.push(actor); continue; }
     const id = actor.character.id;
-    const current = captured.get(id) ?? await captureCharacter(id);
+    const current = captured.get(id) ?? await captureCharacter(id).catch(missingSceneCharacter);
     captured.set(id, current);
     actors.push({ ...actor, character: current.character });
   }

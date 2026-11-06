@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { describe, it, expect, afterAll } from 'vitest';
 import request from 'supertest';
 import { rmSync } from 'node:fs';
@@ -23,4 +24,15 @@ describe('scene API', () => {
     const res = await request(createApp()).get(`/api/scenes/${name}`).expect(200);
     expect(res.body).toEqual(scene);
   });
+  it('reports a deleted AI character in a saved scene', async () => {
+    const missing = randomUUID();
+    await saveScene(name, { ...scene, actors: [{
+      id: 'actor', character: { kind: 'art', id: missing, name: 'Deleted', prompt: '', style: '', images: {} },
+      x: 0.5, scale: 1, idleOffsetMs: 0, timeline: { durationMs: 1000, cues: [], lines: [] },
+    }] });
+    await request(createApp()).get('/api/scenes/' + name).expect(409, {
+      error: 'This scene uses an AI character that no longer exists.',
+    });
+  });
+
 });

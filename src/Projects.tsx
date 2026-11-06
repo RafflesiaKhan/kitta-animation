@@ -62,18 +62,18 @@ export function Projects() {
       </header>
       <main className="project-episode"><section className="panel" aria-busy={busy}>
         <h2>{episode.title}</h2>
-        {error && <p role="alert">{error}</p>}
+        {error && <p className="error" role="alert">{error}</p>}
         {busy && <p role="status">Working…</p>}
         {preview && <ScenePlayer scene={preview.scene} audioUrl={preview.audioUrl} />}
         {episode.projectScene ? <>
-          {!preview && <button disabled={busy} onClick={() => void run(async () => {
+          {!preview && <button className="btn secondary" disabled={busy} onClick={() => void run(async () => {
             setPreview(await getEpisodeScene(projectId, episodeId));
           })}>Load saved scene</button>}
-          <button disabled={busy} onClick={() => void run(async () => {
+          <button className="btn" disabled={busy} onClick={() => void run(async () => {
             setVideo(URL.createObjectURL(await renderEpisodeScene(projectId, episodeId)));
           })}>Render scene</button>
-          {video && <a href={video} download="scene.mp4">Download MP4</a>}
-        </> : project.style === 'svg' ? <button disabled={busy} onClick={() => void run(async () => {
+          {video && <a className="btn secondary" href={video} download="scene.mp4">Download MP4</a>}
+        </> : project.style === 'svg' ? <button className="btn" disabled={busy} onClick={() => void run(async () => {
           const saved = { ...episode, projectScene: await saveFirstScene(projectId, episodeId) };
           setEpisode(saved);
           setProject(current => current && {
@@ -97,48 +97,52 @@ export function Projects() {
       </header>
       <main>
         <section className="panel">
-          {error && <p role="alert">{error}</p>}
+          {error && <p className="error" role="alert">{error}</p>}
           {!project ? <>
             <h2>Create a cartoon project</h2>
             <p>Build a cast and a world you can bring back in every episode.</p>
             <form className="project-form" onSubmit={event => submit(event, async data => {
               open(await createProject({ name: String(data.get('name')), premise: String(data.get('premise')), style: data.get('style') as ProjectStyle }));
             })}>
-              <label>Project name <input name="name" required maxLength={100} /></label>
-              <label>Series premise <textarea name="premise" maxLength={2000} /></label>
-              <label>Visual style <select name="style"><option value="svg">SVG</option><option value="ai">AI</option></select></label>
-              <button disabled={busy}>Create project</button>
+              <label className="field">Project name <input name="name" required maxLength={100} /></label>
+              <label className="field">Series premise <textarea name="premise" maxLength={2000} /></label>
+              <label className="field">Visual style <select name="style"><option value="svg">SVG</option><option value="ai">AI</option></select></label>
+              <button className="btn" disabled={busy}>Create project</button>
             </form>
           </> : <>
             <h2>{project.name}</h2>
             <p>Visual style {project.style === 'svg' ? 'SVG' : 'AI'}</p>
             {project.premise && <p>{project.premise}</p>}
             <nav className="project-tabs" aria-label="Project workspace">
-              {['Overview', 'Assets', 'Episodes'].map(item => <button key={item} disabled={busy}
+              {['Overview', 'Assets', 'Episodes'].map(item => <button className={tab === item ? 'btn' : 'btn secondary'} key={item} disabled={busy}
                 aria-pressed={tab === item} onClick={() => item === 'Assets' ? showAssets() : setTab(item)}>{item}</button>)}
             </nav>
             {tab === 'Overview' && <>
               <h3>Start with your cast</h3>
-              <p>Bring in a saved character or open Character Studio to create one.</p>
-              <button disabled={busy} onClick={showAssets}>Open asset library</button>
+              <p>{project.style === 'svg'
+                ? 'Use Character Studio to work with SVG characters.'
+                : 'Add a saved AI character from Assets, or create one in Character Studio.'}</p>
+              <button className="btn secondary" disabled={busy} onClick={showAssets}>Open asset library</button>
             </>}
             {tab === 'Assets' && <>
               <h3>Project assets</h3>
               <form className="project-form" onSubmit={event => submit(event, async data => {
                 setProject(await importProjectAsset(project.id, data));
               })}>
-                <label>Image, SVG or audio <input type="file" name="media" accept="image/png,image/jpeg,image/webp,image/svg+xml,audio/wav,audio/x-wav,audio/mpeg,audio/mp4,audio/ogg" required /></label>
-                <button disabled={busy}>Import media</button>
+                <label className="field">Image, SVG or audio <input type="file" name="media" accept="image/png,image/jpeg,image/webp,image/svg+xml,audio/wav,audio/x-wav,audio/mpeg,audio/mp4,audio/x-m4a,audio/ogg" required /></label>
+                <button className="btn" disabled={busy}>Import media</button>
               </form>
+              {project.style === 'ai' && !busy && !error && characters.length === 0 &&
+                <p className="hint">Create an AI character in Character Studio to add it here.</p>}
               {project.style === 'ai' && characters.length > 0 && <form className="project-form" onSubmit={event => submit(event, async data => {
                 setProject(await addProjectCharacter(project.id, String(data.get('characterId'))));
               })}>
-                <label>Saved AI character <select name="characterId">{characters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-                <button disabled={busy}>Add character to project</button>
+                <label className="field">Saved AI character <select name="characterId">{characters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+                <button className="btn" disabled={busy}>Add character to project</button>
               </form>}
               {project.assets.length === 0 && <p>This project has no assets yet.</p>}
               <ul>{project.assets.map(asset => <li key={asset.id}>
-                {asset.kind !== 'character' ? <a href={'/api/projects/' + project.id + '/assets/' + asset.id} download={asset.name}>{asset.name}</a> : asset.name}
+                {asset.kind !== 'character' ? <a className="btn secondary" href={'/api/projects/' + project.id + '/assets/' + asset.id} download={asset.name}>{asset.name}</a> : asset.name}
                 {' · ' + asset.kind}
               </li>)}</ul>
             </>}
@@ -148,10 +152,10 @@ export function Projects() {
                 const created = await createEpisode(project.id, String(data.get('title')));
                 setProject({ ...project, episodes: [...project.episodes, created] });
               })}>
-                <label>Episode title <input name="title" required maxLength={100} /></label>
-                <button disabled={busy}>Create episode</button>
+                <label className="field">Episode title <input name="title" required maxLength={100} /></label>
+                <button className="btn" disabled={busy}>Create episode</button>
               </form>
-              {project.episodes.map(item => <button className="project-row" key={item.id} disabled={busy} onClick={() => void run(async () => {
+              {project.episodes.map(item => <button className="btn secondary project-row" key={item.id} disabled={busy} onClick={() => void run(async () => {
                 setEpisode(item);
                 if (item.projectScene) setPreview(await getEpisodeScene(project.id, item.id));
               })}>{item.title} · {item.projectScene ? 'Saved scene' : 'Open episode'}</button>)}
@@ -161,7 +165,7 @@ export function Projects() {
         {!project && <section className="panel">
           <h2>Your projects</h2>
           {projects.length === 0 && <p>Your saved cartoon projects will appear here.</p>}
-          {projects.map(item => <button className="project-row" disabled={busy} key={item.id} onClick={() => void run(async () => {
+          {projects.map(item => <button className="btn secondary project-row" disabled={busy} key={item.id} onClick={() => void run(async () => {
             open(await getProject(item.id));
           })}>{item.name} · {item.episodes.length} episodes</button>)}
         </section>}

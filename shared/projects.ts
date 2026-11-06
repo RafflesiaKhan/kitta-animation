@@ -45,6 +45,7 @@ export interface Project {
   name: string;
   premise: string;
   style: ProjectStyle;
+  createdAt?: string;
   assets: ProjectAsset[];
   episodes: Episode[];
 }

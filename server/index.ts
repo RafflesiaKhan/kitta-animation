@@ -18,7 +18,7 @@ import { imageProviders } from './images';
 import type { Line, ScriptLineInput } from '../shared/types';
 import { runRhubarb, rhubarbAvailable } from './rhubarb';
 import { renderVideo } from './render';
-import { loadScene } from './scene';
+import { loadScene, MissingSceneCharacterError } from './scene';
 import { projectRoutes } from './projects';
 import { validateExport, validScriptLine } from './validate';
 import { CharacterError, createCharacter, deleteCharacter, generatePose, getCharacter, imageDataUris, imagePath, listCharacters, measureMouths } from './characters';
@@ -372,6 +372,7 @@ export function createApp() {
   });
 
   app.use((err: { type?: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    if (err instanceof MissingSceneCharacterError) return res.status(409).json({ error: err.message });
     console.error('request error', err);
     if (err?.type?.startsWith('entity.')) return res.status(400).json({ error: 'Invalid request' });
     res.status(500).json({ error: 'Something went wrong' });
