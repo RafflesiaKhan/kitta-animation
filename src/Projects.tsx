@@ -209,9 +209,9 @@ function EpisodeSceneForm({ project, scene, busy, onSave }: {
       <label className="field">Gesture <select name="gesture" defaultValue={scene?.gesture}>{GESTURES.map(item => <option key={item}>{item}</option>)}</select></label>
       <label className="field">Horizontal position <input name="x" type="number" min="0" max="1" step="0.01" required defaultValue={scene?.x ?? 0.5} /></label>
       <label className="field">Scale <input name="scale" type="number" min="0.1" max="2" step="0.01" required defaultValue={scene?.scale ?? 0.8} /></label>
-      <label className="field">Stage ground position <input name="groundY" type="number" min="0" max="1" step="0.01" required defaultValue={scene?.groundY ?? 0.85} /></label>
+      <label className="field">Stage ground position <input name="groundY" type="number" min="0" max="1" step="0.01" required defaultValue={scene?.groundY ?? 1} /></label>
     </fieldset>
-    <p className="hint">Positions use 0–1 across the stage. The character's ground anchor sits at the stage ground position.</p>
+    <p className="hint">Positions use 0–1 across the stage. The character's ground anchor meets the selected stage position. Ground values below 1 can show where the body ends.</p>
     <button className="btn" disabled={busy}>Save scene</button>
   </form>;
 }

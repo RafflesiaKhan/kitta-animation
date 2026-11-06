@@ -75,3 +75,15 @@ it.each(['svg', 'ai'] as const)('offers only matching character choices in a %s 
   }
   expect(screen.queryByRole('button', { name: 'Create with AI' })).toBeNull();
 });
+
+it('defaults a new scene ground to the stage bottom', async () => {
+  const project = { id: 'p', name: 'Ground test', premise: '', style: 'svg', assets: [{ id: 'a', name: 'Set', kind: 'svg' }],
+    characters: [{ id: 'c', name: 'Kit' }], episodes: [{ id: 'e', title: 'Wide' }] };
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({ ok: true, json: async () => [project] })
+    .mockResolvedValueOnce({ ok: true, json: async () => project }));
+  render(<Projects />);
+  fireEvent.click(await screen.findByRole('button', { name: /Ground test/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Episodes' }));
+  fireEvent.click(await screen.findByRole('button', { name: /Wide.*Open episode/ }));
+  expect((screen.getByLabelText('Stage ground position') as HTMLInputElement).value).toBe('1');
+});

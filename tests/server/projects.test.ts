@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { STARTERS } from '../../shared/character/starters';
 import type { Scene } from '../../shared/scene';
 import express from 'express';
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import request from 'supertest';
@@ -29,14 +29,12 @@ it('keeps imported media and episodes isolated and reloadable', async () => {
     for (const [filename, contentType] of [["tests/fixtures/magenta-robot.png", "image/png"], ["samples/first-scene/set.svg", "image/svg+xml"], ["tests/fixtures/hello.wav", "audio/wav"]]) {
       await first.post(path + "/assets").attach("media", filename, { contentType }).expect(201);
     }
-    const characterId = '11d2def4-2c05-4eec-bd4e-724484b7e982';
-    await first.post(path + '/assets').send({ characterId }).expect(201);
-    await first.post(path + '/assets').send({ characterId }).expect(200);
     const { body: episode } = await first.post(path + '/episodes').send({ title: 'The Last Mango' }).expect(201);
 
     const reopened = request(app());
     const { body: saved } = await reopened.get(path).expect(200);
-    expect(saved.assets.map((asset: { kind: string }) => asset.kind)).toEqual(['image', 'svg', 'audio', 'character']);
+    await reopened.post(path + '/assets').send({ characterId: randomUUID() }).expect(400);
+    expect(saved.assets.map((asset: { kind: string }) => asset.kind)).toEqual(['image', 'svg', 'audio']);
     const files = ['tests/fixtures/magenta-robot.png', 'samples/first-scene/set.svg', 'tests/fixtures/hello.wav'];
     for (const [index, file] of files.entries()) {
       const asset = saved.assets[index];
@@ -62,7 +60,8 @@ it('contains traversal requests and preserves legacy project records', async () 
   const outside = join(base, 'outside');
   const id = '11d2def4-2c05-4eec-bd4e-724484b7e982';
   const episode = { id: 'old', title: 'Draft episode', scene: { sample: { videoUrl: '/api/exports/old.mp4' } } };
-  const draft = JSON.stringify({ id, name: 'Draft', premise: '', assets: [], episodes: [episode] });
+  const legacyCharacter = { id: randomUUID(), name: 'Draft cast', kind: 'character', characterId: randomUUID(), provenance: 'saved-character' };
+  const draft = JSON.stringify({ id, name: 'Draft', premise: '', assets: [legacyCharacter], episodes: [episode] });
   const record = join(root, id, 'project.json');
   const client = request(express().use(express.json()).use('/projects', projectRoutes(root)));
   const path = '/projects/' + id;
@@ -77,7 +76,10 @@ it('contains traversal requests and preserves legacy project records', async () 
       expect(body.map((project: { id: string }) => project.id)).toEqual([id]);
     });
     await writeFile(join(outside, 'project.json'), '{}');
-    await client.get(path).expect(200).expect(({ body }) => expect(body.style).toBe('svg'));
+    await client.get(path).expect(200).expect(({ body }) => {
+      expect(body.style).toBe('svg');
+      expect(body.assets).toEqual([legacyCharacter]);
+    });
     expect(await readFile(record, 'utf8')).toBe(draft);
     await client.post('/projects').send({ name: 'Invalid', style: 'mixed' }).expect(400);
     await client.get('/projects/%2e%2e%2foutside').expect(404);
@@ -85,7 +87,7 @@ it('contains traversal requests and preserves legacy project records', async () 
     await client.get(path + '/assets/%2e%2e%2f%2e%2e%2foutside%2fproject.json').expect(404);
     const form = '--fixture\r\nContent-Disposition: form-data; name="media"; filename="../../outside/escaped.svg"\r\nContent-Type: image/svg+xml\r\n\r\n<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>\r\n--fixture--\r\n';
     const { body } = await client.post(path + '/assets').set('Content-Type', 'multipart/form-data; boundary=fixture').send(form).expect(201);
-    const asset = body.assets[0];
+    const asset = body.assets.at(-1);
     expect(asset).toMatchObject({ name: 'escaped.svg', location: 'media/' + asset.id });
     await client.get(path + '/assets/' + asset.id).expect('Content-Security-Policy', "sandbox; default-src 'none'")
       .expect('X-Content-Type-Options', 'nosniff').expect('Content-Disposition', /attachment/).expect(200);
@@ -264,6 +266,10 @@ it('reuses a project character and safe set without sharing episode performance'
     const scenePath = (id: string) => path + '/episodes/' + id + '/scene';
     const shot = { characterId: saved.id, backgroundAssetId, expression: 'neutral', gesture: 'wave', x: 0.5, scale: 0.7, groundY: 0.8 };
     await client.put(scenePath(a.id)).send(shot).expect(200);
+    const media = join(root, project.id, 'media');
+    const cache = (await readdir(media)).find(name => name.startsWith(backgroundAssetId + '.') && name.endsWith('.png'));
+    expect(cache).toBeDefined();
+    const before = await stat(join(media, cache!));
     await client.put(scenePath(b.id)).send(shot).expect(200);
     await client.put(scenePath(b.id)).send({ ...shot, expression: 'happy' }).expect(200);
     await client.put(scenePath(b.id)).send({ ...shot, characterId: ai.characters[0].id }).expect(400);
@@ -276,6 +282,7 @@ it('reuses a project character and safe set without sharing episode performance'
     expect(first.scene.background).toMatch(/^data:image\/png;base64,/);
     expect(second.scene.background).toBe(first.scene.background);
     await client.post(path + '/episodes/' + b.id + '/render').expect('Content-Type', /video\/mp4/).expect(200);
+    expect((await stat(join(media, cache!))).mtimeMs).toBe(before.mtimeMs);
     const aiPath = '/projects/' + painted.id;
     const { body: aiSet } = await client.post(aiPath + '/assets').attach('media', Buffer.from('<svg width="32" height="24"/>'),
       { filename: 'set.svg', contentType: 'image/svg+xml' }).expect(201);
@@ -296,7 +303,17 @@ it('reuses a project character and safe set without sharing episode performance'
     await reopened.get(scenePath(a.id)).expect(409);
     await reopened.post(path + '/episodes/' + a.id + '/render').expect(409);
     await reopened.put(scenePath(b.id)).send(shot).expect(409);
+    const circles = '<circle cx="1024" cy="1024" r="1000" stroke="black" fill="none" stroke-width="200" stroke-dasharray="0.1"/>'.repeat(200);
+    await writeFile(join(media, backgroundAssetId), '<svg width="2048" height="2048">' + circles + '</svg>');
+    let finished = false;
+    const heavy = reopened.get(scenePath(a.id)).then(response => { finished = true; return response; });
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const started = performance.now();
+    await reopened.get('/projects').expect(200);
+    expect(finished).toBe(false);
+    expect(performance.now() - started).toBeLessThan(1500);
+    expect(await heavy).toMatchObject({ status: 409, body: { error: expect.stringMatching(/time limit/i) } });
   } finally {
     await rm(root, { recursive: true, force: true });
   }
-}, 15_000);
+}, 25_000);

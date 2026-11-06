@@ -4,13 +4,13 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
-import type { Episode, EpisodeScene, EpisodeSceneInput, MediaAsset, Project, ProjectAsset, ProjectCharacterInput, ProjectScene } from '../shared/projects';
+import type { Episode, EpisodeScene, EpisodeSceneInput, MediaAsset, Project, ProjectCharacterInput, ProjectScene } from '../shared/projects';
 import type { Scene } from '../shared/scene';
 import { EXPRESSIONS, GESTURES, isArt, type CharacterConfig } from '../shared/types';
 import { OPTIONS, STARTERS } from '../shared/character/starters';
 import { TTS_PROVIDERS } from '../shared/voices';
 import { addAction } from '../shared/marks';
-import { prepareSet, SetError } from './sets';
+import { preparedSet, SetError } from './sets';
 import { AUDIO_DIR } from './audio';
 import { renderScene } from './render';
 import { hydrateScene, loadScene, captureScene, snapshotScene, MissingSceneCharacterError } from './scene';
@@ -200,35 +200,22 @@ export function projectRoutes(root = resolve('data/projects'), {
   router.post('/:id/assets', (req, res, next) => {
     if (!read(req.params.id)) return res.status(404).json({ error: 'Project not found.' });
     next();
-  }, upload.single('media'), async (req, res) => {
-    let project = read(req.params.id);
+  }, upload.single('media'), (req, res) => {
+    const project = read(req.params.id);
     if (!project) return res.status(404).json({ error: 'Project not found.' });
-    let asset: ProjectAsset;
-    let mediaPath: string | undefined;
-    if (req.file) {
-      const mime = req.file.mimetype === 'audio/x-m4a' ? 'audio/mp4' : req.file.mimetype;
-      const kind = Object.hasOwn(mediaTypes, mime) ? mediaTypes[mime] : undefined;
-      if (!kind || !matchesMedia(mime, req.file.buffer)) return res.status(400).json({ error: 'Choose a supported image, SVG or audio file.' });
-      const id = randomUUID();
-      const name = clean(basename(req.file.originalname.replaceAll('\\', '/')), 140) || 'Imported media';
-      asset = { id, name, kind, mime, location: 'media/' + id, provenance: 'imported' };
-      mediaPath = writeMedia(project, asset, req.file.buffer);
-    } else {
-      if (project.style !== 'ai') return res.status(400).json({ error: 'Saved AI characters require an AI project.' });
-      const characterId = req.body?.characterId;
-      if (typeof characterId !== 'string' || !uuid.test(characterId)) return res.status(400).json({ error: 'Select a saved character.' });
-      let character;
-      try { character = await getCharacter(characterId); }
-      catch { return res.status(404).json({ error: 'Character not found.' }); }
-      project = read(req.params.id);
-      if (!project) return res.status(404).json({ error: 'Project not found.' });
-      if (project.assets.some(item => item.kind === 'character' && item.characterId === characterId)) return res.json(project);
-      asset = { id: randomUUID(), name: character.name, kind: 'character', characterId, provenance: 'saved-character' };
-    }
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'Choose a supported image, SVG or audio file.' });
+    const mime = file.mimetype === 'audio/x-m4a' ? 'audio/mp4' : file.mimetype;
+    const kind = Object.hasOwn(mediaTypes, mime) ? mediaTypes[mime] : undefined;
+    if (!kind || !matchesMedia(mime, file.buffer)) return res.status(400).json({ error: 'Choose a supported image, SVG or audio file.' });
+    const id = randomUUID();
+    const name = clean(basename(file.originalname.replaceAll('\\', '/')), 140) || 'Imported media';
+    const asset: MediaAsset = { id, name, kind, mime, location: 'media/' + id, provenance: 'imported' };
+    const mediaPath = writeMedia(project, asset, file.buffer);
     project.assets.push(asset);
     try { save(project); }
     catch (error) {
-      if (mediaPath) rmSync(mediaPath, { force: true });
+      rmSync(mediaPath, { force: true });
       throw error;
     }
     res.status(201).json(project);
@@ -287,10 +274,7 @@ export function projectRoutes(root = resolve('data/projects'), {
     const path = assetPath(project, asset);
     if (path) return { asset, path };
   };
-  const setImage = ({ asset, path }: NonNullable<ReturnType<typeof backgroundFor>>) => {
-    if ((lstatSync(path, { throwIfNoEntry: false })?.size ?? 0) > 16 * 1024 * 1024) throw new SetError('Set images must be 16 MB or smaller.');
-    return prepareSet(asset.mime, readFileSync(path));
-  };
+  const setImage = ({ asset, path }: NonNullable<ReturnType<typeof backgroundFor>>) => preparedSet(asset.mime, path);
   const readProjectScene = async (project: Project, episode: Episode) => {
     const record = episode.projectScene;
     if (!record) return;
@@ -303,7 +287,7 @@ export function projectRoutes(root = resolve('data/projects'), {
       const durationMs = 1500;
       const baseMarks = { expressions: [{ startMs: 0, expression }], actions: [] };
       const marks = gesture === 'none' ? baseMarks : addAction(baseMarks, 0, gesture, durationMs) ?? baseMarks;
-      const scene = await hydrateScene({ title: episode.title, durationMs, audioId: '', background: setImage(set),
+      const scene = await hydrateScene({ title: episode.title, durationMs, audioId: '', background: await setImage(set),
         actors: [{ id: cast.id, character: cast.character, anchorY: cast.anchorY, x, scale, groundY, idleOffsetMs: 0,
           timeline: { durationMs, cues: [], lines: [], marks } }],
         shots: [{ startMs: 0, name: 'wide', zoom: 1, focusX: .5, focusY: .5 }],
@@ -316,7 +300,7 @@ export function projectRoutes(root = resolve('data/projects'), {
     const { title, durationMs, actors, shots } = record;
     // Preserve the trusted bundled sample's exact drawing path for older exports.
     const background = set.asset.provenance === 'first-scene'
-      ? 'data:' + set.asset.mime + ';base64,' + readFileSync(set.path).toString('base64') : setImage(set);
+      ? 'data:' + set.asset.mime + ';base64,' + readFileSync(set.path).toString('base64') : await setImage(set);
     const scene = await hydrateScene({ title, durationMs, actors, shots, audioId: audio.id, background });
     return { scene, audioPath, audioUrl: '/api/projects/' + project.id + '/assets/' + audio.id };
   };
@@ -328,25 +312,27 @@ export function projectRoutes(root = resolve('data/projects'), {
     const input = episodeSceneInput(req.body);
     const cast = input && project.characters?.find(item => item.id === input.characterId);
     if (!input || !cast) return res.status(400).json({ error: 'Choose a project character and valid performance and placement settings.' });
+    if (episode.projectScene && !('characterId' in episode.projectScene)) return res.status(409).json({ error: 'Use a new episode for a character and set scene.' });
+    const set = backgroundFor(project, input.backgroundAssetId);
+    if (!set) return res.status(400).json({ error: 'Choose an image or SVG from this project.' });
+    await setImage(set);
     if ('artId' in cast.character) {
-      const { artId } = cast.character;
-      const art = await getCharacter(artId).catch(error => {
+      const art = await getCharacter(cast.character.artId).catch(error => {
         if (error instanceof CharacterError && error.code === 'not_found') throw new MissingSceneCharacterError();
         throw error;
       });
       if (!art.images.neutral) return res.status(409).json({ error: 'The saved AI character has no neutral pose.' });
-      project = read(req.params.id);
-      episode = episodeFor(project, req.params.episodeId);
-      if (!project || !episode) return res.status(404).json({ error: 'Episode not found.' });
-      const current = project.characters?.find(item => item.id === input.characterId);
-      if (!current || !('artId' in current.character) || current.character.artId !== artId) {
-        return res.status(409).json({ error: 'The project character changed. Reopen the episode and try again.' });
-      }
+    }
+    project = read(req.params.id);
+    episode = episodeFor(project, req.params.episodeId);
+    if (!project || !episode) return res.status(404).json({ error: 'Episode not found.' });
+    const latestCast = project.characters?.find(item => item.id === input.characterId);
+    const latestSet = backgroundFor(project, input.backgroundAssetId);
+    if (!latestCast || JSON.stringify(latestCast.character) !== JSON.stringify(cast.character)
+      || latestSet?.path !== set.path || latestSet.asset.mime !== set.asset.mime) {
+      return res.status(409).json({ error: 'The character or set changed. Reopen the episode and try again.' });
     }
     if (episode.projectScene && !('characterId' in episode.projectScene)) return res.status(409).json({ error: 'Use a new episode for a character and set scene.' });
-    const set = backgroundFor(project, input.backgroundAssetId);
-    if (!set) return res.status(400).json({ error: 'Choose an image or SVG from this project.' });
-    setImage(set);
     const record: EpisodeScene = { ...input, id: episode.projectScene?.id ?? randomUUID() };
     episode.projectScene = record;
     save(project);

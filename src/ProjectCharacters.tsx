@@ -43,7 +43,7 @@ export function ProjectCharacters({ project, library, busy, onSave }: {
           <label className="field">Character name <input name="name" required maxLength={100} defaultValue={selected?.name} /></label>
           <label className="field">Character ground anchor <input type="number" name="anchorY" min="0" max="1" step="0.01" required defaultValue={selected?.anchorY ?? 1} /></label>
         </div>
-        <p className="hint">Anchor within the character box, from 0 at the top to 1 at the bottom. Set where it meets the stage in each episode.</p>
+        <p className="hint">0 is the top of the character box and 1 is its bottom. SVG artwork can extend beyond that box. Set where the anchor meets the stage in each episode.</p>
         <h3>Default voice</h3>
         <div className="fields">
           <label className="field">Provider <select name="provider" defaultValue={selected?.voice.provider ?? 'voicestudio'}>{TTS_PROVIDERS.map(value => <option key={value} value={value}>{TTS_PROVIDER_NAMES[value]}</option>)}</select></label>
