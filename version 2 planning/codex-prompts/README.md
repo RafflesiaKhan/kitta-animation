@@ -6,6 +6,7 @@ Give Codex one prompt at a time, in this order. After each one, ask Claude to re
 |---|---|---|
 | 1 | [00-save-draft-and-sync.md](00-save-draft-and-sync.md) | Saves the uncommitted draft in the other checkout and syncs to the branch. Run this first, once. |
 | 2 | [step-2-projects-and-storage.md](step-2-projects-and-storage.md) | Projects, episodes, and storage. |
+| 2a | [step-2-fixes.md](step-2-fixes.md) | Fixes from Claude's review of step 2. |
 | 3 | [step-3-characters-and-sets.md](step-3-characters-and-sets.md) | Reusable characters and backgrounds. |
 | 4 | [step-4-scripts-and-voices.md](step-4-scripts-and-voices.md) | Episode scripts, narration or dialogue, and voices. |
 | 5 | [step-5a-scene-code-proposal.md](step-5a-scene-code-proposal.md) | A written proposal for how Kitta writes scene code. No code. |
