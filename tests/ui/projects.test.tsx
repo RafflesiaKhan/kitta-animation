@@ -56,3 +56,22 @@ it('creates and reopens a project, imports media, and opens its saved episode', 
   await screen.findByText(scene.title);
   expect(reopened.container.querySelector('audio')?.getAttribute('src')).toBe('/api/projects/p/assets/audio');
 });
+
+it.each(['svg', 'ai'] as const)('offers only matching character choices in a %s project', async style => {
+  const project = { id: 'p', name: 'Cast test', premise: '', style, assets: [], episodes: [] };
+  const fetch = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => [project] })
+    .mockResolvedValueOnce({ ok: true, json: async () => project })
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ characters: [{ id: 'art', name: 'Max', kind: 'art', images: {} }] }) });
+  vi.stubGlobal('fetch', fetch);
+  render(<Projects />);
+  fireEvent.click(await screen.findByRole('button', { name: /Cast test/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Characters' }));
+  if (style === 'svg') {
+    expect(screen.getByRole('button', { name: 'Kit' })).toBeTruthy();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  } else {
+    expect(await screen.findByRole('button', { name: 'Max' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Kit' })).toBeNull();
+  }
+  expect(screen.queryByRole('button', { name: 'Create with AI' })).toBeNull();
+});

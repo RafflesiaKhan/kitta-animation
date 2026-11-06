@@ -1,4 +1,4 @@
-import type { Episode, Project, ProjectScene, ProjectScenePreview, ProjectStyle } from '../shared/projects';
+import type { Episode, EpisodeSceneInput, Project, ProjectCharacterInput, ProjectScene, ProjectScenePreview, ProjectStyle } from '../shared/projects';
 import type { TtsProvider, VoiceStudioInfo } from '../shared/voices';
 import type { UsageReport } from '../shared/usage';
 import type { Scene } from '../shared/scene';
@@ -203,10 +203,14 @@ export const listProjects = () => getJson<Project[]>(projectsUrl);
 export const getProject = (id: string) => getJson<Project>(projectUrl(id));
 export const createProject = (body: { name: string; premise: string; style: ProjectStyle }) => post<Project>(projectsUrl, projectJson(body));
 export const importProjectAsset = (id: string, body: FormData) => post<Project>(projectUrl(id) + '/assets', { body });
-export const addProjectCharacter = (id: string, characterId: string) => post<Project>(projectUrl(id) + '/assets', projectJson({ characterId }));
 export const createEpisode = (id: string, title: string) => post<Episode>(projectUrl(id) + '/episodes', projectJson({ title }));
 export const saveFirstScene = (projectId: string, id: string) => post<ProjectScene>(episodeUrl(projectId, id) + '/sample', {});
 export const getEpisodeScene = (projectId: string, id: string) => getJson<ProjectScenePreview>(episodeUrl(projectId, id) + '/scene');
+
+export const saveProjectCharacter = (id: string, character: ProjectCharacterInput, characterId?: string) =>
+  post<Project>(projectUrl(id) + '/characters' + (characterId ? '/' + characterId : ''), { ...projectJson(character), method: characterId ? 'PATCH' : 'POST' });
+export const saveEpisodeScene = (projectId: string, episodeId: string, input: EpisodeSceneInput) =>
+  post<Episode>(episodeUrl(projectId, episodeId) + '/scene', { ...projectJson(input), method: 'PUT' });
 
 export async function renderEpisodeScene(projectId: string, id: string): Promise<Blob> {
   let response: Response;

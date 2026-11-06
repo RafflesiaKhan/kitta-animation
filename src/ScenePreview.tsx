@@ -22,6 +22,7 @@ export function ScenePlayer({ scene, audioUrl }: { scene: Scene; audioUrl: strin
   const audioRef = useRef<HTMLAudioElement>(null);
   const [ms, setMs] = useState(0);
   useEffect(() => {
+    if (!audioUrl) return;
     let raf = 0;
     const tick = () => {
       setMs((audioRef.current?.currentTime ?? 0) * 1000);
@@ -29,13 +30,16 @@ export function ScenePlayer({ scene, audioUrl }: { scene: Scene; audioUrl: strin
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [scene]);
+  }, [scene, audioUrl]);
 
   return (
     <div className="preview">
       <div className="preview-head"><span>{scene.title}</span><span className="ready">{cameraAt(scene, ms).name}</span></div>
       <SceneView scene={scene} ms={ms} width={960} height={540} />
-      {audioUrl && <audio ref={audioRef} src={audioUrl} controls />}
+      {audioUrl ? <audio ref={audioRef} src={audioUrl} controls /> : <label className="scene-scrub">
+        Scene time <input type="range" min={0} max={scene.durationMs - 1} value={ms}
+          onChange={event => setMs(Number(event.target.value))} />
+      </label>}
     </div>
   );
 }

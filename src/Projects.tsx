@@ -1,8 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import type { Episode, Project, ProjectScenePreview, ProjectStyle } from '../shared/projects';
+import type { Episode, EpisodeScene, EpisodeSceneInput, Project, ProjectScenePreview, ProjectStyle } from '../shared/projects';
+import { EXPRESSIONS, GESTURES, type ArtCharacter } from '../shared/types';
+import { ProjectCharacters } from './ProjectCharacters';
 import { ScenePlayer } from './ScenePreview';
-import { addProjectCharacter, createEpisode, createProject, getEpisodeScene, getProject, importProjectAsset,
-  listProjectCharacters, listProjects, renderEpisodeScene, saveFirstScene } from './api';
+import { createEpisode, createProject, getEpisodeScene, getProject, importProjectAsset,
+  listProjectCharacters, listProjects, renderEpisodeScene, saveEpisodeScene, saveFirstScene, saveProjectCharacter } from './api';
 
 export function Projects() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -11,14 +13,14 @@ export function Projects() {
   const [preview, setPreview] = useState<ProjectScenePreview>();
   const [video, setVideo] = useState<string>();
   const [tab, setTab] = useState('Overview');
-  const [characters, setCharacters] = useState<{ id: string; name: string }[]>([]);
+  const [characters, setCharacters] = useState<ArtCharacter[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  async function run(action: () => Promise<void>) {
+  async function run<T>(action: () => Promise<T>): Promise<T | undefined> {
     setError('');
     setBusy(true);
-    try { await action(); }
+    try { return await action(); }
     catch (error) { setError(error instanceof Error ? error.message : 'Something went wrong.'); }
     finally { setBusy(false); }
   }
@@ -37,8 +39,8 @@ export function Projects() {
     setTab('Overview');
   }
 
-  function showAssets() {
-    setTab('Assets');
+  function showCharacters() {
+    setTab('Characters');
     if (project?.style === 'ai') void run(async () => setCharacters(await listProjectCharacters()));
   }
 
@@ -51,6 +53,14 @@ export function Projects() {
   if (project && episode) {
     const projectId = project.id;
     const episodeId = episode.id;
+    const scene = episode.projectScene;
+    const edited = scene && 'characterId' in scene ? scene : undefined;
+    function remember(saved: Episode) {
+      setEpisode(saved);
+      setProject(current => current && {
+        ...current, episodes: current.episodes.map(item => item.id === episodeId ? saved : item),
+      });
+    }
     return <div className="app">
       <header>
         <button className="pill" disabled={busy} onClick={() => {
@@ -64,6 +74,14 @@ export function Projects() {
         <h2>{episode.title}</h2>
         {error && <p className="error" role="alert">{error}</p>}
         {busy && <p role="status">Working…</p>}
+        {(!scene || edited) && <EpisodeSceneForm key={episodeId} project={project} scene={edited} busy={busy}
+          onSave={input => void run(async () => {
+            const saved = await saveEpisodeScene(projectId, episodeId, input);
+            remember(saved);
+            setVideo(undefined);
+            setPreview(undefined);
+            setPreview(await getEpisodeScene(projectId, episodeId));
+          })} />}
         {preview && <ScenePlayer scene={preview.scene} audioUrl={preview.audioUrl} />}
         {episode.projectScene ? <>
           {!preview && <button className="btn secondary" disabled={busy} onClick={() => void run(async () => {
@@ -75,13 +93,10 @@ export function Projects() {
           {video && <a className="btn secondary" href={video} download="scene.mp4">Download MP4</a>}
         </> : project.style === 'svg' ? <button className="btn" disabled={busy} onClick={() => void run(async () => {
           const saved = { ...episode, projectScene: await saveFirstScene(projectId, episodeId) };
-          setEpisode(saved);
-          setProject(current => current && {
-            ...current, episodes: current.episodes.map(item => item.id === episodeId ? saved : item),
-          });
+          remember(saved);
           setProject(await getProject(projectId));
           setPreview(await getEpisodeScene(projectId, episodeId));
-        })}>Save first scene</button> : <p>This episode has no saved scene. The first-scene sample uses SVG characters.</p>}
+        })}>Save first scene</button> : null}
       </section></main>
     </div>;
   }
@@ -114,16 +129,22 @@ export function Projects() {
             <p>Visual style {project.style === 'svg' ? 'SVG' : 'AI'}</p>
             {project.premise && <p>{project.premise}</p>}
             <nav className="project-tabs" aria-label="Project workspace">
-              {['Overview', 'Assets', 'Episodes'].map(item => <button className={tab === item ? 'btn' : 'btn secondary'} key={item} disabled={busy}
-                aria-pressed={tab === item} onClick={() => item === 'Assets' ? showAssets() : setTab(item)}>{item}</button>)}
+              {['Overview', 'Characters', 'Assets', 'Episodes'].map(item => <button className={tab === item ? 'btn' : 'btn secondary'} key={item} disabled={busy}
+                aria-pressed={tab === item} onClick={() => item === 'Characters' ? showCharacters() : setTab(item)}>{item}</button>)}
             </nav>
             {tab === 'Overview' && <>
               <h3>Start with your cast</h3>
               <p>{project.style === 'svg'
-                ? 'Use Character Studio to work with SVG characters.'
-                : 'Add a saved AI character from Assets, or create one in Character Studio.'}</p>
-              <button className="btn secondary" disabled={busy} onClick={showAssets}>Open asset library</button>
+                ? 'Customize a reusable SVG starter in Characters.'
+                : 'Use an existing painted character from the saved library in Characters.'}</p>
+              <button className="btn secondary" disabled={busy} onClick={showCharacters}>Open character editor</button>
             </>}
+            {tab === 'Characters' && <ProjectCharacters project={project} library={characters} busy={busy}
+              onSave={(input, id) => run(async () => {
+                const saved = await saveProjectCharacter(project.id, input, id);
+                setProject(saved);
+                return saved;
+              })} />}
             {tab === 'Assets' && <>
               <h3>Project assets</h3>
               <form className="project-form" onSubmit={event => submit(event, async data => {
@@ -132,18 +153,10 @@ export function Projects() {
                 <label className="field">Image, SVG or audio <input type="file" name="media" accept="image/png,image/jpeg,image/webp,image/svg+xml,audio/wav,audio/x-wav,audio/mpeg,audio/mp4,audio/x-m4a,audio/ogg" required /></label>
                 <button className="btn" disabled={busy}>Import media</button>
               </form>
-              {project.style === 'ai' && !busy && !error && characters.length === 0 &&
-                <p className="hint">Create an AI character in Character Studio to add it here.</p>}
-              {project.style === 'ai' && characters.length > 0 && <form className="project-form" onSubmit={event => submit(event, async data => {
-                setProject(await addProjectCharacter(project.id, String(data.get('characterId'))));
-              })}>
-                <label className="field">Saved AI character <select name="characterId">{characters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-                <button className="btn" disabled={busy}>Add character to project</button>
-              </form>}
               {project.assets.length === 0 && <p>This project has no assets yet.</p>}
-              <ul>{project.assets.map(asset => <li key={asset.id}>
-                {asset.kind !== 'character' ? <a className="btn secondary" href={'/api/projects/' + project.id + '/assets/' + asset.id} download={asset.name}>{asset.name}</a> : asset.name}
-                {' · ' + asset.kind}
+              <ul className="project-assets">{project.assets.map(asset => <li key={asset.id}>
+                {asset.kind !== 'character' ? <a href={'/api/projects/' + project.id + '/assets/' + asset.id} download={asset.name}>{asset.name}</a> : asset.name}
+                <span>{asset.kind}</span>
               </li>)}</ul>
             </>}
             {tab === 'Episodes' && <>
@@ -172,4 +185,33 @@ export function Projects() {
       </main>
     </div>
   );
+}
+
+function EpisodeSceneForm({ project, scene, busy, onSave }: {
+  project: Project; scene?: EpisodeScene; busy: boolean; onSave: (input: EpisodeSceneInput) => void;
+}) {
+  const sets = project.assets.filter(asset => asset.kind === 'image' || asset.kind === 'svg');
+  if (!project.characters?.length || !sets.length) {
+    return <p className="hint">Save a project character and import a background in Assets to set up a scene.</p>;
+  }
+  return <form className="project-form" onSubmit={event => {
+    event.preventDefault();
+    if (busy) return;
+    const data = new FormData(event.currentTarget);
+    onSave({ characterId: String(data.get('characterId')), backgroundAssetId: String(data.get('backgroundAssetId')),
+      expression: data.get('expression') as EpisodeSceneInput['expression'], gesture: data.get('gesture') as EpisodeSceneInput['gesture'],
+      x: Number(data.get('x')), scale: Number(data.get('scale')), groundY: Number(data.get('groundY')) });
+  }}>
+    <div className="fields">
+      <label className="field">Scene character <select name="characterId" defaultValue={scene?.characterId}>{project.characters.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label className="field">Scene set <select name="backgroundAssetId" defaultValue={scene?.backgroundAssetId}>{sets.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label className="field">Expression <select name="expression" defaultValue={scene?.expression}>{EXPRESSIONS.map(item => <option key={item}>{item}</option>)}</select></label>
+      <label className="field">Gesture <select name="gesture" defaultValue={scene?.gesture}>{GESTURES.map(item => <option key={item}>{item}</option>)}</select></label>
+      <label className="field">Horizontal position <input name="x" type="number" min="0" max="1" step="0.01" required defaultValue={scene?.x ?? 0.5} /></label>
+      <label className="field">Scale <input name="scale" type="number" min="0.1" max="2" step="0.01" required defaultValue={scene?.scale ?? 0.8} /></label>
+      <label className="field">Stage ground position <input name="groundY" type="number" min="0" max="1" step="0.01" required defaultValue={scene?.groundY ?? 0.85} /></label>
+    </div>
+    <p className="hint">Positions use 0–1 across the stage. The character's ground anchor sits at the stage ground position.</p>
+    <button className="btn" disabled={busy}>Save scene</button>
+  </form>;
 }

@@ -1,27 +1,30 @@
 import { useEffect, useState } from 'react';
-import { ART_ACTIONS, EXPRESSIONS, isArt } from '../../shared/types';
+import { ART_ACTIONS, EXPRESSIONS, GESTURES, isArt } from '../../shared/types';
 import type { AnyCharacter, ArtCharacter, ArtPose, CharacterConfig, FrameState, ImageProvider, StarterId } from '../../shared/types';
 import { Character } from '../../shared/character/Character';
 import { OPTIONS, STARTERS } from '../../shared/character/starters';
 import { ART_STYLES } from '../../shared/character/art';
 import * as api from '../api';
 import { Icon } from '../Icon';
+import type { ProjectStyle } from '../../shared/projects';
+import { Tile } from './AnimateStep';
 
 const REST: FrameState = { expression: 'neutral', mouth: 'X', gesture: 'none', gestureProgress: 0, blink: false, bob: 0 };
 const NEEDS_KEY = 'Needs GEMINI_API_KEY or OPENAI_API_KEY';
 const PROVIDER_NAMES: Record<ImageProvider, string> = { gemini: 'Gemini', openai: 'OpenAI' };
 
 interface Props {
-  character: AnyCharacter;
+  character?: AnyCharacter;
+  projectStyle?: ProjectStyle;
   onChange: (c: AnyCharacter) => void;
   library: ArtCharacter[];
-  imageProviders: ImageProvider[]; // image providers with a key on the server
-  busy: boolean;
-  error: string | null;
-  onCreate: (input: api.CreateCharacterInput) => void;
-  onDraw: (id: string, poses: ArtPose[]) => void;
-  onFindMouths: (id: string) => void;
-  onDelete: (id: string) => void;
+  imageProviders?: ImageProvider[]; // image providers with a key on the server
+  busy?: boolean;
+  error?: string | null;
+  onCreate?: (input: api.CreateCharacterInput) => void;
+  onDraw?: (id: string, poses: ArtPose[]) => void;
+  onFindMouths?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
 const imgUrl = (c: ArtCharacter, pose: ArtPose) => {
@@ -29,54 +32,60 @@ const imgUrl = (c: ArtCharacter, pose: ArtPose) => {
   return im ? `/api/characters/${c.id}/${im.file}` : null;
 };
 
-export function CharacterStep({ character, onChange, library, imageProviders, busy, error, onCreate, onDraw, onFindMouths, onDelete }: Props) {
+export function CharacterStep({ character, onChange, library, projectStyle, imageProviders = [], busy = false, error = null, onCreate, onDraw, onFindMouths, onDelete }: Props) {
   const [creating, setCreating] = useState(false);
   const aiOk = imageProviders.length > 0;
   // A finished creation selects the new character; leave the form then.
-  useEffect(() => { if (isArt(character)) setCreating(false); }, [isArt(character) ? character.id : null]);
+  useEffect(() => { if (character && isArt(character)) setCreating(false); }, [character && isArt(character) ? character.id : null]);
 
   const pickStarter = (id: StarterId) => {
     const { name: _name, ...config } = STARTERS[id];
     setCreating(false);
     onChange(config);
   };
-  const selected = (c: ArtCharacter) => !creating && isArt(character) && character.id === c.id;
+  const selected = (c: ArtCharacter) => !creating && !!character && isArt(character) && character.id === c.id;
   return (
     <div>
-      <p className="eyebrow">Step 1</p>
+      {!projectStyle && <p className="eyebrow">Step 1</p>}
       <h2>Pick a character</h2>
       <div className="tiles">
-        {(Object.keys(STARTERS) as StarterId[]).map((id) => {
-          const on = !creating && !isArt(character) && character.starter === id;
+        {projectStyle !== 'ai' && (Object.keys(STARTERS) as StarterId[]).map((id) => {
+          const on = !creating && !!character && !isArt(character) && character.starter === id;
           return (
-            <button key={id} className={`tile${on ? ' selected' : ''}`} aria-pressed={on} onClick={() => pickStarter(id)}>
+            <button type="button" key={id} className={`tile${on ? ' selected' : ''}`} aria-pressed={on} onClick={() => pickStarter(id)}>
               <Character config={STARTERS[id]} frame={REST} width={84} height={84} />
               <span>{STARTERS[id].name}</span>
             </button>
           );
         })}
-        {library.map((c) => (
-          <button key={c.id} className={`tile${selected(c) ? ' selected' : ''}`} aria-pressed={selected(c)} onClick={() => { setCreating(false); onChange(c); }}>
+        {projectStyle !== 'svg' && library.map((c) => (
+          <button type="button" key={c.id} className={`tile${selected(c) ? ' selected' : ''}`} aria-pressed={selected(c)} onClick={() => { setCreating(false); onChange(c); }}>
             <img src={imgUrl(c, 'neutral') ?? ''} alt="" width={84} height={84} />
             <span>{c.name}</span>
           </button>
         ))}
-        <button className={`tile create${creating ? ' selected' : ''}`} aria-pressed={creating} onClick={() => setCreating(true)}>
+        {!projectStyle && onCreate && <button className={`tile create${creating ? ' selected' : ''}`} aria-pressed={creating} onClick={() => setCreating(true)}>
           <span className="plus"><Icon name="plus" size={22} /></span>
           <span>Create with AI</span>
-        </button>
+        </button>}
       </div>
-      {creating
+      {creating && onCreate
         ? <CreateForm busy={busy} providers={imageProviders} onCreate={onCreate} onCancel={() => setCreating(false)} />
-        : isArt(character)
-          ? <ArtSheet character={character} busy={busy} geminiOk={aiOk} onDraw={onDraw} onFindMouths={onFindMouths} onDelete={onDelete} />
-          : <Customize character={character} onChange={onChange} />}
+        : character && (isArt(character)
+          ? !projectStyle && onDraw && onFindMouths && onDelete && <ArtSheet character={character} busy={busy} geminiOk={aiOk} onDraw={onDraw} onFindMouths={onFindMouths} onDelete={onDelete} />
+          : <Customize character={character} onChange={onChange} showExpressions={!projectStyle} />)}
+      {projectStyle && character && <>
+        <h3>Expressions</h3>
+        <div className="expressions">{EXPRESSIONS.map(value => <Tile key={value} character={character} kind="expression" value={value} />)}</div>
+        <h3>Actions</h3>
+        <div className="expressions">{GESTURES.filter(value => value !== 'none').map(value => <Tile key={value} character={character} kind="action" value={value} />)}</div>
+      </>}
       {error && <p role="alert" className="error">{error}</p>}
     </div>
   );
 }
 
-function CreateForm({ busy, providers, onCreate, onCancel }: { busy: boolean; providers: ImageProvider[]; onCreate: Props['onCreate']; onCancel: () => void }) {
+function CreateForm({ busy, providers, onCreate, onCancel }: { busy: boolean; providers: ImageProvider[]; onCreate: NonNullable<Props['onCreate']>; onCancel: () => void }) {
   const geminiOk = providers.length > 0;
   const [picked, setPicked] = useState<ImageProvider | null>(null);
   const provider = picked && providers.includes(picked) ? picked : providers[0];
@@ -123,7 +132,7 @@ function CreateForm({ busy, providers, onCreate, onCancel }: { busy: boolean; pr
 }
 
 function ArtSheet({ character: c, busy, geminiOk, onDraw, onFindMouths, onDelete }: {
-  character: ArtCharacter; busy: boolean; geminiOk: boolean; onDraw: Props['onDraw']; onFindMouths: Props['onFindMouths']; onDelete: Props['onDelete'];
+  character: ArtCharacter; busy: boolean; geminiOk: boolean; onDraw: NonNullable<Props['onDraw']>; onFindMouths: NonNullable<Props['onFindMouths']>; onDelete: NonNullable<Props['onDelete']>;
 }) {
   const missing = ([...EXPRESSIONS, 'blink', ...ART_ACTIONS] as ArtPose[]).filter((p) => !c.images[p]);
   const noMouth = Object.values(c.images).filter((im) => im && !im.mouth).length;
@@ -170,7 +179,7 @@ function ArtSheet({ character: c, busy, geminiOk, onDraw, onFindMouths, onDelete
   );
 }
 
-function Customize({ character, onChange }: { character: CharacterConfig; onChange: (c: CharacterConfig) => void }) {
+function Customize({ character, onChange, showExpressions }: { character: CharacterConfig; onChange: (c: CharacterConfig) => void; showExpressions: boolean }) {
   const set = (patch: Partial<CharacterConfig>) => onChange({ ...character, ...patch });
   const colour = (label: string, key: 'skin' | 'hairColor' | 'outfitColor') => (
     <label className="field">
@@ -197,6 +206,7 @@ function Customize({ character, onChange }: { character: CharacterConfig; onChan
         {select('Eyes', 'eyeStyle', OPTIONS.eyeStyles)}
         {select('Outfit', 'outfit', OPTIONS.outfits)}
       </div>
+      {showExpressions && <>
       <h3>Expressions</h3>
       <p className="hint">Your character's expression set. Pick one per line in the Voiceover step; faces morph smoothly from line to line.</p>
       <div className="expressions" data-testid="expression-sheet">
@@ -207,6 +217,7 @@ function Customize({ character, onChange }: { character: CharacterConfig; onChan
           </figure>
         ))}
       </div>
+      </>}
     </div>
   );
 }
