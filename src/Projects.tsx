@@ -202,7 +202,7 @@ function EpisodeSceneForm({ project, scene, busy, onSave }: {
       expression: data.get('expression') as EpisodeSceneInput['expression'], gesture: data.get('gesture') as EpisodeSceneInput['gesture'],
       x: Number(data.get('x')), scale: Number(data.get('scale')), groundY: Number(data.get('groundY')) });
   }}>
-    <div className="fields">
+    <fieldset className="fields" disabled={busy}>
       <label className="field">Scene character <select name="characterId" defaultValue={scene?.characterId}>{project.characters.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <label className="field">Scene set <select name="backgroundAssetId" defaultValue={scene?.backgroundAssetId}>{sets.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <label className="field">Expression <select name="expression" defaultValue={scene?.expression}>{EXPRESSIONS.map(item => <option key={item}>{item}</option>)}</select></label>
@@ -210,7 +210,7 @@ function EpisodeSceneForm({ project, scene, busy, onSave }: {
       <label className="field">Horizontal position <input name="x" type="number" min="0" max="1" step="0.01" required defaultValue={scene?.x ?? 0.5} /></label>
       <label className="field">Scale <input name="scale" type="number" min="0.1" max="2" step="0.01" required defaultValue={scene?.scale ?? 0.8} /></label>
       <label className="field">Stage ground position <input name="groundY" type="number" min="0" max="1" step="0.01" required defaultValue={scene?.groundY ?? 0.85} /></label>
-    </div>
+    </fieldset>
     <p className="hint">Positions use 0–1 across the stage. The character's ground anchor sits at the stage ground position.</p>
     <button className="btn" disabled={busy}>Save scene</button>
   </form>;
