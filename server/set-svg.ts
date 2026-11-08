@@ -8,15 +8,17 @@ const { JSDOM } = createRequire(import.meta.url)('jsdom') as {
 };
 const ns = 'http://www.w3.org/2000/svg';
 const list = (s: string) => new Set(s.split(/\s+/));
-const elements = list('svg g defs path rect circle ellipse line polyline polygon linearGradient radialGradient stop clipPath mask pattern use filter feBlend feColorMatrix feComponentTransfer feComposite feConvolveMatrix feDiffuseLighting feDisplacementMap feDistantLight feDropShadow feFlood feFuncA feFuncB feFuncG feFuncR feGaussianBlur feMerge feMergeNode feMorphology feOffset fePointLight feSpecularLighting feSpotLight feTile feTurbulence');
+const elements = list('svg g defs path rect circle ellipse line polyline polygon linearGradient radialGradient stop clipPath mask pattern symbol use filter feBlend feColorMatrix feComponentTransfer feComposite feConvolveMatrix feDiffuseLighting feDisplacementMap feDistantLight feDropShadow feFlood feFuncA feFuncB feFuncG feFuncR feGaussianBlur feMerge feMergeNode feMorphology feOffset fePointLight feSpecularLighting feSpotLight feTile feTurbulence');
 const paint = list('fill stroke color stop-color flood-color lighting-color');
 const refs = list('clip-path mask filter');
-const properties = list('color fill fill-opacity fill-rule clip-rule stroke stroke-width stroke-opacity stroke-linecap stroke-linejoin stroke-miterlimit stroke-dasharray stroke-dashoffset opacity stop-color stop-opacity flood-color flood-opacity lighting-color color-interpolation-filters clip-path mask filter mask-type display visibility paint-order vector-effect shape-rendering enable-background transform overflow');
+const properties = list('color fill fill-opacity fill-rule clip-rule stroke stroke-width stroke-opacity stroke-linecap stroke-linejoin stroke-miterlimit stroke-dasharray stroke-dashoffset opacity stop-color stop-opacity flood-color flood-opacity lighting-color color-interpolation-filters clip-path mask filter mask-type display visibility paint-order vector-effect shape-rendering enable-background transform overflow mix-blend-mode isolation');
 const attributes = list('viewBox width height x y x1 x2 y1 y2 cx cy r rx ry fx fy fr d points transform id preserveAspectRatio gradientUnits gradientTransform spreadMethod offset clipPathUnits maskUnits maskContentUnits patternUnits patternContentUnits patternTransform filterUnits primitiveUnits in in2 result stdDeviation dx dy operator k1 k2 k3 k4 type values mode edgeMode order kernelMatrix divisor bias targetX targetY preserveAlpha surfaceScale diffuseConstant specularConstant specularExponent azimuth elevation pointsAtX pointsAtY pointsAtZ limitingConeAngle baseFrequency numOctaves seed stitchTiles scale xChannelSelector yChannelSelector amplitude exponent intercept slope tableValues radius');
 const fragment = /^#[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
 const localUrl = /^url\(\s*#[A-Za-z0-9_][A-Za-z0-9_.-]*\s*\)$/;
 const editor = (name: string) => /^(?:sodipodi|inkscape):/.test(name);
 const drop = list('title desc metadata');
+const droppedAttributes = list('version xml:space role focusable baseProfile');
+const identifierAttributes = list('id result in in2');
 
 class SvgError extends Error {}
 
@@ -25,6 +27,7 @@ function refused(feature: string): never {
 }
 
 function allowedValue(key: string, value: string) {
+  if (identifierAttributes.has(key)) return /^[A-Za-z0-9_.-]+$/.test(value);
   if (refs.has(key)) return value === 'none' || fragment.test(value) || localUrl.test(value);
   if (paint.has(key) && (localUrl.test(value) || /^(?:rgba?|hsla?)\([0-9.,%+\-\t\n\r ]+\)$/.test(value))) return true;
   if (/^(?:transform|gradientTransform|patternTransform)$/.test(key) && !/url\s*\(/i.test(value)) return /^[A-Za-z0-9.,()+\-\t\n\r ]+$/.test(value);
@@ -37,18 +40,20 @@ function referenceValue(key: string, value: string): string {
 
 function declarations(css: string): string {
   if (/[@\\]/.test(css)) refused('unsafe CSS');
-  return css.split(';').filter(rule => rule.trim()).map(rule => {
+  return css.split(';').filter(rule => rule.trim()).flatMap(rule => {
     const colon = rule.indexOf(':');
     if (colon === -1) refused('malformed CSS');
     const key = rule.slice(0, colon).trim();
     const value = rule.slice(colon + 1).trim();
+    if (!properties.has(key) && key && !/url\s*\(/i.test(value)) return [];
     if (!properties.has(key) || !allowedValue(key, value)) refused('CSS property ' + (key || '(empty)'));
-    return key + ':' + referenceValue(key, value);
+    return [key + ':' + referenceValue(key, value)];
   }).join(';');
 }
 
 function stylesheet(source: string): string {
-  const css = source.trim();
+  if (/[@\\]/.test(source)) refused('unsafe CSS');
+  const css = source.replace(/\/\*[\s\S]*?\*\//g, '').trim();
   const rule = /\s*([^{}]+)\{([^{}]*)\}/y;
   const result: string[] = [];
   while (rule.lastIndex < css.length) {
@@ -83,7 +88,7 @@ function staticSvg(bytes: Buffer): string {
       const approved = new Map<string, string>();
       if (depth === 0) approved.set('xmlns', ns);
       for (const { name: raw, value: original } of Array.from(element.attributes)) {
-        if (raw === 'xmlns' || raw.startsWith('xmlns:') || raw === 'version' || raw === 'xml:space' || editor(raw)) continue;
+        if (raw === 'xmlns' || raw.startsWith('xmlns:') || droppedAttributes.has(raw) || /^(?:data|aria|font)-/.test(raw) || editor(raw)) continue;
         if (name === 'style' && raw === 'type' && original === 'text/css') continue;
         const key = raw === 'xlink:href' ? 'href' : raw;
         let value = original.trim();

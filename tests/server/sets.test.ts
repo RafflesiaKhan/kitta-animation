@@ -75,3 +75,40 @@ it('names unsupported text before rendering', () => {
   expect(() => rasterizeSvg(Buffer.from(svg('<text x="1">Hello</text>')))).toThrow('This SVG uses <text>');
   expect(Resvg).not.toHaveBeenCalled();
 });
+
+function centerPixel(source: Buffer): number[] {
+  const png = rasterizeSvg(source);
+  const uri = 'data:image/png;base64,' + png.toString('base64');
+  const image = new Resvg('<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"><image width="1920" height="1080" href="' + uri + '"/></svg>').render();
+  const center = (540 * 1920 + 960) * 4;
+  return [...image.pixels.subarray(center, center + 4)];
+}
+
+it.each(['figma', 'illustrator', 'illustrator-older', 'inkscape'])('draws the %s export fixture', name => {
+  expect(centerPixel(readFileSync('tests/fixtures/sets/' + name + '.svg'))).toEqual([51, 102, 153, 255]);
+});
+
+it('draws a local symbol and discards harmless metadata', () => {
+  vi.mocked(Resvg).mockClear();
+  const source = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 90" data-x="javascript:1" aria-label="Preview" role="img" focusable="false" baseProfile="tiny" font-size="12">'
+    + '<defs><symbol id="tile_1" viewBox="0 0 160 90"><rect width="160" height="90" fill="#369"/></symbol></defs>'
+    + '<use href="#tile_1" width="160" height="90" mix-blend-mode="normal" style="isolation:isolate;marker:none"/></svg>';
+  expect(centerPixel(Buffer.from(source))).toEqual([51, 102, 153, 255]);
+  const rebuilt = String(vi.mocked(Resvg).mock.calls[0]?.[0]);
+  expect(rebuilt).toContain('mix-blend-mode="normal"');
+  expect(rebuilt).toContain('style="isolation:isolate"');
+  expect(rebuilt).not.toMatch(/javascript:1|data-x|aria-label|role=|focusable|baseProfile|font-size|marker:/);
+});
+
+it.each([
+  svg('<rect style="marker:url(http://example.invalid/marker.svg#x)"/>'),
+  svg('<style>.x{marker:u/**/rl(http://example.invalid/marker.svg#x)}</style>'),
+  svg('<rect id="a b"/>'),
+  svg("<rect id='a\" onload=\"x'/>"),
+  svg('<style>/* @import ignored.css */ .paint{fill:red;}</style>'),
+  svg('<style>/* \\65 */ .paint{fill:red;}</style>'),
+])('refuses unsafe names and CSS: %s', source => {
+  vi.mocked(Resvg).mockClear();
+  expect(() => rasterizeSvg(Buffer.from(source))).toThrow();
+  expect(Resvg).not.toHaveBeenCalled();
+});
