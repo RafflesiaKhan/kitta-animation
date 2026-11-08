@@ -1,6 +1,6 @@
-# Step 8: Wider library
+# Step 7: Wider library
 
-Read `version 2 planning/codex-prompts/shared-rules.md` and follow it, including the subagent stages. Then read `version 2 planning/codex-reports/step-7.md`.
+Read `version 2 planning/codex-prompts/shared-rules.md` and follow it, including the subagent stages. Then read `version 2 planning/codex-reports/step-6.md`.
 
 ## Goal
 

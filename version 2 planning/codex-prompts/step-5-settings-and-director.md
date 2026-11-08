@@ -1,6 +1,6 @@
-# Step 6: Settings and the AI Director
+# Step 5: Settings and the AI Director
 
-Read `version 2 planning/codex-prompts/shared-rules.md` and follow it, including the subagent stages. Then read `version 2 planning/codex-reports/step-5b.md`, and the "Settings and API keys" section of `version 2 planning/implementation-plan.md`.
+Read `version 2 planning/codex-prompts/shared-rules.md` and follow it, including the subagent stages. Then read `version 2 planning/codex-reports/step-4.md`, and the "Settings and API keys" section of `version 2 planning/implementation-plan.md`.
 
 Security matters most here. Have the final reviewer check key handling specifically.
 
@@ -24,7 +24,8 @@ One shared LLM interface covering text, structured output, and tool calls. Move 
 
 - A floating robot button that opens a panel while keeping the project visible. It knows the current project, episode, and relevant assets.
 - It answers creative questions, and calls explicit project actions with validated inputs. Start with script drafting, scene proposals, and background generation.
-- Scene proposals stay drafts until the creator accepts them. Show success only after saving.
+- A scene proposal is scene data in the record step 4 saves. It's validated with the same checks as a manual save, and it stays a draft until the creator accepts it. Show success only after saving.
+- In SVG projects, a generated background may be SVG markup, which must pass the step 3 set sanitizer before it's saved. Nothing the Director writes is ever executed.
 - Generation jobs track pending, failed, and completed, and the job ID makes retries safe. Save media and metadata before showing an asset in the library.
 - Treat model output as untrusted: validate it before saving, and never run it.
 

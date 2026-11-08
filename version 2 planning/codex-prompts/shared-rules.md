@@ -41,6 +41,8 @@ Give each subagent only what it needs: its task, the files involved, and the pat
 
 Check each acceptance item through the running app, not only through tests. The dev server uses fixed ports, 5173 and 5175, and a server from another checkout can answer instead of yours. Before trusting a browser result, confirm that the process on those ports runs from your checkout. Don't stop a process you didn't start without asking the owner.
 
+Use real-world inputs, not only tidy fixtures. For example, use files exported from the tools creators actually use, real VoiceStudio audio, and saved characters such as Max. Step 3's two misses both came from tidy test inputs.
+
 If something can't be checked, write that plainly. Don't report it as passing.
 
 ## Safety
@@ -62,7 +64,7 @@ Write `version 2 planning/codex-reports/step-<N>.md`, commit it, and push. It ha
 - **Commits:** each short SHA and subject.
 - **Acceptance:** one row per check, with what you did and what you saw.
 - **Tests:** the final counts from both commands.
-- **Decisions I made:** each with what it costs if wrong.
+- **Decisions I made:** each with what it costs if wrong. List every change, including small ones made along the way.
 - **Not done or not verified:** say so plainly, or write "None".
 - **Review findings left open:** with your reason for each.
 

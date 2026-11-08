@@ -1,6 +1,6 @@
-# Step 7: Editing and episode export
+# Step 6: Editing and episode export
 
-Read `version 2 planning/codex-prompts/shared-rules.md` and follow it, including the subagent stages. Then read `version 2 planning/codex-reports/step-6.md`.
+Read `version 2 planning/codex-prompts/shared-rules.md` and follow it, including the subagent stages. Then read `version 2 planning/codex-reports/step-5.md`.
 
 ## Goal
 

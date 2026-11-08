@@ -1,4 +1,4 @@
-# Step 9 (optional): Test full-body motion with CMU
+# Step 8 (optional): Test full-body motion with CMU
 
 Run this only if the owner asks for it. Read `version 2 planning/codex-prompts/shared-rules.md` and follow it, including the subagent stages. Then read the "Motion capture" section of `version 2 planning/implementation-plan.md`.
 

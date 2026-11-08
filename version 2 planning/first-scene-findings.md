@@ -35,7 +35,7 @@ Frame checks were done from extracted MP4 frames (one per shot, both videos). Th
 The owner watched both videos and found the scene convincing, then decided:
 
 - **Types:** support both SVG and AI characters, with one style per project.
-- **SVG style:** Kitta writes the code for each scene.
+- **SVG style:** Kitta writes the code for each scene. This means the whole scene is drawn by code: the rig, lip sync, movement, and SVG backgrounds. Nothing generated at run time is executed.
 - **Later option:** Kitta can use external image and video generation models for each scene, through the OpenArt MCP, to generate each scene's illustration as an image and video.
 - **Views:** front only for now.
 - **Motions:** today's gestures and listener reactions. Walking comes later.
