@@ -59,4 +59,18 @@ Don't use CMU for small acting moves such as "leans forward" or "hand over heart
 ## Open decisions
 
 - **What a character is (step 1):** today's SVG rig is front-facing with no legs, and AI characters are front-facing pictures that swap. Decide which views and motions version 2 needs, and which character types must support them. Each extra view for an AI character means more painted images and more mouth measuring.
+- **Character art source (step 1):** instead of drawing every character from scratch, start from an open illustration library. See [Character sources](#character-sources).
 - **Packaging (before step 2):** decide whether "desktop-first" means today's local web app or a packaged desktop app.
+
+## Character sources
+
+Existing illustration libraries can supply character art, as long as their licence allows bundling the files in Kitta. Check each licence on the library's own site before shipping.
+
+| Library | Licence | What it offers | Use in Kitta |
+| --- | --- | --- | --- |
+| [Open Peeps](https://www.openpeeps.com) | CC0 | Hand-drawn, mix-and-match heads, faces, hair, accessories and body poses (standing, sitting) as SVG | **Use.** Faces map to expressions and body poses map to actions, swapped like AI character poses. The face's mouth is covered by Kitta's talking mouth, as for AI characters. [`@dicebear/open-peeps`](https://dicebear.com/styles/open-peeps) builds the busts from code. |
+| [Humaaans](https://www.humaaans.com) | Free; sources disagree on the exact licence | Mix-and-match full bodies with legs: heads, tops, bottoms, standing, sitting and walking poses | **Inspiration first.** Faces are too simple for expressions and lip sync, but the separate legs suit step 9. Confirm the licence before bundling any file. |
+| [Open Doodles](https://www.opendoodles.com) | CC0 | Whole hand-drawn scenes, not split into parts | **Sets and props.** Not a rig, so not for characters. |
+| [Getillustrations](https://www.getillustrations.com) | Paid, tiered; the free tier needs a visible credit | Packs of finished illustrations | **Inspiration only.** Its terms don't allow bundling the files in a product for end users without the Extended licence. Creators can still import packs they bought through the asset library. |
+
+Step 1 tries Open Peeps: build the two scene characters from it, check that expression swaps, the talking mouth and idle motion look right in its hand-drawn style, and record the result under Open decisions. One scene should use one art style, so mixing Open Peeps with the current flat SVG rig is not an option.
