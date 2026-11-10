@@ -60,3 +60,18 @@ Don't use CMU for small acting moves such as "leans forward" or "hand over heart
 - **Packaging:** version 2 stays a local web app, with no packaged desktop app.
 - **What "Kitta writes the code for each scene" means:** in the SVG style, everything is drawn by code: the rig, lip sync, gestures, idle movement, and SVG backgrounds. That's how Kitta already works, while the AI style uses painted pictures. The Director writes scene data and may draw SVG sets that pass the step 3 sanitizer. Nothing generated is ever executed.
 - **Fewer, larger steps:** the old steps 4, 5a, and 5b became one step, a talking scene, and the separate scene code proposal was dropped. Steps 4 to 6 give a usable version 2. Steps 7 and 8 wait until the owner has used it.
+- **What a character is (step 1):** today's SVG rig is front-facing with no legs, and AI characters are front-facing pictures that swap. Decide which views and motions version 2 needs, and which character types must support them. Each extra view for an AI character means more painted images and more mouth measuring.
+- **Character art source (step 1):** evaluate open illustration libraries and the planned rigged SVG workflow before choosing the first reusable cast. See [Character sources](#character-sources).
+
+## Character sources
+
+Existing illustration libraries can supply character art, as long as their licence allows bundling the files in Kitta. Check each licence on the library's own site before shipping.
+
+| Library | Licence | What it offers | Use in Kitta |
+| --- | --- | --- | --- |
+| [Open Peeps](https://www.openpeeps.com) | CC0 | Hand-drawn, mix-and-match heads, faces, hair, accessories and body poses (standing, sitting) as SVG | **Use.** Faces map to expressions and body poses map to actions, swapped like AI character poses. The face's mouth is covered by Kitta's talking mouth, as for AI characters. [`@dicebear/open-peeps`](https://dicebear.com/styles/open-peeps) builds the busts from code. |
+| [Humaaans](https://www.humaaans.com) | Free; sources disagree on the exact licence | Mix-and-match full bodies with legs: heads, tops, bottoms, standing, sitting and walking poses | **Inspiration first.** Faces are too simple for expressions and lip sync, but the separate legs suit step 9. Confirm the licence before bundling any file. |
+| [Open Doodles](https://www.opendoodles.com) | CC0 | Whole hand-drawn scenes, not split into parts | **Sets and props.** Not a rig, so not for characters. |
+| [Getillustrations](https://www.getillustrations.com) | Paid, tiered; the free tier needs a visible credit | Packs of finished illustrations | **Inspiration only.** Its terms don't allow bundling the files in a product for end users without the Extended licence. Creators can still import packs they bought through the asset library. |
+
+Open Peeps is the first library candidate to evaluate for reusable character parts. It must pass the same expression, talking-mouth and idle-motion checks as a hand-built rig before adoption. One scene should use one art style, so it should not be mixed with the current flat SVG rig without an explicit style decision.
