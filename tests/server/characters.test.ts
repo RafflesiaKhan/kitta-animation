@@ -15,7 +15,8 @@ const app = createApp();
 const created: string[] = [];
 
 const imageReply = { candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: fixture.toString('base64') } }] } }] };
-const mouthReply = { text: JSON.stringify({ found: true, box_2d: [550, 450, 600, 550], skin: '#3A86FF' }) };
+const landmarks = { leftEye: [350, 400], rightEye: [650, 400], nose: [500, 520], mouthLeft: [450, 575], mouthRight: [550, 575] };
+const mouthReply = { text: JSON.stringify({ found: true, box_2d: [550, 450, 600, 550], skin: '#3A86FF', landmarks }) };
 // Image calls ask for IMAGE output; everything else is the mouth lookup.
 const gemini = (image: unknown = imageReply) => generateContent.mockImplementation(async (req: any) =>
   req.config?.responseModalities?.includes('IMAGE') ? image : mouthReply);
@@ -119,14 +120,14 @@ describe('AI characters', () => {
     expect(r.body.character.images.neutral.mouth).toBeNull();
   }, 30000);
 
-  it('measures the painted mouth in the pixels and seeds every pose with it, without more vision calls', async () => {
+  it('measures the painted mouth in each pose image', async () => {
     // a skin square on magenta with a dark mouth line at x 226-286, y 300-306 (of 512); the vision box is 20 px too high
     const face = execFileSync('ffmpeg', ['-loglevel', 'error', '-f', 'lavfi', '-i', 'color=0xFF00FF:s=512x512', '-vf',
       'drawbox=x=156:y=156:w=200:h=200:color=0xF0C8A0:t=fill,drawbox=x=226:y=300:w=60:h=6:color=0x401010:t=fill',
       '-frames:v', '1', '-f', 'image2pipe', '-vcodec', 'png', 'pipe:1']);
     const faceReply = { candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: face.toString('base64') } }] } }] };
     generateContent.mockImplementation(async (req: any) => req.config?.responseModalities?.includes('IMAGE')
-      ? faceReply : { text: JSON.stringify({ found: true, box_2d: [560, 450, 600, 550], skin: '#000000' }) });
+      ? faceReply : { text: JSON.stringify({ found: true, box_2d: [560, 450, 600, 550], skin: '#000000', landmarks }) });
     const c = (await create()).body.character;
     created.push(c.id);
     expect(c.mouthsMeasured).toBe(true);
@@ -139,8 +140,8 @@ describe('AI characters', () => {
     [r - 0xf0, g - 0xc8, b - 0xa0].forEach((d) => expect(Math.abs(d)).toBeLessThanOrEqual(6));
     generateContent.mockClear();
     const happy = (await request(app).post(`/api/characters/${c.id}/poses/happy`)).body.character.images.happy;
-    expect(happy.mouth).toEqual(m); // same picture here, measured from the neutral mouth
-    expect(generateContent.mock.calls.every(([req]) => req.config?.responseModalities)).toBe(true); // only the image call
+    expect(happy.mouth).toEqual(m); // the fixture image is the same, but it was measured independently
+    expect(generateContent.mock.calls.filter(([req]) => !req.config?.responseModalities)).toHaveLength(0); // pose generation does not make another vision call
   }, 30000);
 
   it('measures mouths again without repainting', async () => {
@@ -159,9 +160,21 @@ describe('AI characters', () => {
     expect(generateContent.mock.calls.some(([req]) => req.config?.responseModalities)).toBe(false); // no image calls
     expect((await request(app).get('/api/characters')).body.characters.find((x: any) => x.id === c.id).images.neutral.mouth).not.toBeNull();
     generateContent.mockClear();
-    await request(app).post(`/api/characters/${c.id}/mouths`); // nothing missing any more
-    expect(generateContent).not.toHaveBeenCalled();
+    await request(app).post(`/api/characters/${c.id}/mouths`); // re-checks the image for a fresh measurement
+    expect(generateContent).toHaveBeenCalled();
     expect((await request(app).post('/api/characters/11111111-2222-3333-4444-555555555555/mouths')).status).toBe(404);
+  }, 30000);
+
+  it('sets a clicked mouth point across poses without a vision call', async () => {
+    gemini();
+    const c = (await create()).body.character;
+    created.push(c.id);
+    generateContent.mockClear();
+    const r = await request(app).post(`/api/characters/${c.id}/mouth-point`).send({ x: 0.5, y: 0.575 });
+    expect(r.status).toBe(200);
+    expect(r.body.character.mouthAnchor).toEqual({ x: 0.5, y: 0.575 });
+    expect(r.body.character.images.neutral.mouth).not.toBeNull();
+    expect(generateContent).not.toHaveBeenCalled();
   }, 30000);
 
   it('deletes a character', async () => {

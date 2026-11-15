@@ -50,7 +50,7 @@ export const IMAGE_PROVIDERS: ImageProvider[] = ['gemini', 'openai'];
  * provider: the model family that painted it; its later poses use the same one (absent = gemini, for older characters).
  * mouthsMeasured: its mouths were measured in the pixels (absent for characters made before that, which can be re-measured).
  */
-export interface ArtCharacter { kind: 'art'; id: string; name: string; prompt: string; style: string; provider?: ImageProvider; mouthsMeasured?: boolean; images: Partial<Record<ArtPose, ArtImage>> }
+export interface ArtCharacter { kind: 'art'; id: string; name: string; prompt: string; style: string; provider?: ImageProvider; mouthsMeasured?: boolean; mouthAnchor?: { x: number; y: number }; images: Partial<Record<ArtPose, ArtImage>> }
 /** Whatever the user picked in the Character step: a customised SVG starter or an AI-created character. */
 export type AnyCharacter = CharacterConfig | ArtCharacter;
 export const isArt = (c: AnyCharacter): c is ArtCharacter => (c as ArtCharacter).kind === 'art';

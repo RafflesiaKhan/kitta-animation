@@ -98,6 +98,11 @@ input[type=file]::file-selector-button:hover { background: var(--accent-tint); }
 .tile > svg, .expression > svg, .trigger > svg { overflow: hidden; }
 .expressions { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
 .expression { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; border: 1px solid var(--sand); border-radius: var(--r-md); background: var(--cream); font-size: 12px; line-height: 16px; font-weight: 600; text-align: center; text-transform: capitalize; }
+.mouth-picker { margin: 20px 0; padding: 16px; border: 1px solid var(--sand); border-radius: var(--r-md); background: var(--cream); }
+.mouth-picker h3 { margin: 0 0 4px; }
+.mouth-target { position: relative; display: block; width: 180px; height: 180px; padding: 0; border: 2px solid var(--accent); border-radius: var(--r-md); background: var(--white); overflow: hidden; cursor: crosshair; }
+.mouth-target img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.mouth-marker { position: absolute; width: 12px; height: 12px; transform: translate(-50%, -50%); border: 2px solid var(--white); border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--ink); pointer-events: none; }
 .pose-missing { width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--taupe); border-radius: var(--r-sm); color: var(--gray); font-size: 11px; font-weight: 400; text-transform: none; }
 .art-head { display: flex; align-items: center; justify-content: space-between; }
 .create-form { background: var(--cream); border: 1px solid var(--sand); border-radius: var(--r-lg); padding: 24px; margin-top: 20px; }

@@ -122,8 +122,15 @@ export async function findMouth(png: Buffer): Promise<MouthBox | null> {
     ] }],
     response_format: { type: 'json_schema', json_schema: { name: 'mouth', strict: true, schema: {
       type: 'object',
-      properties: { found: { type: 'boolean' }, box_2d: { type: 'array', items: { type: 'number' } }, skin: { type: 'string' } },
-      required: ['found', 'box_2d', 'skin'],
+      properties: {
+        found: { type: 'boolean' }, box_2d: { type: 'array', items: { type: 'number' } }, skin: { type: 'string' },
+        landmarks: { type: 'object', properties: {
+          leftEye: { type: 'array', items: { type: 'number' } }, rightEye: { type: 'array', items: { type: 'number' } },
+          nose: { type: 'array', items: { type: 'number' } }, mouthLeft: { type: 'array', items: { type: 'number' } },
+          mouthRight: { type: 'array', items: { type: 'number' } },
+        }, required: ['leftEye', 'rightEye', 'nose', 'mouthLeft', 'mouthRight'], additionalProperties: false },
+      },
+      required: ['found', 'box_2d', 'skin', 'landmarks'],
       additionalProperties: false,
     } } },
   }), MOUTH_TIMEOUT_MS, true);

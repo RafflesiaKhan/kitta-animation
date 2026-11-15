@@ -17,7 +17,8 @@ const fetchMock = vi.fn();
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const imageOk = () => json({ data: [{ b64_json: fixture.toString('base64') }] });
-const mouthOk = () => json({ choices: [{ message: { content: JSON.stringify({ found: true, box_2d: [550, 450, 600, 550], skin: '#112233' }) } }] });
+const landmarks = { leftEye: [350, 400], rightEye: [650, 400], nose: [500, 520], mouthLeft: [450, 575], mouthRight: [550, 575] };
+const mouthOk = () => json({ choices: [{ message: { content: JSON.stringify({ found: true, box_2d: [550, 450, 600, 550], skin: '#112233', landmarks }) } }] });
 /** Fake OpenAI: images endpoints paint the fixture, chat answers the mouth question. */
 const openai = () => fetchMock.mockImplementation(async (url: string) => (String(url).includes('/images/') ? imageOk() : mouthOk()));
 
@@ -99,7 +100,7 @@ describe('AI characters with OpenAI', () => {
   it('prefers Gemini for the mouth when both keys are set', async () => {
     openai();
     process.env.GEMINI_API_KEY = 'g-key';
-    generateContent.mockResolvedValue({ text: JSON.stringify({ found: true, box_2d: [550, 450, 600, 550], skin: '#445566' }) });
+    generateContent.mockResolvedValue({ text: JSON.stringify({ found: true, box_2d: [550, 450, 600, 550], skin: '#445566', landmarks }) });
     const r = await request(app).post('/api/characters').field('description', 'a robot').field('style', 'anime').field('provider', 'openai');
     created.push(r.body.character.id);
     expect(r.body.character.images.neutral.mouth.skin).toBe('#445566');
@@ -113,6 +114,16 @@ describe('AI characters with OpenAI', () => {
     const r = await request(app).post('/api/characters').field('description', 'a robot').field('style', 'anime').field('provider', 'openai');
     created.push(r.body.character.id);
     expect(r.body.character.images.neutral.mouth.skin).toBe('#112233');
+  }, 30000);
+
+  it('rejects a mouth box above the nose even when the provider returns it', async () => {
+    openai();
+    fetchMock.mockImplementation(async (url: string) => String(url).includes('/images/') ? imageOk() : json({ choices: [{ message: { content: JSON.stringify({
+      found: true, box_2d: [250, 450, 300, 550], skin: '#112233', landmarks,
+    }) } }] }));
+    const c = (await request(app).post('/api/characters').field('description', 'a robot').field('style', 'anime')).body.character;
+    created.push(c.id);
+    expect(c.images.neutral.mouth).toMatchObject({ x: 0.5, y: 0.575, w: 0.1 });
   }, 30000);
 
   it('rejects a provider without a key and explains a missing key', async () => {

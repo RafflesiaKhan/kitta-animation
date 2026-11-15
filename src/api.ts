@@ -106,6 +106,10 @@ export function measureMouths(id: string): Promise<ArtCharacter> {
   return post<{ character: ArtCharacter }>(`/api/characters/${id}/mouths`, {}).then((r) => r.character);
 }
 
+export function setMouthPoint(id: string, x: number, y: number): Promise<ArtCharacter> {
+  return post<{ character: ArtCharacter }>(`/api/characters/${id}/mouth-point`, { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ x, y }) }).then((r) => r.character);
+}
+
 export async function deleteCharacter(id: string): Promise<void> {
   let res: Response;
   try {

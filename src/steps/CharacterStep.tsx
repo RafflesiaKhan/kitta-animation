@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { ART_ACTIONS, EXPRESSIONS, GESTURES, isArt } from '../../shared/types';
 import type { AnyCharacter, ArtCharacter, ArtPose, CharacterConfig, FrameState, ImageProvider, StarterId } from '../../shared/types';
 import { Character } from '../../shared/character/Character';
@@ -24,6 +24,7 @@ interface Props {
   onCreate?: (input: api.CreateCharacterInput) => void;
   onDraw?: (id: string, poses: ArtPose[]) => void;
   onFindMouths?: (id: string) => void;
+  onSetMouth?: (id: string, x: number, y: number) => void;
   onDelete?: (id: string) => void;
 }
 
@@ -32,7 +33,7 @@ const imgUrl = (c: ArtCharacter, pose: ArtPose) => {
   return im ? `/api/characters/${c.id}/${im.file}` : null;
 };
 
-export function CharacterStep({ character, onChange, library, projectStyle, imageProviders = [], busy = false, error = null, onCreate, onDraw, onFindMouths, onDelete }: Props) {
+export function CharacterStep({ character, onChange, library, projectStyle, imageProviders = [], busy = false, error = null, onCreate, onDraw, onFindMouths, onSetMouth, onDelete }: Props) {
   const [creating, setCreating] = useState(false);
   const aiOk = imageProviders.length > 0;
   // A finished creation selects the new character; leave the form then.
@@ -72,7 +73,7 @@ export function CharacterStep({ character, onChange, library, projectStyle, imag
       {creating && onCreate
         ? <CreateForm busy={busy} providers={imageProviders} onCreate={onCreate} onCancel={() => setCreating(false)} />
         : character && (isArt(character)
-          ? !projectStyle && onDraw && onFindMouths && onDelete && <ArtSheet character={character} busy={busy} geminiOk={aiOk} onDraw={onDraw} onFindMouths={onFindMouths} onDelete={onDelete} />
+          ? !projectStyle && onDraw && onFindMouths && onSetMouth && onDelete && <ArtSheet character={character} busy={busy} geminiOk={aiOk} onDraw={onDraw} onFindMouths={onFindMouths} onSetMouth={onSetMouth} onDelete={onDelete} />
           : <Customize character={character} onChange={onChange} showExpressions={!projectStyle} />)}
       {projectStyle && character && <>
         <h3>Expressions</h3>
@@ -131,11 +132,15 @@ function CreateForm({ busy, providers, onCreate, onCancel }: { busy: boolean; pr
   );
 }
 
-function ArtSheet({ character: c, busy, geminiOk, onDraw, onFindMouths, onDelete }: {
-  character: ArtCharacter; busy: boolean; geminiOk: boolean; onDraw: NonNullable<Props['onDraw']>; onFindMouths: NonNullable<Props['onFindMouths']>; onDelete: NonNullable<Props['onDelete']>;
+function ArtSheet({ character: c, busy, geminiOk, onDraw, onFindMouths, onSetMouth, onDelete }: {
+  character: ArtCharacter; busy: boolean; geminiOk: boolean; onDraw: NonNullable<Props['onDraw']>; onFindMouths: NonNullable<Props['onFindMouths']>; onSetMouth: NonNullable<Props['onSetMouth']>; onDelete: NonNullable<Props['onDelete']>;
 }) {
   const missing = ([...EXPRESSIONS, 'blink', ...ART_ACTIONS] as ArtPose[]).filter((p) => !c.images[p]);
   const noMouth = Object.values(c.images).filter((im) => im && !im.mouth).length;
+  const pickMouth = (e: MouseEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    onSetMouth(c.id, Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)));
+  };
   const tile = (pose: ArtPose, label: string = pose) => {
     const url = imgUrl(c, pose);
     return (
@@ -168,6 +173,17 @@ function ArtSheet({ character: c, busy, geminiOk, onDraw, onFindMouths, onDelete
         <button className="btn" disabled={busy || !geminiOk} title={geminiOk ? undefined : NEEDS_KEY} onClick={() => onDraw(c.id, missing)}>
           <Icon name="spark" /> Draw {missing.length === 1 ? 'the missing pose' : `all ${missing.length} missing poses`}
         </button>
+      )}
+      {c.images.neutral && (
+        <div className="mouth-picker">
+          <h3>Set lip-sync position</h3>
+          <p className="hint">Click the centre of the mouth once. Kitta will reuse this position and refine it locally across the saved poses.</p>
+          <button type="button" className="mouth-target" disabled={busy} aria-label="Click the character mouth" onClick={pickMouth}>
+            <img src={imgUrl(c, 'neutral') ?? ''} alt="Click the character mouth" width={180} height={180} />
+            {c.mouthAnchor && <span className="mouth-marker" style={{ left: `${c.mouthAnchor.x * 100}%`, top: `${c.mouthAnchor.y * 100}%` }} />}
+          </button>
+          {c.mouthAnchor && <p className="hint">Mouth position saved.</p>}
+        </div>
       )}
       <h3>Expressions</h3>
       <p className="hint">Lines use these faces; one that isn't drawn yet shows the neutral face.</p>
