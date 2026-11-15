@@ -113,3 +113,14 @@ it('offers to re-measure a character made before mouths were measured, and not o
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Find mouths again' })); });
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Find mouths again' })).toBeNull());
 });
+
+it('lets the user click the mouth to set the lip-sync anchor', async () => {
+  vi.mocked(api.listCharacters).mockResolvedValue([robo]);
+  vi.mocked(api.setMouthPoint).mockResolvedValue({ ...robo, mouthAnchor: { x: 0.5, y: 0.5 } });
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: /Robo/ }));
+  const target = screen.getByRole('button', { name: 'Click the character mouth' });
+  vi.spyOn(target, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 180, height: 180, right: 180, bottom: 180, x: 0, y: 0, toJSON: () => ({}) });
+  await act(async () => { fireEvent.click(target, { clientX: 90, clientY: 90 }); });
+  expect(api.setMouthPoint).toHaveBeenCalledWith(robo.id, 0.5, 0.5);
+});

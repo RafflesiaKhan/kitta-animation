@@ -143,6 +143,10 @@ export function App() {
     putArt(await api.measureMouths(id));
   });
 
+  const setMouth = (id: string, x: number, y: number) => run('Setting mouth position…', async () => {
+    putArt(await api.setMouthPoint(id, x, y));
+  });
+
   const deleteArt = (id: string) => run('Deleting…', async () => {
     await api.deleteCharacter(id);
     setLibrary((l) => l.filter((x) => x.id !== id));
@@ -192,7 +196,7 @@ export function App() {
         <main>
           <section className="panel">
             {step === 0 && <CharacterStep character={state.character} onChange={(character) => setState((s) => ({ ...s, character }))}
-              library={library} imageProviders={imageProviders} busy={busy} error={error} onCreate={createArt} onDraw={drawPoses} onFindMouths={findMouths} onDelete={deleteArt} />}
+              library={library} imageProviders={imageProviders} busy={busy} error={error} onCreate={createArt} onDraw={drawPoses} onFindMouths={findMouths} onSetMouth={setMouth} onDelete={deleteArt} />}
             {step === 1 && <VoiceoverStep geminiOk={geminiOk} ttsProviders={ttsProviders} ttsProvider={ttsProvider} onTtsProvider={setTtsProvider} ttsEngine={ttsEngine} onTtsEngine={setTtsEngine} busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} onAutoTag={autoTagScript} onAddExpressions={addExpressions} uploadLines={state.source === 'upload' ? state.timeline?.lines ?? null : null} onEditUploadLine={editUploadLine} handAnimated={!!state.timeline?.marks} notice={notice} />}
             {step === 3 && <ExportStep character={state.character} timeline={state.timeline} audioId={state.audioId} />}
           </section>

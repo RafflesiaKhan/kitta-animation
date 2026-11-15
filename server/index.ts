@@ -21,7 +21,7 @@ import { renderVideo } from './render';
 import { loadScene, MissingSceneCharacterError } from './scene';
 import { projectRoutes } from './projects';
 import { validateExport, validScriptLine } from './validate';
-import { CharacterError, createCharacter, deleteCharacter, generatePose, getCharacter, imageDataUris, imagePath, listCharacters, measureMouths } from './characters';
+import { CharacterError, createCharacter, deleteCharacter, generatePose, getCharacter, imageDataUris, imagePath, listCharacters, measureMouths, setMouthPoint } from './characters';
 import { ART_STYLES } from '../shared/character/art';
 import { isArt, type ArtPose } from '../shared/types';
 
@@ -305,6 +305,16 @@ export function createApp() {
         console.error('find mouths failed', e);
         res.status(502).json({ error: 'Mouth lookup failed. Please try again.' });
       }
+    }
+  });
+
+  app.post('/api/characters/:id/mouth-point', async (req, res) => {
+    const x = Number(req.body?.x), y = Number(req.body?.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) return res.status(400).json({ error: 'Invalid mouth position' });
+    try {
+      res.json({ character: await setMouthPoint(req.params.id, x, y) });
+    } catch (e) {
+      if (!sendCharacterError(res, e, 'Mouth position failed. Please try again.')) res.status(502).json({ error: 'Mouth position failed. Please try again.' });
     }
   });
 
