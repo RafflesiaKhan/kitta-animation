@@ -1,0 +1,16 @@
+{
+  "name": "nod_surprise", "label": "6. うなずく・驚く", "duration": 3.6, "loop": true,
+  "keys": [
+    {"t": 0, "bones": {"leftUpperArm": [0, 0, -70], "leftLowerArm": [0, 0, -5], "rightUpperArm": [0, 0, 70], "rightLowerArm": [0, 0, 5], "head": [0, 0, 0], "chest": [0, 0, 0]}, "hips": [0, 0, 0], "face": {"expression": "neutral", "mouth": "sil", "eye": "open"}, "hands": {"L": "open", "R": "open"}},
+    {"t": 0.3, "bones": {"head": [16, 0, 0]}, "face": {"eye": "half"}},
+    {"t": 0.6, "bones": {"head": [0, 0, 0]}, "face": {"eye": "open"}},
+    {"t": 0.9, "bones": {"head": [16, 0, 0]}, "face": {"eye": "half"}},
+    {"t": 1.2, "bones": {"head": [0, 0, 0]}, "face": {"eye": "open"}},
+    {"t": 1.5, "bones": {"head": [0, 0, 0], "leftUpperArm": [0, 0, -70], "rightUpperArm": [0, 0, 70], "leftLowerArm": [0, 0, -5], "rightLowerArm": [0, 0, 5], "chest": [0, 0, 0]}, "hips": [0, 0, 0]},
+    {"t": 1.6, "hands": {"L": "palm", "R": "palm"}},
+    {"t": 1.7, "ease": "smooth", "bones": {"head": [-10, 0, 0], "chest": [-5, 0, 0], "leftUpperArm": [0, -15, -45], "rightUpperArm": [0, 15, 45], "leftLowerArm": [0, 0, -35], "rightLowerArm": [0, 0, 35]}, "hips": [0, 0.02, 0], "face": {"expression": "surprised", "mouth": "o"}},
+    {"t": 2.9, "bones": {"head": [-8, 0, 0], "chest": [-4, 0, 0], "leftUpperArm": [0, -15, -48], "rightUpperArm": [0, 15, 48], "leftLowerArm": [0, 0, -35], "rightLowerArm": [0, 0, 35]}, "hips": [0, 0.01, 0], "face": {"expression": "surprised", "mouth": "o"}},
+    {"t": 3.2, "hands": {"L": "open", "R": "open"}},
+    {"t": 3.6, "bones": {"head": [0, 0, 0], "chest": [0, 0, 0], "leftUpperArm": [0, 0, -70], "rightUpperArm": [0, 0, 70], "leftLowerArm": [0, 0, -5], "rightLowerArm": [0, 0, 5]}, "hips": [0, 0, 0], "face": {"expression": "neutral", "mouth": "sil"}}
+  ]
+}

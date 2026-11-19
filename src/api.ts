@@ -2,7 +2,7 @@ import type { Episode, EpisodeSceneInput, Project, ProjectCharacterInput, Projec
 import type { TtsProvider, VoiceStudioInfo } from '../shared/voices';
 import type { UsageReport } from '../shared/usage';
 import type { Scene } from '../shared/scene';
-import type { AnyCharacter, ArtCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, Marks, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
+import type { AnyCharacter, ArtCharacter, VectorCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, Marks, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
 
 async function post<T>(url: string, init: RequestInit): Promise<T> {
   let res: Response;
@@ -84,6 +84,27 @@ export async function listCharacters(): Promise<ArtCharacter[]> {
   } catch {
     return [];
   }
+}
+
+/** The saved vector-avator characters; an empty list if the server can't be reached. */
+export async function listVectorCharacters(): Promise<VectorCharacter[]> {
+  try {
+    const res = await fetch('/api/vector-characters');
+    const body = res.ok ? await res.json() : null;
+    return Array.isArray(body?.characters) ? body.characters : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Adds the bundled sample character (or returns the one already added). */
+export function addVectorSample(): Promise<VectorCharacter> {
+  return post<{ character: VectorCharacter }>('/api/vector-characters/sample', {}).then((r) => r.character);
+}
+
+export async function deleteVectorCharacter(id: string): Promise<void> {
+  const res = await fetch(`/api/vector-characters/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Delete failed.');
 }
 
 export interface CreateCharacterInput { description: string; name: string; style: string; provider: ImageProvider; reference?: File }

@@ -1,0 +1,8 @@
+{
+  "name": "idle", "label": "1. 待機", "duration": 4, "loop": true,
+  "keys": [
+    { "t": 0, "bones": { "leftUpperArm": [0, 0, -70], "rightUpperArm": [0, 0, 70], "leftLowerArm": [0, 0, -5], "rightLowerArm": [0, 0, 5], "chest": [0, 0, 0], "spine": [0, 0, 0], "head": [0, 0, 0] }, "hips": [0, 0, 0] },
+    { "t": 2, "bones": { "leftUpperArm": [0, 0, -66], "rightUpperArm": [0, 0, 66], "chest": [-2, 0, 0], "spine": [0, 0, 1.5], "head": [1, 0, -3] }, "hips": [0, 0.006, 0] },
+    { "t": 4, "bones": { "leftUpperArm": [0, 0, -70], "rightUpperArm": [0, 0, 70], "chest": [0, 0, 0], "spine": [0, 0, 0], "head": [0, 0, 0] }, "hips": [0, 0, 0] }
+  ]
+}

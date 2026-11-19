@@ -1,0 +1,9 @@
+{
+  "name": "explain",
+  "description": "片手を上げて説明（右肘を曲げて手のひらを前へ）",
+  "bones": {
+    "leftUpperArm": [0, 0, -70], "leftLowerArm": [0, 0, -5],
+    "rightUpperArm": [0, 30, 55], "rightLowerArm": [0, 0, -95], "rightHand": [0, 0, -10],
+    "head": [0, 0, -5]
+  }
+}

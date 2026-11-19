@@ -1,0 +1,11 @@
+{
+  "name": "think", "label": "5. 首を傾けて考える", "duration": 3.4, "loop": true,
+  "keys": [
+    {"t": 0, "bones": {"leftUpperArm": [0, 0, -70], "leftLowerArm": [0, 0, -5], "rightUpperArm": [0, 0, 70], "rightLowerArm": [0, 0, 5], "head": [0, 0, 0], "neck": [0, 0, 0]}, "face": {"expression": "neutral", "gazeY": 0, "eye": "open"}, "hands": {"L": "open", "R": "open"}},
+    {"t": 0.6, "hands": {"R": "fist"}},
+    {"t": 0.8, "bones": {"rightUpperArm": [0, 45, 50], "rightLowerArm": [0, 0, -128], "rightHand": [0, 0, -15], "head": [0, 0, 14], "neck": [0, 0, 4]}, "face": {"expression": "troubled", "gazeY": 12, "gazeX": -6}},
+    {"t": 2.6, "bones": {"rightUpperArm": [0, 45, 50], "rightLowerArm": [0, 0, -128], "rightHand": [0, 0, -15], "head": [0, 0, 16], "neck": [0, 0, 4]}, "face": {"expression": "troubled", "gazeY": 12, "gazeX": -6}},
+    {"t": 2.8, "hands": {"R": "open"}},
+    {"t": 3.4, "bones": {"rightUpperArm": [0, 0, 70], "rightLowerArm": [0, 0, 5], "rightHand": [0, 0, 0], "head": [0, 0, 0], "neck": [0, 0, 0]}, "face": {"expression": "neutral", "gazeY": 0, "gazeX": 0}}
+  ]
+}

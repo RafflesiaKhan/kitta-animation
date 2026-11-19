@@ -1,0 +1,14 @@
+{
+  "name": "explain", "label": "2. 片手を上げて説明", "duration": 3.2, "loop": true,
+  "keys": [
+    {"t": 0, "bones": {"leftUpperArm": [0, 0, -70], "leftLowerArm": [0, 0, -5], "rightUpperArm": [0, 0, 70], "rightLowerArm": [0, 0, 5], "rightHand": [0, 0, 0], "spine": [0, 0, 0], "head": [0, 0, 0]}, "face": {"mouth": "sil"}, "hands": {"L": "open", "R": "open"}},
+    {"t": 0.4, "hands": {"R": "palm"}},
+    {"t": 0.5, "bones": {"rightUpperArm": [0, 35, 48], "rightLowerArm": [0, 0, -100], "rightHand": [0, 0, -12], "spine": [0, -6, 0], "head": [0, -4, -6]}, "face": {"mouth": "a"}},
+    {"t": 1.0, "bones": {"rightLowerArm": [0, 0, -82]}, "face": {"mouth": "i"}},
+    {"t": 1.5, "bones": {"rightLowerArm": [0, 0, -104]}, "face": {"mouth": "e"}},
+    {"t": 2.0, "bones": {"rightLowerArm": [0, 0, -86]}, "face": {"mouth": "o"}},
+    {"t": 2.5, "bones": {"rightUpperArm": [0, 35, 48], "rightLowerArm": [0, 0, -95], "rightHand": [0, 0, -12], "spine": [0, -6, 0], "head": [0, -4, -6]}, "face": {"mouth": "sil"}},
+    {"t": 2.9, "hands": {"R": "open"}},
+    {"t": 3.2, "bones": {"rightUpperArm": [0, 0, 70], "rightLowerArm": [0, 0, 5], "rightHand": [0, 0, 0], "spine": [0, 0, 0], "head": [0, 0, 0]}}
+  ]
+}

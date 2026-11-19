@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isArt } from '../shared/types';
-import type { AnyCharacter, ArtCharacter, ArtPose, ImageProvider, Line, Marks, ScriptLineInput, Timeline } from '../shared/types';
+import { isArt, isVector } from '../shared/types';
+import type { AnyCharacter, ArtCharacter, VectorCharacter, ArtPose, ImageProvider, Line, Marks, ScriptLineInput, Timeline } from '../shared/types';
 import { VOICES, type TtsProvider } from '../shared/voices';
 import { STARTERS } from '../shared/character/starters';
 import { marksOf } from '../shared/marks';
@@ -38,6 +38,7 @@ export function App() {
   const [scriptLines, setScriptLines] = useState<ScriptLineInput[]>([NEW_LINE]); // draft survives step switches
   const busy = status !== '';
   const [library, setLibrary] = useState<ArtCharacter[]>([]); // saved AI characters
+  const [vectors, setVectors] = useState<VectorCharacter[]>([]); // saved vector-avator characters
   // Fetched once, shared by the Character and Voiceover steps.
   const [geminiOk, setGeminiOk] = useState(true);
   const [imageProviders, setImageProviders] = useState<ImageProvider[]>(['gemini']);
@@ -46,6 +47,7 @@ export function App() {
   const [ttsEngine, setTtsEngine] = useState(''); // VoiceStudio engine; '' = its active engine
   useEffect(() => {
     Promise.resolve(api.listCharacters()).then((l) => setLibrary(l ?? []), () => {});
+    Promise.resolve(api.listVectorCharacters()).then((l) => setVectors(l ?? []), () => {});
     Promise.resolve(api.health()).then((h) => {
       setGeminiOk(h?.gemini !== false);
       setImageProviders(h?.imageProviders ?? (h?.gemini === false ? [] : ['gemini'])); // older servers only report gemini
@@ -153,6 +155,18 @@ export function App() {
     setState((s) => (isArt(s.character) && s.character.id === id ? { ...s, character: KIT } : s));
   });
 
+  const addVector = () => run('Adding the sample character…', async () => {
+    const c = await api.addVectorSample();
+    setVectors((v) => [...v.filter((x) => x.id !== c.id), c]);
+    setState((s) => ({ ...s, character: c }));
+  });
+
+  const deleteVector = (id: string) => run('Removing…', async () => {
+    await api.deleteVectorCharacter(id);
+    setVectors((v) => v.filter((x) => x.id !== id));
+    setState((s) => (isVector(s.character) && s.character.id === id ? { ...s, character: KIT } : s));
+  });
+
   const generate = async () => {
     setError(null);
     try {
@@ -196,7 +210,7 @@ export function App() {
         <main>
           <section className="panel">
             {step === 0 && <CharacterStep character={state.character} onChange={(character) => setState((s) => ({ ...s, character }))}
-              library={library} imageProviders={imageProviders} busy={busy} error={error} onCreate={createArt} onDraw={drawPoses} onFindMouths={findMouths} onSetMouth={setMouth} onDelete={deleteArt} />}
+              library={library} vectors={vectors} onImportVector={addVector} onDeleteVector={deleteVector} imageProviders={imageProviders} busy={busy} error={error} onCreate={createArt} onDraw={drawPoses} onFindMouths={findMouths} onSetMouth={setMouth} onDelete={deleteArt} />}
             {step === 1 && <VoiceoverStep geminiOk={geminiOk} ttsProviders={ttsProviders} ttsProvider={ttsProvider} onTtsProvider={setTtsProvider} ttsEngine={ttsEngine} onTtsEngine={setTtsEngine} busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} onAutoTag={autoTagScript} onAddExpressions={addExpressions} uploadLines={state.source === 'upload' ? state.timeline?.lines ?? null : null} onEditUploadLine={editUploadLine} handAnimated={!!state.timeline?.marks} notice={notice} />}
             {step === 3 && <ExportStep character={state.character} timeline={state.timeline} audioId={state.audioId} />}
           </section>

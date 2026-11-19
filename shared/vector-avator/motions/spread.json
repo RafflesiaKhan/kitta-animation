@@ -1,0 +1,12 @@
+{
+  "name": "spread", "label": "4. 両手を広げて強調", "duration": 2.6, "loop": true,
+  "keys": [
+    {"t": 0, "bones": {"leftUpperArm": [0, 0, -70], "leftLowerArm": [0, 0, -5], "rightUpperArm": [0, 0, 70], "rightLowerArm": [0, 0, 5], "chest": [0, 0, 0], "head": [0, 0, 0]}, "hips": [0, 0, 0], "face": {"expression": "neutral", "mouth": "sil"}, "hands": {"L": "open", "R": "open"}},
+    {"t": 0.35, "bones": {"leftUpperArm": [0, 0, -78], "rightUpperArm": [0, 0, 78], "chest": [4, 0, 0]}, "hips": [0, -0.01, 0]},
+    {"t": 0.5, "hands": {"L": "palm", "R": "palm"}},
+    {"t": 0.7, "ease": "smooth", "bones": {"leftUpperArm": [0, -25, -15], "rightUpperArm": [0, 25, 15], "leftLowerArm": [0, 0, -15], "rightLowerArm": [0, 0, 15], "chest": [-6, 0, 0], "head": [-6, 0, 0]}, "hips": [0, 0.012, 0], "face": {"expression": "smile", "mouth": "a"}},
+    {"t": 1.7, "bones": {"leftUpperArm": [0, -25, -12], "rightUpperArm": [0, 25, 12], "leftLowerArm": [0, 0, -15], "rightLowerArm": [0, 0, 15], "chest": [-6, 0, 0], "head": [-6, 0, 0]}, "hips": [0, 0.012, 0], "face": {"expression": "smile", "mouth": "sil"}},
+    {"t": 2.2, "hands": {"L": "open", "R": "open"}},
+    {"t": 2.6, "bones": {"leftUpperArm": [0, 0, -70], "leftLowerArm": [0, 0, -5], "rightUpperArm": [0, 0, 70], "rightLowerArm": [0, 0, 5], "chest": [0, 0, 0], "head": [0, 0, 0]}, "hips": [0, 0, 0], "face": {"expression": "neutral"}}
+  ]
+}

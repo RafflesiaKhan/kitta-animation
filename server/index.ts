@@ -21,9 +21,10 @@ import { renderVideo } from './render';
 import { loadScene, MissingSceneCharacterError } from './scene';
 import { projectRoutes } from './projects';
 import { validateExport, validScriptLine } from './validate';
+import { deleteVectorCharacter, ensureSample, listVectorCharacters, readVectorMeta, vectorPath } from './vector';
 import { CharacterError, createCharacter, deleteCharacter, generatePose, getCharacter, imageDataUris, imagePath, listCharacters, measureMouths, setMouthPoint } from './characters';
 import { ART_STYLES } from '../shared/character/art';
-import { isArt, type ArtPose } from '../shared/types';
+import { isArt, isVector, type ArtPose } from '../shared/types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UPLOAD_DIR = join('data', 'uploads');
@@ -327,6 +328,35 @@ export function createApp() {
     }
   });
 
+  // ---------- vector-avator characters (same folder, kind 'vector') ----------
+  app.get('/api/vector-characters', async (_req, res) => {
+    res.json({ characters: await listVectorCharacters() });
+  });
+
+  app.post('/api/vector-characters/sample', async (_req, res) => {
+    try {
+      res.json({ character: await ensureSample() });
+    } catch (e) {
+      console.error('add vector sample failed', e);
+      res.status(500).json({ error: 'Could not add the sample character.' });
+    }
+  });
+
+  app.delete('/api/vector-characters/:id', async (req, res) => {
+    try {
+      await deleteVectorCharacter(req.params.id);
+      res.status(204).end();
+    } catch (e) {
+      if (!sendCharacterError(res, e, 'Delete failed.')) res.status(500).json({ error: 'Delete failed.' });
+    }
+  });
+
+  app.get('/api/characters/:id/vector.json', (req, res) => {
+    const p = vectorPath(req.params.id);
+    if (!p) return res.status(404).json({ error: 'Vector data not found' });
+    res.type('application/json').sendFile(p, { root: process.cwd() });
+  });
+
   app.get('/api/characters/:id/:file', (req, res) => {
     const p = imagePath(req.params.id, req.params.file);
     if (!p) return res.status(404).json({ error: 'Image not found' });
@@ -340,7 +370,13 @@ export function createApp() {
     if (!input) return res.status(400).json({ error: 'Invalid request' });
     // An AI character is always drawn from the library on disk, never from images named by the client.
     let images: Record<string, string> | undefined;
-    if (isArt(input.character)) {
+    if (isVector(input.character)) {
+      try {
+        input.character = await readVectorMeta(input.character.id);
+      } catch {
+        return res.status(404).json({ error: 'Character not found' });
+      }
+    } else if (isArt(input.character)) {
       try {
         input.character = await getCharacter(input.character.id);
         images = await imageDataUris(input.character);

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { STARTERS } from '../shared/character/starters';
 import type { Project, ProjectCharacter, ProjectCharacterInput, ProjectVoice } from '../shared/projects';
-import { isArt, type AnyCharacter, type ArtCharacter } from '../shared/types';
+import { isArt, isVector, type AnyCharacter, type ArtCharacter } from '../shared/types';
 import { DEFAULT_SPEAKER, TTS_PROVIDERS, TTS_PROVIDER_NAMES } from '../shared/voices';
 import { CharacterStep } from './steps/CharacterStep';
 
@@ -20,7 +20,7 @@ export function ProjectCharacters({ project, library, busy, onSave }: {
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!character || busy) return;
+    if (!character || busy || isVector(character)) return; // vector characters aren't offered in projects yet
     const data = new FormData(event.currentTarget);
     const saved = await onSave({
       name: String(data.get('name')), anchorY: Number(data.get('anchorY')),

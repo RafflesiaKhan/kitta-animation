@@ -1,6 +1,7 @@
 import { useEffect, useState, type MouseEvent } from 'react';
-import { ART_ACTIONS, EXPRESSIONS, GESTURES, isArt } from '../../shared/types';
-import type { AnyCharacter, ArtCharacter, ArtPose, CharacterConfig, FrameState, ImageProvider, StarterId } from '../../shared/types';
+import { ART_ACTIONS, EXPRESSIONS, GESTURES, isArt, isVector } from '../../shared/types';
+import type { AnyCharacter, ArtCharacter, ArtPose, CharacterConfig, FrameState, ImageProvider, StarterId, VectorCharacter } from '../../shared/types';
+import { CharacterView } from '../../shared/character/CharacterView';
 import { Character } from '../../shared/character/Character';
 import { OPTIONS, STARTERS } from '../../shared/character/starters';
 import { ART_STYLES } from '../../shared/character/art';
@@ -18,6 +19,9 @@ interface Props {
   projectStyle?: ProjectStyle;
   onChange: (c: AnyCharacter) => void;
   library: ArtCharacter[];
+  vectors?: VectorCharacter[]; // saved vector-avator characters
+  onImportVector?: () => void; // adds the bundled sample
+  onDeleteVector?: (id: string) => void;
   imageProviders?: ImageProvider[]; // image providers with a key on the server
   busy?: boolean;
   error?: string | null;
@@ -33,7 +37,7 @@ const imgUrl = (c: ArtCharacter, pose: ArtPose) => {
   return im ? `/api/characters/${c.id}/${im.file}` : null;
 };
 
-export function CharacterStep({ character, onChange, library, projectStyle, imageProviders = [], busy = false, error = null, onCreate, onDraw, onFindMouths, onSetMouth, onDelete }: Props) {
+export function CharacterStep({ character, onChange, library, vectors = [], onImportVector, onDeleteVector, projectStyle, imageProviders = [], busy = false, error = null, onCreate, onDraw, onFindMouths, onSetMouth, onDelete }: Props) {
   const [creating, setCreating] = useState(false);
   const aiOk = imageProviders.length > 0;
   // A finished creation selects the new character; leave the form then.
@@ -51,7 +55,7 @@ export function CharacterStep({ character, onChange, library, projectStyle, imag
       <h2>Pick a character</h2>
       <div className="tiles">
         {projectStyle !== 'ai' && (Object.keys(STARTERS) as StarterId[]).map((id) => {
-          const on = !creating && !!character && !isArt(character) && character.starter === id;
+          const on = !creating && !!character && !isArt(character) && !isVector(character) && character.starter === id;
           return (
             <button type="button" key={id} className={`tile${on ? ' selected' : ''}`} aria-pressed={on} onClick={() => pickStarter(id)}>
               <Character config={STARTERS[id]} frame={REST} width={84} height={84} />
@@ -65,6 +69,19 @@ export function CharacterStep({ character, onChange, library, projectStyle, imag
             <span>{c.name}</span>
           </button>
         ))}
+        {!projectStyle && vectors.map((c) => {
+          const on = !creating && !!character && isVector(character) && character.id === c.id;
+          return (
+            <button type="button" key={c.id} className={`tile${on ? ' selected' : ''}`} aria-pressed={on} onClick={() => { setCreating(false); onChange(c); }}>
+              <CharacterView config={c} frame={REST} width={84} height={84} />
+              <span>{c.name}</span>
+            </button>
+          );
+        })}
+        {!projectStyle && onImportVector && !vectors.length && <button type="button" className="tile create" onClick={onImportVector}>
+          <span className="plus"><Icon name="plus" size={22} /></span>
+          <span>Add vector sample</span>
+        </button>}
         {!projectStyle && onCreate && <button className={`tile create${creating ? ' selected' : ''}`} aria-pressed={creating} onClick={() => setCreating(true)}>
           <span className="plus"><Icon name="plus" size={22} /></span>
           <span>Create with AI</span>
@@ -72,7 +89,9 @@ export function CharacterStep({ character, onChange, library, projectStyle, imag
       </div>
       {creating && onCreate
         ? <CreateForm busy={busy} providers={imageProviders} onCreate={onCreate} onCancel={() => setCreating(false)} />
-        : character && (isArt(character)
+        : character && (isVector(character)
+          ? !projectStyle && onDeleteVector && <p className="hint">{character.name}: a vector-avator character, drawn live. <button type="button" className="btn secondary" disabled={busy} onClick={() => onDeleteVector(character.id)}>Remove</button></p>
+          : isArt(character)
           ? !projectStyle && onDraw && onFindMouths && onSetMouth && onDelete && <ArtSheet character={character} busy={busy} geminiOk={aiOk} onDraw={onDraw} onFindMouths={onFindMouths} onSetMouth={onSetMouth} onDelete={onDelete} />
           : <Customize character={character} onChange={onChange} showExpressions={!projectStyle} />)}
       {projectStyle && character && <>
