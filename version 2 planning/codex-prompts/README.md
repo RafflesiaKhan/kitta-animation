@@ -18,6 +18,12 @@ Give Codex one prompt at a time, in this order. After each one, ask Claude to re
 | 5 | [step-5-settings-and-director.md](step-5-settings-and-director.md) | Bring-your-own-key Settings, and the AI Director that drafts scripts, scenes, and backgrounds. |
 | 6 | [step-6-editing-and-export.md](step-6-editing-and-export.md) | Scene order, transitions, audio mix, and whole-episode export. |
 
+## Vector characters
+
+| Order | Prompt | What it does |
+|---|---|---|
+| on `feat/vector-avator` | [vector-create.md](vector-create.md) | "Create with AI" can make a vector character that moves smoothly: the image provider paints a front picture and a face sheet, then Claude draws the parts. Stops after task 3 for your quality check. |
+
 ## Later, after you've used it
 
 | Order | Prompt | What it does |
