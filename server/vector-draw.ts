@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
-import type { BetaContentBlockParam, BetaMessageParam, BetaTool, BetaUsage } from '@anthropic-ai/sdk/resources/beta/messages/messages';
 import { checkVector } from '../shared/vector-avator/check';
 import type { VectorDoc } from '../shared/vector-avator/renderers/vector/vdata';
-import { callTool, imageBlock } from './anthropic';
+import type { UsageEntry } from '../shared/usage';
+import { claudeToolChat } from './anthropic';
+import { openaiToolChat } from './openai';
+import type { ChatBlock, ToolChat, ToolSpec } from './tool-chat';
 import { checkSheet } from './vector-check';
 
 // The drawing loop of version 2 planning/vector-create-plan.md: the drawing model draws the parts as one vector.json
@@ -15,11 +17,13 @@ const SKILL = join(import.meta.dirname, '../shared/vector-avator/skill');
 const SAMPLE = join(import.meta.dirname, '../shared/vector-avator/sample/usagi.vector.json');
 const GRID = 64;
 
-const TOOL: BetaTool = {
+/** Which model draws by default: gpt-6.2-astra was faster, cheaper and clearer than Claude Opus 5.5 on the first test (Pearl). */
+export const drawProvider = (): 'anthropic' | 'openai' => (process.env.VECTOR_DRAW_PROVIDER === 'anthropic' ? 'anthropic' : 'openai');
+
+const TOOL: ToolSpec = {
   name: 'submit_vector',
   description: 'Submit the complete vector.json for the character, or (done: true, no doc) accept the last submitted one.',
-  input_schema: {
-    type: 'object',
+  parameters: {
     properties: {
       doc: { type: 'object', description: 'The complete vector.json (every field of the spec). Omit only with done: true.' },
       done: { type: 'boolean', description: 'true: the last submitted doc had no check errors and its check pictures match the references; finish with it.' },
@@ -95,13 +99,20 @@ export interface DrawInput {
   faceSheet: Buffer;
   notes?: string;
   maxRounds?: number;
+  /** The drawing model: OpenAI (default, VECTOR_DRAW_PROVIDER overrides) or Claude, or a ready chat (tests). */
+  provider?: 'anthropic' | 'openai';
+  model?: string;
+  chat?: (system: string, tool: ToolSpec) => ToolChat;
+  /** Cancels the drawing: the request in flight stops and no new round starts. */
+  signal?: AbortSignal;
   onRound?: (r: Round) => void | Promise<void>;
 }
 
 export interface Round {
   round: number;
   seconds: number;
-  usage: BetaUsage;
+  /** Tokens and cost of the round's request. */
+  usage: UsageEntry;
   /** What the model sent: a doc, or done (accepting the previous one). */
   doc?: unknown;
   done: boolean;
@@ -111,7 +122,7 @@ export interface Round {
   sheet?: Buffer;
 }
 
-export interface DrawResult { doc: VectorDoc | null; errors: string[]; rounds: Round[] }
+export interface DrawResult { doc: VectorDoc | null; errors: string[]; rounds: Round[]; provider: string; model: string }
 
 function parseDoc(input: Record<string, unknown>): unknown {
   const d = input.doc;
@@ -122,31 +133,30 @@ function parseDoc(input: Record<string, unknown>): unknown {
 export async function drawVector(inp: DrawInput): Promise<DrawResult> {
   const maxRounds = inp.maxRounds ?? 4;
   const system = systemPrompt();
-  const messages: BetaMessageParam[] = [{
-    role: 'user',
-    content: [
-      { type: 'text', text: `Character: ${inp.name}.${inp.notes ? `\n\nNotes on the character (they win over the general style):\n${inp.notes}` : ''}\n\nThe front picture (the canvas):` },
-      imageBlock(inp.front),
-      { type: 'text', text: `The same picture with a grid every ${GRID} px:` },
-      imageBlock(await gridded(inp.front)),
-      { type: 'text', text: 'The face sheet (row 1: front, 3/4 view, eyes open, half, closed; row 2: mouths closed, a, i, u, e, o; row 3: normal, smile, surprised, troubled):' },
-      imageBlock(inp.faceSheet),
-      { type: 'text', text: 'Draw the character as vector.json and submit it.' },
-    ],
-  }];
+  const make = inp.chat ?? ((s: string, t: ToolSpec) => ((inp.provider ?? drawProvider()) === 'anthropic' ? claudeToolChat(s, t, inp.model) : openaiToolChat(s, t, inp.model)));
+  const chat = make(system, TOOL);
+  let send: ChatBlock[] = [
+    { type: 'text', text: `Character: ${inp.name}.${inp.notes ? `\n\nNotes on the character (they win over the general style):\n${inp.notes}` : ''}\n\nThe front picture (the canvas):` },
+    { type: 'image', png: inp.front },
+    { type: 'text', text: `The same picture with a grid every ${GRID} px:` },
+    { type: 'image', png: await gridded(inp.front) },
+    { type: 'text', text: 'The face sheet (row 1: front, 3/4 view, eyes open, half, closed; row 2: mouths closed, a, i, u, e, o; row 3: normal, smile, surprised, troubled):' },
+    { type: 'image', png: inp.faceSheet },
+    { type: 'text', text: 'Draw the character as vector.json and submit it.' },
+  ];
   const rounds: Round[] = [];
   let best: { doc: VectorDoc; errors: string[] } | null = null;
   let last: Round | null = null;
 
   for (let n = 1; n <= maxRounds; n++) {
     const t = Date.now();
-    const call = await callTool({ system, messages: [...messages], tool: TOOL });
-    messages.push({ role: 'assistant', content: call.message.content as BetaContentBlockParam[] });
+    if (inp.signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
+    const call = await chat.send(send, inp.signal);
     const input = (call.input ?? {}) as Record<string, unknown>;
     const doc = parseDoc(input);
-    const round: Round = { round: n, seconds: 0, usage: call.message.usage, done: input.done === true && doc === undefined, notes: typeof input.notes === 'string' ? input.notes : undefined, errors: [], warnings: [] };
+    const round: Round = { round: n, seconds: 0, usage: call.usage, done: input.done === true && doc === undefined, notes: typeof input.notes === 'string' ? input.notes : undefined, errors: [], warnings: [] };
 
-    let reply: BetaContentBlockParam[];
+    let reply: ChatBlock[];
     if (round.done) {
       round.seconds = (Date.now() - t) / 1000;
       rounds.push(round);
@@ -174,11 +184,11 @@ export async function drawVector(inp: DrawInput): Promise<DrawResult> {
       await inp.onRound?.(round);
       const list = (k: string, xs: string[]) => (xs.length ? `${k} (${xs.length}):\n${xs.map((x) => `- ${x}`).join('\n')}` : `${k}: none`);
       reply = [{ type: 'text', text: `Round ${n} of ${maxRounds}.\n${list('Errors', round.errors)}\n${list('Warnings', round.warnings)}${round.sheet ? '\n\nCheck picture:' : ''}` }];
-      if (round.sheet) reply.push(imageBlock(round.sheet));
+      if (round.sheet) reply.push({ type: 'image', png: round.sheet });
       reply.push({ type: 'text', text: n === maxRounds - 1 ? 'Next is the last round.' : 'Fix what is wrong and submit the complete doc, or call with done: true if it is right.' });
     }
     if (n === maxRounds) break;
-    messages.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: call.toolUseId, content: reply as never }] });
+    send = reply;
   }
-  return { doc: best?.doc ?? null, errors: best?.errors ?? ['no doc was drawn'], rounds };
+  return { doc: best?.doc ?? null, errors: best?.errors ?? ['no doc was drawn'], rounds, provider: chat.provider, model: chat.model };
 }

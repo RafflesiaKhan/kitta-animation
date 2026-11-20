@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { AnthropicError, callTool, imageBlock } from '../../server/anthropic';
+import { AnthropicError, callTool, claudeToolChat, imageBlock } from '../../server/anthropic';
 import { resetUsage, usageReport } from '../../server/usage';
 
 const fetchMock = vi.fn();
@@ -75,5 +75,19 @@ describe('Claude provider', () => {
     const e = await call().catch((x) => x);
     expect(e).toBeInstanceOf(AnthropicError);
     expect(e.code).toBe('bad_key');
+  });
+
+  it('keeps the conversation: the second send is the tool result of the first call, after the assistant turn', async () => {
+    fetchMock.mockImplementation(async () => sse('tool'));
+    const chat = claudeToolChat('Call submit_vector.', { name: 'submit_vector', description: 'd', parameters: { properties: { doc: { type: 'object' } } } });
+    const first = await chat.send([{ type: 'text', text: 'Draw.' }, { type: 'image', png: Buffer.from('png') }]);
+    expect(first.input).toEqual({ doc: { parts: [] } });
+    expect(first.usage).toMatchObject({ provider: 'anthropic', input: 150, output: 50 });
+    await chat.send([{ type: 'text', text: 'Errors: none' }]);
+    const body = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(body.tools[0].input_schema).toEqual({ type: 'object', properties: { doc: { type: 'object' } } });
+    expect(body.messages.map((m: { role: string }) => m.role)).toEqual(['user', 'assistant', 'user']);
+    expect(body.messages[1].content[0]).toMatchObject({ type: 'tool_use', id: 'toolu_1' });
+    expect(body.messages[2].content[0]).toMatchObject({ type: 'tool_result', tool_use_id: 'toolu_1', content: [{ type: 'text', text: 'Errors: none' }] });
   });
 });

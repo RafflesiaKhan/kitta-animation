@@ -11,6 +11,7 @@ import { VoiceoverStep } from './steps/VoiceoverStep';
 import { AnimateStep } from './steps/AnimateStep';
 import { ExportStep } from './steps/ExportStep';
 import { UsagePanel } from './UsagePanel';
+import { RUNNING_STAGES, type VectorJob } from '../shared/vector-job';
 
 export interface State { character: AnyCharacter; timeline: Timeline | null; audioId: string | null; source: 'upload' | 'script' | null }
 
@@ -39,6 +40,8 @@ export function App() {
   const busy = status !== '';
   const [library, setLibrary] = useState<ArtCharacter[]>([]); // saved AI characters
   const [vectors, setVectors] = useState<VectorCharacter[]>([]); // saved vector-avator characters
+  const [vectorJobs, setVectorJobs] = useState<VectorJob[]>([]); // vector characters being created (or stopped)
+  const [vectorDraw, setVectorDraw] = useState<{ ok: boolean; by: 'anthropic' | 'openai' }>({ ok: false, by: 'openai' });
   // Fetched once, shared by the Character and Voiceover steps.
   const [geminiOk, setGeminiOk] = useState(true);
   const [imageProviders, setImageProviders] = useState<ImageProvider[]>(['gemini']);
@@ -48,7 +51,9 @@ export function App() {
   useEffect(() => {
     Promise.resolve(api.listCharacters()).then((l) => setLibrary(l ?? []), () => {});
     Promise.resolve(api.listVectorCharacters()).then((l) => setVectors(l ?? []), () => {});
+    Promise.resolve(api.listVectorJobs()).then((l) => setVectorJobs(l ?? []), () => {});
     Promise.resolve(api.health()).then((h) => {
+      setVectorDraw({ ok: h?.vectorDraw === true, by: h?.vectorDrawProvider ?? 'openai' });
       setGeminiOk(h?.gemini !== false);
       setImageProviders(h?.imageProviders ?? (h?.gemini === false ? [] : ['gemini'])); // older servers only report gemini
       const voices = h?.ttsProviders ?? (h?.gemini === false ? [] : ['gemini']);
@@ -167,6 +172,42 @@ export function App() {
     setState((s) => (isVector(s.character) && s.character.id === id ? { ...s, character: KIT } : s));
   });
 
+  // ---------- vector characters created in the background ----------
+  // While a job runs, ask about it every few seconds. A finished one leaves the list and becomes the character in use.
+  const runningJobs = vectorJobs.filter((j) => RUNNING_STAGES.includes(j.stage)).map((j) => j.id).join(',');
+  useEffect(() => {
+    if (!runningJobs) return;
+    const timer = setInterval(async () => {
+      for (const id of runningJobs.split(',')) {
+        const job = await api.getVectorJob(id).catch(() => null);
+        if (!job) continue;
+        if (job.stage === 'done') {
+          setVectorJobs((js) => js.filter((x) => x.id !== id));
+          const list = await api.listVectorCharacters();
+          setVectors(list);
+          const made = list.find((c) => c.id === id);
+          if (made) setState((s) => ({ ...s, character: made }));
+        } else setVectorJobs((js) => js.map((x) => (x.id === id ? job : x)));
+      }
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [runningJobs]);
+
+  const createVector = (input: api.CreateVectorInput) => run('Starting…', async () => {
+    const job = await api.startVectorJob(input);
+    setVectorJobs((js) => [job, ...js]);
+  });
+
+  const vectorJob = (id: string, action: 'cancel' | 'resume' | 'discard') => run(action === 'cancel' ? 'Cancelling…' : action === 'resume' ? 'Resuming…' : 'Discarding…', async () => {
+    if (action === 'discard') {
+      await api.discardVectorJob(id);
+      setVectorJobs((js) => js.filter((x) => x.id !== id));
+      return;
+    }
+    const job = await (action === 'cancel' ? api.cancelVectorJob(id) : api.resumeVectorJob(id));
+    setVectorJobs((js) => js.map((x) => (x.id === id ? job : x)));
+  });
+
   const generate = async () => {
     setError(null);
     try {
@@ -210,7 +251,8 @@ export function App() {
         <main>
           <section className="panel">
             {step === 0 && <CharacterStep character={state.character} onChange={(character) => setState((s) => ({ ...s, character }))}
-              library={library} vectors={vectors} onImportVector={addVector} onDeleteVector={deleteVector} imageProviders={imageProviders} busy={busy} error={error} onCreate={createArt} onDraw={drawPoses} onFindMouths={findMouths} onSetMouth={setMouth} onDelete={deleteArt} />}
+              library={library} vectors={vectors} onImportVector={addVector} onDeleteVector={deleteVector} imageProviders={imageProviders} busy={busy} error={error} onCreate={createArt} onDraw={drawPoses} onFindMouths={findMouths} onSetMouth={setMouth} onDelete={deleteArt}
+              vectorJobs={vectorJobs} vectorDraw={vectorDraw.ok} vectorDrawBy={vectorDraw.by} onCreateVector={createVector} onJob={vectorJob} />}
             {step === 1 && <VoiceoverStep geminiOk={geminiOk} ttsProviders={ttsProviders} ttsProvider={ttsProvider} onTtsProvider={setTtsProvider} ttsEngine={ttsEngine} onTtsEngine={setTtsEngine} busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} onAutoTag={autoTagScript} onAddExpressions={addExpressions} uploadLines={state.source === 'upload' ? state.timeline?.lines ?? null : null} onEditUploadLine={editUploadLine} handAnimated={!!state.timeline?.marks} notice={notice} />}
             {step === 3 && <ExportStep character={state.character} timeline={state.timeline} audioId={state.audioId} />}
           </section>

@@ -30,6 +30,8 @@ const PRICES: Record<string, { from?: string; price: Price }[]> = {
   'anthropic/claude-fable-5-2': [{ price: { input: 8, output: 40, cachedInput: 0.2, cacheWrite: 10, cacheWrite1h: 16 } }],
   'anthropic/claude-sonnet-5-5': [{ price: { input: 2, output: 10, cachedInput: 0.1, cacheWrite: 2.5, cacheWrite1h: 4 } }],
   'openai/gpt-image-2': [{ price: { input: 5, imageInput: 8, output: 30, imageOutput: 30 } }],
+  'openai/gpt-6.2-astra': [{ price: { input: 8, cachedInput: 0.4, output: 40 } }],
+  'openai/gpt-6.2-sol': [{ price: { input: 2, cachedInput: 0.1, output: 10 } }],
   'openai/gpt-5-mini': [{ price: { input: 0.25, cachedInput: 0.025, output: 2 } }],
   'openai/gpt-4o-mini-tts': [{ price: { input: 0.6, output: 12 } }],
   'gemini/gemini-3.8-flash': [

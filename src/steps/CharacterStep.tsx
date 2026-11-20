@@ -8,6 +8,7 @@ import { ART_STYLES } from '../../shared/character/art';
 import * as api from '../api';
 import { Icon } from '../Icon';
 import type { ProjectStyle } from '../../shared/projects';
+import { RUNNING_STAGES, type VectorJob } from '../../shared/vector-job';
 import { Tile } from './AnimateStep';
 
 const REST: FrameState = { expression: 'neutral', mouth: 'X', gesture: 'none', gestureProgress: 0, blink: false, bob: 0 };
@@ -30,18 +31,28 @@ interface Props {
   onFindMouths?: (id: string) => void;
   onSetMouth?: (id: string, x: number, y: number) => void;
   onDelete?: (id: string) => void;
+  // Vector characters created in the background (server/vector-create.ts).
+  vectorJobs?: VectorJob[];
+  vectorDraw?: boolean; // the drawing model has a key on the server
+  vectorDrawBy?: 'anthropic' | 'openai';
+  onCreateVector?: (input: api.CreateVectorInput) => void;
+  onJob?: (id: string, action: 'cancel' | 'resume' | 'discard') => void;
 }
+
+const DRAW_NAMES = { anthropic: 'Claude', openai: 'OpenAI' } as const;
 
 const imgUrl = (c: ArtCharacter, pose: ArtPose) => {
   const im = c.images[pose];
   return im ? `/api/characters/${c.id}/${im.file}` : null;
 };
 
-export function CharacterStep({ character, onChange, library, vectors = [], onImportVector, onDeleteVector, projectStyle, imageProviders = [], busy = false, error = null, onCreate, onDraw, onFindMouths, onSetMouth, onDelete }: Props) {
+export function CharacterStep({ character, onChange, library, vectors = [], onImportVector, onDeleteVector, projectStyle, imageProviders = [], busy = false, error = null, onCreate, onDraw, onFindMouths, onSetMouth, onDelete, vectorJobs = [], vectorDraw = false, vectorDrawBy = 'openai', onCreateVector, onJob }: Props) {
   const [creating, setCreating] = useState(false);
   const aiOk = imageProviders.length > 0;
   // A finished creation selects the new character; leave the form then.
   useEffect(() => { if (character && isArt(character)) setCreating(false); }, [character && isArt(character) ? character.id : null]);
+  // A started vector job shows as a card below; leave the form then too.
+  useEffect(() => { if (vectorJobs.length) setCreating(false); }, [vectorJobs[0]?.id]);
 
   const pickStarter = (id: StarterId) => {
     const { name: _name, ...config } = STARTERS[id];
@@ -87,8 +98,10 @@ export function CharacterStep({ character, onChange, library, vectors = [], onIm
           <span>Create with AI</span>
         </button>}
       </div>
+      {!projectStyle && onJob && vectorJobs.map((j) => <VectorJobCard key={j.id} job={j} onJob={onJob} />)}
       {creating && onCreate
-        ? <CreateForm busy={busy} providers={imageProviders} onCreate={onCreate} onCancel={() => setCreating(false)} />
+        ? <CreateForm busy={busy} providers={imageProviders} onCreate={onCreate} onCancel={() => setCreating(false)}
+          vectorDraw={vectorDraw} vectorDrawBy={vectorDrawBy} onCreateVector={onCreateVector} />
         : character && (isVector(character)
           ? !projectStyle && onDeleteVector && <p className="hint">{character.name}: a vector-avator character, drawn live. <button type="button" className="btn secondary" disabled={busy} onClick={() => onDeleteVector(character.id)}>Remove</button></p>
           : isArt(character)
@@ -105,7 +118,10 @@ export function CharacterStep({ character, onChange, library, vectors = [], onIm
   );
 }
 
-function CreateForm({ busy, providers, onCreate, onCancel }: { busy: boolean; providers: ImageProvider[]; onCreate: NonNullable<Props['onCreate']>; onCancel: () => void }) {
+function CreateForm({ busy, providers, onCreate, onCancel, vectorDraw, vectorDrawBy, onCreateVector }: {
+  busy: boolean; providers: ImageProvider[]; onCreate: NonNullable<Props['onCreate']>; onCancel: () => void;
+  vectorDraw: boolean; vectorDrawBy: 'anthropic' | 'openai'; onCreateVector?: Props['onCreateVector'];
+}) {
   const geminiOk = providers.length > 0;
   const [picked, setPicked] = useState<ImageProvider | null>(null);
   const provider = picked && providers.includes(picked) ? picked : providers[0];
@@ -113,24 +129,40 @@ function CreateForm({ busy, providers, onCreate, onCancel }: { busy: boolean; pr
   const [name, setName] = useState('');
   const [style, setStyle] = useState<string>(ART_STYLES[0]);
   const [reference, setReference] = useState<File | undefined>();
-  const ready = geminiOk && !busy && (description.trim() !== '' || reference !== undefined);
+  const [type, setType] = useState<'picture' | 'vector'>('picture');
+  const vector = type === 'vector';
+  const ready = geminiOk && !busy && (description.trim() !== '' || reference !== undefined) && (!vector || vectorDraw);
+  const drawKey = vectorDrawBy === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
+  const create = () => (vector
+    ? onCreateVector?.({ description: description.trim(), name: name.trim(), provider, reference })
+    : onCreate({ description: description.trim(), name: name.trim(), style, provider, reference }));
   return (
     <div className="create-form">
       <h3>Create a character</h3>
       {!geminiOk && <p className="hint">Add GEMINI_API_KEY or OPENAI_API_KEY to .env to create characters.</p>}
+      {onCreateVector && (
+        <label className="field"><span>Type</span>
+          <select aria-label="Type" disabled={busy} value={type} onChange={(e) => setType(e.target.value as 'picture' | 'vector')}>
+            <option value="picture">Picture</option>
+            <option value="vector" disabled={!vectorDraw}>Vector (moves smoothly){vectorDraw ? '' : ` (needs ${drawKey})`}</option>
+          </select>
+        </label>
+      )}
       <textarea aria-label="Describe your character" rows={3} maxLength={400} disabled={busy}
         placeholder="e.g. a cheerful round robot with a teal scarf and one antenna" value={description} onChange={(e) => setDescription(e.target.value)} />
       <div className="fields">
         <label className="field"><span>Name</span>
           <input aria-label="Name" maxLength={40} disabled={busy} placeholder="Optional" value={name} onChange={(e) => setName(e.target.value)} />
         </label>
-        <label className="field"><span>Style</span>
-          <select aria-label="Style" disabled={busy} value={style} onChange={(e) => setStyle(e.target.value)}>
-            {ART_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </label>
+        {!vector && (
+          <label className="field"><span>Style</span>
+            <select aria-label="Style" disabled={busy} value={style} onChange={(e) => setStyle(e.target.value)}>
+              {ART_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+        )}
         {providers.length > 1 && (
-          <label className="field"><span>Drawn by</span>
+          <label className="field"><span>{vector ? 'Pictures by' : 'Drawn by'}</span>
             <select aria-label="Drawn by" disabled={busy} value={provider} onChange={(e) => setPicked(e.target.value as ImageProvider)}>
               {providers.map((p) => <option key={p} value={p}>{PROVIDER_NAMES[p]}</option>)}
             </select>
@@ -143,10 +175,49 @@ function CreateForm({ busy, providers, onCreate, onCancel }: { busy: boolean; pr
       </label>
       <div className="line-actions">
         <button className="btn" disabled={!ready} title={geminiOk ? undefined : NEEDS_KEY}
-          onClick={() => onCreate({ description: description.trim(), name: name.trim(), style, provider, reference })}><Icon name="spark" /> Create character</button>
+          onClick={create}><Icon name="spark" /> Create character</button>
         <button className="btn secondary" disabled={busy} onClick={onCancel}>Cancel</button>
       </div>
-      <p className="hint">{provider ? PROVIDER_NAMES[provider] : 'The AI'} paints the character first. Then you draw its expressions and actions from it, so it stays the same character. Image generation is usually paid (Gemini's free tier may not include it).</p>
+      {vector
+        ? <p className="hint">{provider ? PROVIDER_NAMES[provider] : 'The AI'} paints a front picture and a face sheet, then {DRAW_NAMES[vectorDrawBy]} draws the character as parts on a skeleton and checks them, so its arms bend and its head turns smoothly. It usually takes 5 to 10 minutes and costs about $1.50 to $2.50. It runs in the background: you can keep working or close Kitta, and resume it later.</p>
+        : <p className="hint">{provider ? PROVIDER_NAMES[provider] : 'The AI'} paints the character first. Then you draw its expressions and actions from it, so it stays the same character. Image generation is usually paid (Gemini's free tier may not include it).</p>}
+    </div>
+  );
+}
+
+const STEP_LABELS = [['front', 'Front picture'], ['face', 'Face sheet'], ['drawing', 'Drawing the parts']] as const;
+
+/** Progress of one vector character being created: the steps, the latest check picture, and cancel/resume. */
+function VectorJobCard({ job: j, onJob }: { job: VectorJob; onJob: NonNullable<Props['onJob']> }) {
+  const live = RUNNING_STAGES.includes(j.stage);
+  const done = (s: 'front' | 'face' | 'drawing') => (s === 'front' ? j.hasFront : s === 'face' ? j.hasFace : false);
+  const pic = (file: string) => `/api/vector-jobs/${j.id}/${file}?v=${encodeURIComponent(j.updatedAt)}`;
+  const cost = j.cost >= 0.01 ? `$${j.cost.toFixed(2)}` : j.cost > 0 ? '<$0.01' : '$0';
+  return (
+    <div className="create-form vector-job" aria-label={`${live ? 'Creating' : 'Stopped:'} ${j.name}`}>
+      <h3>{live ? 'Creating' : 'Stopped:'} {j.name} (vector)</h3>
+      <ol className="job-steps">
+        {STEP_LABELS.map(([s, label]) => (
+          <li key={s} className={done(s) ? 'done' : j.stage === s ? 'active' : ''}>
+            {done(s) ? '✓ ' : j.stage === s ? '… ' : ''}{label}
+            {s === 'drawing' && (j.stage === 'drawing' || j.round > 0) && <span className="hint"> · round {Math.min(j.round + (j.stage === 'drawing' ? 1 : 0), j.maxRounds)} of up to {j.maxRounds}{j.errors !== null ? ` · ${j.errors} check error${j.errors === 1 ? '' : 's'} last round` : ''}</span>}
+          </li>
+        ))}
+      </ol>
+      <div className="job-pictures">
+        {j.hasFront && <a href={pic('front.png')} target="_blank" rel="noreferrer"><img src={pic('front.png')} alt="Front picture" height={160} /></a>}
+        {j.hasFace && <a href={pic('sheet_face.png')} target="_blank" rel="noreferrer"><img src={pic('sheet_face.png')} alt="Face sheet" height={160} /></a>}
+        {j.hasCheck && <a href={pic('check.png')} target="_blank" rel="noreferrer"><img src={pic('check.png')} alt="Latest check picture" height={160} /></a>}
+      </div>
+      <p className="hint">{j.message ?? (live ? 'Runs in the background; you can keep working.' : '')} Spent so far: {cost}.</p>
+      <div className="line-actions">
+        {live
+          ? <button className="btn secondary" onClick={() => onJob(j.id, 'cancel')}>Cancel</button>
+          : <>
+            <button className="btn" onClick={() => onJob(j.id, 'resume')}>Resume</button>
+            <button className="btn secondary" onClick={() => { if (confirm(`Discard ${j.name} and its pictures?`)) onJob(j.id, 'discard'); }}>Discard</button>
+          </>}
+      </div>
     </div>
   );
 }

@@ -22,6 +22,8 @@ import { loadScene, MissingSceneCharacterError } from './scene';
 import { projectRoutes } from './projects';
 import { validateExport, validScriptLine } from './validate';
 import { deleteVectorCharacter, ensureSample, listVectorCharacters, readVectorMeta, vectorPath } from './vector';
+import { cancelVectorJob, discardVectorJob, getVectorJob, listVectorJobs, resumeVectorJob, startVectorJob, vectorJobFile, VectorJobError } from './vector-create';
+import { drawProvider } from './vector-draw';
 import { CharacterError, createCharacter, deleteCharacter, generatePose, getCharacter, imageDataUris, imagePath, listCharacters, measureMouths, setMouthPoint } from './characters';
 import { ART_STYLES } from '../shared/character/art';
 import { isArt, isVector, type ArtPose } from '../shared/types';
@@ -82,7 +84,8 @@ export function createApp() {
     typeof id === 'string' && UUID_RE.test(id) ? join(AUDIO_DIR, `${id}.wav`) : null;
 
   app.get('/api/health', async (_req, res) => {
-    res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(process.env.GEMINI_API_KEY), imageProviders: imageProviders(), ttsProviders: ttsProviders() });
+    const vectorDraw = Boolean(process.env[drawProvider() === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY']);
+    res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(process.env.GEMINI_API_KEY), imageProviders: imageProviders(), ttsProviders: ttsProviders(), vectorDraw, vectorDrawProvider: drawProvider() });
   });
 
   // Token telemetry for the usage panel.
@@ -349,6 +352,65 @@ export function createApp() {
     } catch (e) {
       if (!sendCharacterError(res, e, 'Delete failed.')) res.status(500).json({ error: 'Delete failed.' });
     }
+  });
+
+  // ---------- creating vector characters in the background (server/vector-create.ts) ----------
+  const sendJobError = (res: express.Response, e: unknown) => {
+    if (e instanceof VectorJobError) return res.status(e.code === 'not_found' ? 404 : 409).json({ error: e.code === 'not_found' ? 'Job not found' : 'This character is already finished.' });
+    console.error('vector job request failed', e);
+    res.status(500).json({ error: 'Something went wrong' });
+  };
+
+  app.get('/api/vector-jobs', async (_req, res) => {
+    res.json({ jobs: await listVectorJobs() });
+  });
+
+  app.post('/api/vector-jobs', (req, res) => {
+    imageUpload.single('reference')(req, res, async (err) => {
+      const ref = req.file;
+      const description = typeof req.body?.description === 'string' ? req.body.description.trim() : '';
+      const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+      const providers = imageProviders();
+      const provider = req.body?.provider || providers[0];
+      const drawKey = drawProvider() === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
+      if (!providers.length) return res.status(400).json({ error: 'Add GEMINI_API_KEY or OPENAI_API_KEY to .env to create characters.' });
+      if (!process.env[drawKey]) return res.status(400).json({ error: `Add ${drawKey} to .env to create vector characters.` });
+      if (!providers.includes(provider)) return res.status(400).json({ error: 'Invalid request' });
+      if (err || (ref && !IMAGE_TYPES.includes(ref.mimetype))) return res.status(400).json({ error: 'Reference must be a PNG, JPEG or WebP image up to 10 MB.' });
+      if ((!description && !ref) || description.length > 400 || name.length > 40) return res.status(400).json({ error: 'Invalid request' });
+      try {
+        const job = await startVectorJob({
+          description, imageProvider: provider,
+          name: name || description.split(/\s+/).slice(0, 3).join(' ') || 'My character',
+          reference: ref ? { data: ref.buffer, mimeType: ref.mimetype } : undefined,
+        });
+        res.json({ job });
+      } catch (e) {
+        sendJobError(res, e);
+      }
+    });
+  });
+
+  app.get('/api/vector-jobs/:id', async (req, res) => {
+    try { res.json({ job: await getVectorJob(req.params.id) }); } catch (e) { sendJobError(res, e); }
+  });
+
+  app.post('/api/vector-jobs/:id/cancel', async (req, res) => {
+    try { res.json({ job: await cancelVectorJob(req.params.id) }); } catch (e) { sendJobError(res, e); }
+  });
+
+  app.post('/api/vector-jobs/:id/resume', async (req, res) => {
+    try { res.json({ job: await resumeVectorJob(req.params.id) }); } catch (e) { sendJobError(res, e); }
+  });
+
+  app.delete('/api/vector-jobs/:id', async (req, res) => {
+    try { await discardVectorJob(req.params.id); res.status(204).end(); } catch (e) { sendJobError(res, e); }
+  });
+
+  app.get('/api/vector-jobs/:id/:file', (req, res) => {
+    const p = vectorJobFile(req.params.id, req.params.file);
+    if (!p) return res.status(404).json({ error: 'Picture not found' });
+    res.set('Cache-Control', 'no-store').type('image/png').sendFile(p, { root: process.cwd() });
   });
 
   app.get('/api/characters/:id/vector.json', (req, res) => {
