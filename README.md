@@ -13,7 +13,7 @@ cp .env.example .env     # then add your GEMINI_API_KEY (optional, see below)
 npm run dev
 ```
 
-Open http://localhost:5173: the Character Studio is the home page. Projects (in beta) is behind the **Projects · Beta** button, at http://localhost:5173/?projects. Lip sync uses Rhubarb, which is bundled as a WASM package, so there is nothing else to install (no `npm run setup`). Needs Node 21.7 or newer (the server uses `process.loadEnvFile`) and `ffmpeg` on your PATH.
+Open http://localhost:5173. Lip sync uses Rhubarb, which is bundled as a WASM package, so there is nothing else to install (no `npm run setup`). Needs Node 21.7 or newer (the server uses `process.loadEnvFile`) and `ffmpeg` on your PATH.
 
 ## How to use
 

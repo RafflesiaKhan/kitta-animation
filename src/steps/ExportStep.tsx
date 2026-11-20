@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { AnyCharacter, ExportFormat, Timeline } from '../../shared/types';
-import { isArt, isVector } from '../../shared/types';
+import { isArt } from '../../shared/types';
 import { STARTERS } from '../../shared/character/starters';
 import * as api from '../api';
 import { Icon } from '../Icon';
@@ -46,7 +46,7 @@ export function ExportStep({ character, timeline, audioId }: Props) {
         <input type="checkbox" checked={transparent} onChange={(e) => setTransparent(e.target.checked)} /> Transparent background (WebM)
       </label>
       <dl className="facts">
-        <div><dt>Character</dt><dd>{isArt(character) || isVector(character) ? character.name : STARTERS[character.starter].name}</dd></div>
+        <div><dt>Character</dt><dd>{isArt(character) ? character.name : STARTERS[character.starter].name}</dd></div>
         <div><dt>Length</dt><dd>{timeline ? `${Math.round(timeline.durationMs / 1000)} s` : 'No voiceover yet'}</dd></div>
         <div><dt>Size</dt><dd>{aspect === '16:9' ? '1920 × 1080' : '1080 × 1920'}</dd></div>
         <div><dt>File</dt><dd>{transparent ? 'WebM' : 'MP4'}</dd></div>

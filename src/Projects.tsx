@@ -104,8 +104,8 @@ export function Projects() {
   return (
     <div className="app">
       <header>
-        <div className="brand"><h1>Kitta Cartoon Studio <span className="beta">Beta</span></h1><span className="tagline">Projects and reusable assets (still being built)</span></div>
-        <a className="pill" href="/">Character Studio</a>
+        <div className="brand"><h1>Kitta Cartoon Studio</h1><span className="tagline">Projects and reusable assets</span></div>
+        <a className="pill" href="/?character-studio">Character Studio</a>
         {project && <button className="pill" disabled={busy} onClick={() => void run(async () => {
           setProjects(await listProjects()); setProject(undefined);
         })}>All projects</button>}

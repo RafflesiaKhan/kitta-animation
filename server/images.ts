@@ -1,7 +1,7 @@
 import type { ImageProvider, MouthBox } from '../shared/types';
 import * as gemini from './gemini';
 import * as openai from './openai';
-import type { ImageInput, ImageShape } from './gemini';
+import type { ImageInput } from './gemini';
 
 // Routes AI-character image work to a provider. A character remembers the provider that painted it,
 // so all of its poses come from the same model.
@@ -13,8 +13,8 @@ export function imageProviders(): ImageProvider[] {
   return (Object.keys(KEYS) as ImageProvider[]).filter((p) => Boolean(process.env[KEYS[p]]));
 }
 
-export function paint(provider: ImageProvider, prompt: string, refs: ImageInput[] = [], shape: ImageShape = 'square'): Promise<Buffer> {
-  return provider === 'openai' ? openai.generateImage(prompt, refs, shape) : gemini.generateImage(prompt, refs, shape);
+export function paint(provider: ImageProvider, prompt: string, refs: ImageInput[] = []): Promise<Buffer> {
+  return provider === 'openai' ? openai.generateImage(prompt, refs) : gemini.generateImage(prompt, refs);
 }
 
 /**
