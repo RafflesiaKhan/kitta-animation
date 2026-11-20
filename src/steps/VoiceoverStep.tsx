@@ -29,7 +29,7 @@ interface Props {
 
 type TabProps = Props;
 const NEEDS_KEY = 'Needs GEMINI_API_KEY';
-const NEEDS_VOICE = 'Needs GEMINI_API_KEY, OPENAI_API_KEY or VOICESTUDIO_URL';
+const NEEDS_VOICE = 'Needs GEMINI_API_KEY, OPENAI_API_KEY, ELEVENLABS_API_KEY or VOICESTUDIO_URL';
 
 const mmss = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
 
@@ -119,13 +119,27 @@ function useVoiceStudio(active: boolean): [VoiceStudioInfo | null, () => void] {
   return [info, () => setTick((t) => t + 1)];
 }
 
+/** The voices on the ElevenLabs account, loaded when ElevenLabs is picked. */
+function useElevenVoices(active: boolean): VoiceOption[] | null {
+  const [voices, setVoices] = useState<VoiceOption[] | null>(null);
+  useEffect(() => {
+    if (!active || voices) return;
+    let live = true;
+    Promise.resolve(api.elevenVoices()).then((v) => { if (live) setVoices(v ?? []); }, () => { if (live) setVoices([]); });
+    return () => { live = false; };
+  }, [active]);
+  return voices;
+}
+
 function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, onGenerate, onAutoTag, geminiOk, ttsProviders, ttsProvider, onTtsProvider, ttsEngine, onTtsEngine, notice }: TabProps) {
   const [pasted, setPasted] = useState<string | null>(null); // the Paste-script box, open while not null
   const voiceOk = ttsProviders.length > 0;
   const studioOn = ttsProvider === 'voicestudio';
   const [studio, refreshStudio] = useVoiceStudio(studioOn);
+  const eleven = useElevenVoices(ttsProvider === 'elevenlabs');
   // VoiceStudio: wait for its list (so a saved voice is picked first); one that lists nothing still gets its default.
   const voices: VoiceOption[] = ttsProvider === 'openai' ? named(OPENAI_VOICES)
+    : ttsProvider === 'elevenlabs' ? eleven ?? []
     : studioOn ? (studio === null ? [] : studio.voices.length ? studio.voices : [{ id: 'alloy', label: "Engine's default voice", kind: 'default' }])
     : named(VOICES);
   const ids = voices.map((v) => v.id);
@@ -172,7 +186,7 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
 
   return (
     <div>
-      {!voiceOk && <p className="hint">Add GEMINI_API_KEY, OPENAI_API_KEY or VOICESTUDIO_URL to .env to generate voices.</p>}
+      {!voiceOk && <p className="hint">Add GEMINI_API_KEY, OPENAI_API_KEY, ELEVENLABS_API_KEY or VOICESTUDIO_URL to .env to generate voices.</p>}
       <div className="voice-settings">
       {ttsProviders.length > 1 && (
         <label className="field">Voice by{' '}
@@ -180,6 +194,9 @@ function ScriptTab({ busy, error, scriptLines: lines, onScriptLines: setLines, o
             {ttsProviders.map((p) => <option key={p} value={p}>{TTS_PROVIDER_NAMES[p]}</option>)}
           </select>
         </label>
+      )}
+      {ttsProvider === 'elevenlabs' && eleven && !eleven.length && (
+        <p className="hint" role="status">Could not load your ElevenLabs voices. Check ELEVENLABS_API_KEY in .env and that the account has voices.</p>
       )}
       {studioOn && (
         <div className="studio">

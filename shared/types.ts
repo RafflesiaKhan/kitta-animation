@@ -51,6 +51,14 @@ export const IMAGE_PROVIDERS: ImageProvider[] = ['gemini', 'openai'];
  * mouthsMeasured: its mouths were measured in the pixels (absent for characters made before that, which can be re-measured).
  */
 export interface ArtCharacter { kind: 'art'; id: string; name: string; prompt: string; style: string; provider?: ImageProvider; mouthsMeasured?: boolean; mouthAnchor?: { x: number; y: number }; images: Partial<Record<ArtPose, ArtImage>> }
-/** Whatever the user picked in the Character step: a customised SVG starter or an AI-created character. */
-export type AnyCharacter = CharacterConfig | ArtCharacter;
+/**
+ * A vector-avator character: one layered vector drawing (vector.json, stored next to meta.json) moved by a skeleton.
+ * Unlike an art character it is drawn live (Canvas 2D) from the frame state, so it has no per-pose pictures.
+ */
+export interface VectorCharacter { kind: 'vector'; id: string; name: string }
+/** Whatever the user picked in the Character step: a customised SVG starter, an AI-created character or a vector one. */
+export type AnyCharacter = CharacterConfig | ArtCharacter | VectorCharacter;
 export const isArt = (c: AnyCharacter): c is ArtCharacter => (c as ArtCharacter).kind === 'art';
+export const isVector = (c: AnyCharacter): c is VectorCharacter => (c as VectorCharacter).kind === 'vector';
+/** A character in the on-disk library (data/characters). */
+export type LibraryCharacter = ArtCharacter | VectorCharacter;

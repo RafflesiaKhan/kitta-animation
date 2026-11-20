@@ -221,9 +221,12 @@ export async function transcribe(wavPath: string): Promise<{ text: string; start
 }
 
 export interface ImageInput { data: Buffer; mimeType: string }
+/** square 1:1, portrait 2:3, landscape 3:2 (the vector character pictures). */
+export type ImageShape = 'square' | 'portrait' | 'landscape';
+const ASPECT: Record<ImageShape, string> = { square: '1:1', portrait: '2:3', landscape: '3:2' };
 
-/** Paints one square image from a prompt, optionally editing/redrawing the given reference images. */
-export async function generateImage(prompt: string, refs: ImageInput[] = []): Promise<Buffer> {
+/** Paints one image (square by default) from a prompt, optionally editing/redrawing the given reference images. */
+export async function generateImage(prompt: string, refs: ImageInput[] = [], shape: ImageShape = 'square'): Promise<Buffer> {
   const ai = client();
   let data: string | undefined;
   try {
@@ -237,7 +240,7 @@ export async function generateImage(prompt: string, refs: ImageInput[] = []): Pr
         abortSignal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
         httpOptions: QUICK_RETRY,
         responseModalities: ['IMAGE'],
-        imageConfig: { aspectRatio: '1:1' },
+        imageConfig: { aspectRatio: ASPECT[shape] },
       },
     });
     data = res.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data && p.inlineData.mimeType?.startsWith('image/'))?.inlineData?.data;
