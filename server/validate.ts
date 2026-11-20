@@ -1,5 +1,5 @@
 import { EXPRESSIONS, GESTURES } from '../shared/types';
-import type { AnyCharacter, ArtCharacter, ExportFormat, ScriptLineInput, Timeline } from '../shared/types';
+import type { AnyCharacter, ArtCharacter, ExportFormat, ScriptLineInput, Timeline, VectorCharacter } from '../shared/types';
 import { LANGUAGES, PITCH_RANGE, SPEAKERS, SPEED_RANGE } from '../shared/voices';
 import { MAX_AUDIO_MS } from './audio';
 
@@ -29,7 +29,7 @@ function validMarks(marks: unknown, durationMs: number): boolean {
 export function validateExport(body: unknown): { character: AnyCharacter; timeline: Timeline; format: ExportFormat } | null {
   if (!isObj(body)) return null;
   const { character, timeline, format } = body;
-  const art = isObj(character) && character.kind === 'art';
+  const art = isObj(character) && (character.kind === 'art' || character.kind === 'vector');
   if (!isObj(character) || (art ? typeof character.id !== 'string' || !UUID_RE.test(character.id) : !CHARACTER_KEYS.every((k) => typeof character[k] === 'string'))) return null;
   if (!isObj(format) || (format.aspect !== '16:9' && format.aspect !== '9:16') || typeof format.transparent !== 'boolean') return null;
   if (!isObj(timeline) || !num(timeline.durationMs) || timeline.durationMs <= 0 || timeline.durationMs > MAX_AUDIO_MS) return null;
@@ -41,7 +41,9 @@ export function validateExport(body: unknown): { character: AnyCharacter; timeli
   if (!cuesOk || !linesOk || !sorted(cues as never) || !sorted(lines as never)) return null;
   if (timeline.marks !== undefined && !validMarks(timeline.marks, timeline.durationMs)) return null;
   return {
-    character: art ? ({ kind: 'art', id: character.id, name: '', prompt: '', style: '', images: {} } as ArtCharacter) : (character as unknown as AnyCharacter),
+    character: art
+      ? character.kind === 'vector' ? ({ kind: 'vector', id: character.id, name: '' } as VectorCharacter) : ({ kind: 'art', id: character.id, name: '', prompt: '', style: '', images: {} } as ArtCharacter)
+      : (character as unknown as AnyCharacter),
     timeline: timeline as unknown as Timeline,
     format: { aspect: format.aspect, transparent: format.transparent },
   };

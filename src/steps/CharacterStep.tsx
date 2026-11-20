@@ -1,82 +1,130 @@
-import { useEffect, useState } from 'react';
-import { ART_ACTIONS, EXPRESSIONS, isArt } from '../../shared/types';
-import type { AnyCharacter, ArtCharacter, ArtPose, CharacterConfig, FrameState, ImageProvider, StarterId } from '../../shared/types';
+import { useEffect, useState, type MouseEvent } from 'react';
+import { ART_ACTIONS, EXPRESSIONS, GESTURES, isArt, isVector } from '../../shared/types';
+import type { AnyCharacter, ArtCharacter, ArtPose, CharacterConfig, FrameState, ImageProvider, StarterId, VectorCharacter } from '../../shared/types';
+import { CharacterView } from '../../shared/character/CharacterView';
 import { Character } from '../../shared/character/Character';
 import { OPTIONS, STARTERS } from '../../shared/character/starters';
 import { ART_STYLES } from '../../shared/character/art';
 import * as api from '../api';
 import { Icon } from '../Icon';
+import type { ProjectStyle } from '../../shared/projects';
+import { RUNNING_STAGES, type VectorJob } from '../../shared/vector-job';
+import { Tile } from './AnimateStep';
+import { VectorSheet } from './VectorSheet';
 
 const REST: FrameState = { expression: 'neutral', mouth: 'X', gesture: 'none', gestureProgress: 0, blink: false, bob: 0 };
 const NEEDS_KEY = 'Needs GEMINI_API_KEY or OPENAI_API_KEY';
 const PROVIDER_NAMES: Record<ImageProvider, string> = { gemini: 'Gemini', openai: 'OpenAI' };
 
 interface Props {
-  character: AnyCharacter;
+  character?: AnyCharacter;
+  projectStyle?: ProjectStyle;
   onChange: (c: AnyCharacter) => void;
   library: ArtCharacter[];
-  imageProviders: ImageProvider[]; // image providers with a key on the server
-  busy: boolean;
-  error: string | null;
-  onCreate: (input: api.CreateCharacterInput) => void;
-  onDraw: (id: string, poses: ArtPose[]) => void;
-  onFindMouths: (id: string) => void;
-  onDelete: (id: string) => void;
+  vectors?: VectorCharacter[]; // saved vector-avator characters
+  onImportVector?: () => void; // adds the bundled sample
+  onDeleteVector?: (id: string) => void;
+  imageProviders?: ImageProvider[]; // image providers with a key on the server
+  busy?: boolean;
+  error?: string | null;
+  onCreate?: (input: api.CreateCharacterInput) => void;
+  onDraw?: (id: string, poses: ArtPose[]) => void;
+  onFindMouths?: (id: string) => void;
+  onSetMouth?: (id: string, x: number, y: number) => void;
+  onDelete?: (id: string) => void;
+  // Vector characters created in the background (server/vector-create.ts).
+  vectorJobs?: VectorJob[];
+  vectorDraw?: boolean; // the drawing model has a key on the server
+  vectorDrawBy?: 'anthropic' | 'openai';
+  onCreateVector?: (input: api.CreateVectorInput) => void;
+  onJob?: (id: string, action: 'cancel' | 'resume' | 'discard') => void;
 }
+
+const DRAW_NAMES = { anthropic: 'Claude', openai: 'OpenAI' } as const;
 
 const imgUrl = (c: ArtCharacter, pose: ArtPose) => {
   const im = c.images[pose];
   return im ? `/api/characters/${c.id}/${im.file}` : null;
 };
 
-export function CharacterStep({ character, onChange, library, imageProviders, busy, error, onCreate, onDraw, onFindMouths, onDelete }: Props) {
-  const [creating, setCreating] = useState(false);
+export function CharacterStep({ character, onChange, library, vectors = [], onImportVector, onDeleteVector, projectStyle, imageProviders = [], busy = false, error = null, onCreate, onDraw, onFindMouths, onSetMouth, onDelete, vectorJobs = [], vectorDraw = false, vectorDrawBy = 'openai', onCreateVector, onJob }: Props) {
+  const [creating, setCreating] = useState<'picture' | 'vector' | null>(null);
   const aiOk = imageProviders.length > 0;
   // A finished creation selects the new character; leave the form then.
-  useEffect(() => { if (isArt(character)) setCreating(false); }, [isArt(character) ? character.id : null]);
+  useEffect(() => { if (character && isArt(character)) setCreating(null); }, [character && isArt(character) ? character.id : null]);
+  // A started vector job shows as a card below; leave the form then too.
+  useEffect(() => { if (vectorJobs.length) setCreating(null); }, [vectorJobs[0]?.id]);
 
   const pickStarter = (id: StarterId) => {
     const { name: _name, ...config } = STARTERS[id];
-    setCreating(false);
+    setCreating(null);
     onChange(config);
   };
-  const selected = (c: ArtCharacter) => !creating && isArt(character) && character.id === c.id;
+  const selected = (c: ArtCharacter) => !creating && !!character && isArt(character) && character.id === c.id;
   return (
     <div>
-      <p className="eyebrow">Step 1</p>
+      {!projectStyle && <p className="eyebrow">Step 1</p>}
       <h2>Pick a character</h2>
       <div className="tiles">
-        {(Object.keys(STARTERS) as StarterId[]).map((id) => {
-          const on = !creating && !isArt(character) && character.starter === id;
+        {projectStyle !== 'ai' && (Object.keys(STARTERS) as StarterId[]).map((id) => {
+          const on = !creating && !!character && !isArt(character) && !isVector(character) && character.starter === id;
           return (
-            <button key={id} className={`tile${on ? ' selected' : ''}`} aria-pressed={on} onClick={() => pickStarter(id)}>
+            <button type="button" key={id} className={`tile${on ? ' selected' : ''}`} aria-pressed={on} onClick={() => pickStarter(id)}>
               <Character config={STARTERS[id]} frame={REST} width={84} height={84} />
               <span>{STARTERS[id].name}</span>
             </button>
           );
         })}
-        {library.map((c) => (
-          <button key={c.id} className={`tile${selected(c) ? ' selected' : ''}`} aria-pressed={selected(c)} onClick={() => { setCreating(false); onChange(c); }}>
+        {projectStyle !== 'svg' && library.map((c) => (
+          <button type="button" key={c.id} className={`tile${selected(c) ? ' selected' : ''}`} aria-pressed={selected(c)} onClick={() => { setCreating(null); onChange(c); }}>
             <img src={imgUrl(c, 'neutral') ?? ''} alt="" width={84} height={84} />
             <span>{c.name}</span>
           </button>
         ))}
-        <button className={`tile create${creating ? ' selected' : ''}`} aria-pressed={creating} onClick={() => setCreating(true)}>
+        {!projectStyle && vectors.map((c) => {
+          const on = !creating && !!character && isVector(character) && character.id === c.id;
+          return (
+            <button type="button" key={c.id} className={`tile${on ? ' selected' : ''}`} aria-pressed={on} onClick={() => { setCreating(null); onChange(c); }}>
+              <CharacterView config={c} frame={REST} width={84} height={84} />
+              <span>{c.name}</span>
+            </button>
+          );
+        })}
+        {!projectStyle && onImportVector && !vectors.length && <button type="button" className="tile create" onClick={onImportVector}>
+          <span className="plus"><Icon name="plus" size={22} /></span>
+          <span>Add vector sample</span>
+        </button>}
+        {!projectStyle && onCreate && <button className={`tile create${creating === 'picture' ? ' selected' : ''}`} aria-pressed={creating === 'picture'} onClick={() => setCreating('picture')}>
           <span className="plus"><Icon name="plus" size={22} /></span>
           <span>Create with AI</span>
-        </button>
+        </button>}
+        {!projectStyle && onCreateVector && <button className={`tile create${creating === 'vector' ? ' selected' : ''}`} aria-pressed={creating === 'vector'} onClick={() => setCreating('vector')}>
+          <span className="plus"><Icon name="plus" size={22} /></span>
+          <span>Create vector character</span>
+        </button>}
       </div>
-      {creating
-        ? <CreateForm busy={busy} providers={imageProviders} onCreate={onCreate} onCancel={() => setCreating(false)} />
-        : isArt(character)
-          ? <ArtSheet character={character} busy={busy} geminiOk={aiOk} onDraw={onDraw} onFindMouths={onFindMouths} onDelete={onDelete} />
-          : <Customize character={character} onChange={onChange} />}
+      {!projectStyle && onJob && vectorJobs.map((j) => <VectorJobCard key={j.id} job={j} onJob={onJob} />)}
+      {creating === 'picture' && onCreate
+        ? <CreateForm busy={busy} providers={imageProviders} onCreate={onCreate} onCancel={() => setCreating(null)} />
+        : creating === 'vector' && onCreateVector
+        ? <VectorCreateForm busy={busy} providers={imageProviders} vectorDraw={vectorDraw} vectorDrawBy={vectorDrawBy} onCreate={onCreateVector} onCancel={() => setCreating(null)} />
+        : character && (isVector(character)
+          ? !projectStyle && <VectorSheet character={character} busy={busy} onDelete={onDeleteVector} />
+          : isArt(character)
+          ? !projectStyle && onDraw && onFindMouths && onSetMouth && onDelete && <ArtSheet character={character} busy={busy} geminiOk={aiOk} onDraw={onDraw} onFindMouths={onFindMouths} onSetMouth={onSetMouth} onDelete={onDelete} />
+          : <Customize character={character} onChange={onChange} showExpressions={!projectStyle} />)}
+      {projectStyle && character && <>
+        <h3>Expressions</h3>
+        <div className="expressions">{EXPRESSIONS.map(value => <Tile key={value} character={character} kind="expression" value={value} />)}</div>
+        <h3>Actions</h3>
+        <div className="expressions">{GESTURES.filter(value => value !== 'none').map(value => <Tile key={value} character={character} kind="action" value={value} />)}</div>
+      </>}
       {error && <p role="alert" className="error">{error}</p>}
     </div>
   );
 }
 
-function CreateForm({ busy, providers, onCreate, onCancel }: { busy: boolean; providers: ImageProvider[]; onCreate: Props['onCreate']; onCancel: () => void }) {
+function CreateForm({ busy, providers, onCreate, onCancel }: { busy: boolean; providers: ImageProvider[]; onCreate: NonNullable<Props['onCreate']>; onCancel: () => void }) {
   const geminiOk = providers.length > 0;
   const [picked, setPicked] = useState<ImageProvider | null>(null);
   const provider = picked && providers.includes(picked) ? picked : providers[0];
@@ -122,11 +170,115 @@ function CreateForm({ busy, providers, onCreate, onCancel }: { busy: boolean; pr
   );
 }
 
-function ArtSheet({ character: c, busy, geminiOk, onDraw, onFindMouths, onDelete }: {
-  character: ArtCharacter; busy: boolean; geminiOk: boolean; onDraw: Props['onDraw']; onFindMouths: Props['onFindMouths']; onDelete: Props['onDelete'];
+/** Starter descriptions to edit: the words in [brackets] are meant to be replaced. */
+export const VECTOR_PRESETS = {
+  Person: 'A friendly young [woman / man] with short [colour] [curly / straight] hair, wearing a [colour] [sweater / jacket] and [colour] trousers. Calm, warm face.',
+  Animal: 'A small [fox / cat / bear / rabbit] with [main colour] fur, a cream chest and a [colour] scarf. Calm, friendly face.',
+  Robot: 'A cheerful round robot with a [colour] body, a white face screen with simple dark eyes, one antenna with a [colour] ball on top, and short stubby arms and legs.',
+  Mascot: 'A round, cheerful mascot shaped like a [object], [main colour] with simple dark eyes, small rosy cheeks and short arms and legs.',
+} as const;
+
+function VectorCreateForm({ busy, providers, vectorDraw, vectorDrawBy, onCreate, onCancel }: {
+  busy: boolean; providers: ImageProvider[]; vectorDraw: boolean; vectorDrawBy: 'anthropic' | 'openai';
+  onCreate: NonNullable<Props['onCreateVector']>; onCancel: () => void;
+}) {
+  const [picked, setPicked] = useState<ImageProvider | null>(null);
+  const provider = picked && providers.includes(picked) ? picked : providers[0];
+  const [kind, setKind] = useState<keyof typeof VECTOR_PRESETS | null>(null);
+  const [description, setDescription] = useState('');
+  const [name, setName] = useState('');
+  const [reference, setReference] = useState<File | undefined>();
+  const drawKey = vectorDrawBy === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
+  const unfilled = /\[[^\]]*\]/.test(description);
+  const ready = providers.length > 0 && vectorDraw && !busy && !unfilled && (description.trim() !== '' || reference !== undefined);
+  const pick = (k: keyof typeof VECTOR_PRESETS) => { setKind(k); setDescription(VECTOR_PRESETS[k]); };
+  return (
+    <div className="create-form">
+      <h3>Create a vector character</h3>
+      <p className="hint">A character made of parts on a skeleton: its arms bend, its head turns and it lip-syncs smoothly, in every scene.</p>
+      {!providers.length && <p className="hint">Add OPENAI_API_KEY or GEMINI_API_KEY to .env to paint its pictures.</p>}
+      {!vectorDraw && <p className="hint">Add {drawKey} to .env to draw vector characters.</p>}
+      <div className="field"><span>Start from</span>
+        <div className="presets" role="group" aria-label="Start from">
+          {(Object.keys(VECTOR_PRESETS) as (keyof typeof VECTOR_PRESETS)[]).map((k) => (
+            <button key={k} type="button" className={`mini${kind === k ? ' selected' : ''}`} aria-pressed={kind === k} disabled={busy} onClick={() => pick(k)}>{k}</button>
+          ))}
+        </div>
+      </div>
+      <textarea aria-label="Describe your character" rows={3} maxLength={400} disabled={busy}
+        placeholder="Pick a starting point above, or describe your character" value={description} onChange={(e) => setDescription(e.target.value)} />
+      {unfilled && <p className="hint">Replace the words in [brackets] with your own.</p>}
+      <div className="fields">
+        <label className="field"><span>Name</span>
+          <input aria-label="Name" maxLength={40} disabled={busy} placeholder="Optional" value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        {providers.length > 1 && (
+          <label className="field"><span>Pictures by</span>
+            <select aria-label="Pictures by" disabled={busy} value={provider} onChange={(e) => setPicked(e.target.value as ImageProvider)}>
+              {providers.map((p) => <option key={p} value={p}>{PROVIDER_NAMES[p]}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
+      <label className="field"><span>Reference picture (optional): redraw your own character or logo</span>
+        <input type="file" accept="image/png,image/jpeg,image/webp" aria-label="Reference picture" disabled={busy}
+          onChange={(e) => setReference(e.target.files?.[0])} />
+      </label>
+      <p className="hint"><strong>Before you start:</strong> {provider ? PROVIDER_NAMES[provider] : 'The AI'} paints a front picture and a face sheet, then {DRAW_NAMES[vectorDrawBy]} draws the parts and checks them. It usually takes 5 to 10 minutes and costs about $1.50 to $2.50. It runs in the background: you can keep working or close Kitta, and resume it later.</p>
+      <div className="line-actions">
+        <button className="btn" disabled={!ready} onClick={() => onCreate({ description: description.trim(), name: name.trim(), provider, reference })}><Icon name="spark" /> Create vector character</button>
+        <button className="btn secondary" disabled={busy} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+const STEP_LABELS = [['front', 'Front picture'], ['face', 'Face sheet'], ['drawing', 'Drawing the parts']] as const;
+
+/** Progress of one vector character being created: the steps, the latest check picture, and cancel/resume. */
+function VectorJobCard({ job: j, onJob }: { job: VectorJob; onJob: NonNullable<Props['onJob']> }) {
+  const live = RUNNING_STAGES.includes(j.stage);
+  const done = (s: 'front' | 'face' | 'drawing') => (s === 'front' ? j.hasFront : s === 'face' ? j.hasFace : false);
+  const pic = (file: string) => `/api/vector-jobs/${j.id}/${file}?v=${encodeURIComponent(j.updatedAt)}`;
+  const cost = j.cost >= 0.01 ? `$${j.cost.toFixed(2)}` : j.cost > 0 ? '<$0.01' : '$0';
+  return (
+    <div className="create-form vector-job" aria-label={`${live ? 'Creating' : 'Stopped:'} ${j.name}`}>
+      <h3>{live ? 'Creating' : 'Stopped:'} {j.name} (vector)</h3>
+      <ol className="job-steps">
+        {STEP_LABELS.map(([s, label]) => (
+          <li key={s} className={done(s) ? 'done' : j.stage === s ? 'active' : ''}>
+            {done(s) ? '✓ ' : j.stage === s ? '… ' : ''}{label}
+            {s === 'drawing' && (j.stage === 'drawing' || j.round > 0) && <span className="hint"> · round {Math.min(j.round + (j.stage === 'drawing' ? 1 : 0), j.maxRounds)} of up to {j.maxRounds}{j.errors !== null ? ` · ${j.errors} check error${j.errors === 1 ? '' : 's'} last round` : ''}</span>}
+          </li>
+        ))}
+      </ol>
+      <div className="job-pictures">
+        {j.hasFront && <a href={pic('front.png')} target="_blank" rel="noreferrer"><img src={pic('front.png')} alt="Front picture" height={160} /></a>}
+        {j.hasFace && <a href={pic('sheet_face.png')} target="_blank" rel="noreferrer"><img src={pic('sheet_face.png')} alt="Face sheet" height={160} /></a>}
+        {j.hasCheck && <a href={pic('check.png')} target="_blank" rel="noreferrer"><img src={pic('check.png')} alt="Latest check picture" height={160} /></a>}
+      </div>
+      <p className="hint">{j.message ?? (live ? 'Runs in the background; you can keep working.' : '')} Spent so far: {cost}.</p>
+      <div className="line-actions">
+        {live
+          ? <button className="btn secondary" onClick={() => onJob(j.id, 'cancel')}>Cancel</button>
+          : <>
+            <button className="btn" onClick={() => onJob(j.id, 'resume')}>Resume</button>
+            <button className="btn secondary" onClick={() => { if (confirm(`Discard ${j.name} and its pictures?`)) onJob(j.id, 'discard'); }}>Discard</button>
+          </>}
+      </div>
+    </div>
+  );
+}
+
+function ArtSheet({ character: c, busy, geminiOk, onDraw, onFindMouths, onSetMouth, onDelete }: {
+  character: ArtCharacter; busy: boolean; geminiOk: boolean; onDraw: NonNullable<Props['onDraw']>; onFindMouths: NonNullable<Props['onFindMouths']>; onSetMouth: NonNullable<Props['onSetMouth']>; onDelete: NonNullable<Props['onDelete']>;
 }) {
   const missing = ([...EXPRESSIONS, 'blink', ...ART_ACTIONS] as ArtPose[]).filter((p) => !c.images[p]);
   const noMouth = Object.values(c.images).filter((im) => im && !im.mouth).length;
+  const pickMouth = (e: MouseEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    onSetMouth(c.id, Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)));
+  };
   const tile = (pose: ArtPose, label: string = pose) => {
     const url = imgUrl(c, pose);
     return (
@@ -160,6 +312,17 @@ function ArtSheet({ character: c, busy, geminiOk, onDraw, onFindMouths, onDelete
           <Icon name="spark" /> Draw {missing.length === 1 ? 'the missing pose' : `all ${missing.length} missing poses`}
         </button>
       )}
+      {c.images.neutral && (
+        <div className="mouth-picker">
+          <h3>Set lip-sync position</h3>
+          <p className="hint">Click the centre of the mouth once. Kitta will reuse this position and refine it locally across the saved poses.</p>
+          <button type="button" className="mouth-target" disabled={busy} aria-label="Click the character mouth" onClick={pickMouth}>
+            <img src={imgUrl(c, 'neutral') ?? ''} alt="Click the character mouth" width={180} height={180} />
+            {c.mouthAnchor && <span className="mouth-marker" style={{ left: `${c.mouthAnchor.x * 100}%`, top: `${c.mouthAnchor.y * 100}%` }} />}
+          </button>
+          {c.mouthAnchor && <p className="hint">Mouth position saved.</p>}
+        </div>
+      )}
       <h3>Expressions</h3>
       <p className="hint">Lines use these faces; one that isn't drawn yet shows the neutral face.</p>
       <div className="expressions">{EXPRESSIONS.map((x) => tile(x))}{tile('blink', 'blink (eyes shut)')}</div>
@@ -170,7 +333,7 @@ function ArtSheet({ character: c, busy, geminiOk, onDraw, onFindMouths, onDelete
   );
 }
 
-function Customize({ character, onChange }: { character: CharacterConfig; onChange: (c: CharacterConfig) => void }) {
+function Customize({ character, onChange, showExpressions }: { character: CharacterConfig; onChange: (c: CharacterConfig) => void; showExpressions: boolean }) {
   const set = (patch: Partial<CharacterConfig>) => onChange({ ...character, ...patch });
   const colour = (label: string, key: 'skin' | 'hairColor' | 'outfitColor') => (
     <label className="field">
@@ -197,6 +360,7 @@ function Customize({ character, onChange }: { character: CharacterConfig; onChan
         {select('Eyes', 'eyeStyle', OPTIONS.eyeStyles)}
         {select('Outfit', 'outfit', OPTIONS.outfits)}
       </div>
+      {showExpressions && <>
       <h3>Expressions</h3>
       <p className="hint">Your character's expression set. Pick one per line in the Voiceover step; faces morph smoothly from line to line.</p>
       <div className="expressions" data-testid="expression-sheet">
@@ -207,6 +371,7 @@ function Customize({ character, onChange }: { character: CharacterConfig; onChan
           </figure>
         ))}
       </div>
+      </>}
     </div>
   );
 }

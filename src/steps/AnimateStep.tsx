@@ -30,8 +30,12 @@ const pct = (ms: number, total: number) => `${(100 * ms) / total}%`;
 const said = (text: string) => text.replace(/\[[^\]]*\]|<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(); // words only, no pause or cue tags
 
 /** A palette tile: the user's own character showing that expression, or caught early in that action. */
-function Tile({ character, kind, value, onAdd }: { character: AnyCharacter; kind: Kind; value: Expression | Action; onAdd: () => void }) {
+export function Tile({ character, kind, value, onAdd }: { character: AnyCharacter; kind: Kind; value: Expression | Action; onAdd?: () => void }) {
   const frame = kind === 'expression' ? { ...STILL, expression: value as Expression } : { ...STILL, gesture: value as Action, gestureProgress: 0.25 };
+  if (!onAdd) return <figure className="expression">
+    <CharacterView config={character} frame={frame} width={56} height={56} />
+    <figcaption>{name(value)}</figcaption>
+  </figure>;
   return (
     <button className="trigger" draggable aria-label={`Add ${name(value)}`} title={`Drag onto the timeline, or click to add at the playhead`}
       onDragStart={(e) => e.dataTransfer.setData('text/plain', `${kind}:${value}`)} onClick={onAdd}>

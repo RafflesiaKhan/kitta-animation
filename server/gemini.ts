@@ -221,9 +221,12 @@ export async function transcribe(wavPath: string): Promise<{ text: string; start
 }
 
 export interface ImageInput { data: Buffer; mimeType: string }
+/** square 1:1, portrait 2:3, landscape 3:2 (the vector character pictures). */
+export type ImageShape = 'square' | 'portrait' | 'landscape';
+const ASPECT: Record<ImageShape, string> = { square: '1:1', portrait: '2:3', landscape: '3:2' };
 
-/** Paints one square image from a prompt, optionally editing/redrawing the given reference images. */
-export async function generateImage(prompt: string, refs: ImageInput[] = []): Promise<Buffer> {
+/** Paints one image (square by default) from a prompt, optionally editing/redrawing the given reference images. */
+export async function generateImage(prompt: string, refs: ImageInput[] = [], shape: ImageShape = 'square'): Promise<Buffer> {
   const ai = client();
   let data: string | undefined;
   try {
@@ -237,7 +240,7 @@ export async function generateImage(prompt: string, refs: ImageInput[] = []): Pr
         abortSignal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
         httpOptions: QUICK_RETRY,
         responseModalities: ['IMAGE'],
-        imageConfig: { aspectRatio: '1:1' },
+        imageConfig: { aspectRatio: ASPECT[shape] },
       },
     });
     data = res.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data && p.inlineData.mimeType?.startsWith('image/'))?.inlineData?.data;
@@ -249,8 +252,25 @@ export async function generateImage(prompt: string, refs: ImageInput[] = []): Pr
 }
 
 const HEX_RE = /^#[0-9a-f]{6}$/i;
-export const MOUTH_PROMPT = "Find the character's mouth. Give its bounding box as box_2d [ymin, xmin, ymax, xmax] scaled 0-1000, " +
-  'and the skin colour right around the mouth as #rrggbb. Set found to false if the character has no visible mouth.';
+export const MOUTH_PROMPT = "Find the character's visible mouth, not the nose or eyes. Give its bounding box as box_2d [ymin, xmin, ymax, xmax] scaled 0-1000, " +
+  'and facial landmarks leftEye, rightEye, nose, mouthLeft and mouthRight as [x, y] scaled 0-1000. The mouth must be below the nose and eye line. ' +
+  'Also give the skin colour right around the mouth as #rrggbb. Set found to false if the character has no visible mouth.';
+
+type Point = [number, number];
+type FaceLandmarks = { leftEye: Point; rightEye: Point; nose: Point; mouthLeft: Point; mouthRight: Point };
+
+function point(v: unknown): Point | null {
+  return Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === 'number' && n >= 0 && n <= 1000) ? v as Point : null;
+}
+
+function landmarksOf(v: unknown): FaceLandmarks | null {
+  const l = v as Partial<FaceLandmarks> | null;
+  const out = l && {
+    leftEye: point(l.leftEye), rightEye: point(l.rightEye), nose: point(l.nose),
+    mouthLeft: point(l.mouthLeft), mouthRight: point(l.mouthRight),
+  };
+  return out && Object.values(out).every(Boolean) ? out as FaceLandmarks : null;
+}
 
 /** Finds the character's mouth in a PNG; null when there is no clear mouth (lip sync then just shows the art). */
 export async function findMouth(png: Buffer): Promise<MouthBox | null> {
@@ -269,8 +289,15 @@ export async function findMouth(png: Buffer): Promise<MouthBox | null> {
         responseMimeType: 'application/json',
         responseSchema: {
           type: 'OBJECT',
-          properties: { found: { type: 'BOOLEAN' }, box_2d: { type: 'ARRAY', items: { type: 'NUMBER' } }, skin: { type: 'STRING' } },
-          required: ['found'],
+          properties: {
+            found: { type: 'BOOLEAN' }, box_2d: { type: 'ARRAY', items: { type: 'NUMBER' } }, skin: { type: 'STRING' },
+            landmarks: { type: 'OBJECT', properties: {
+              leftEye: { type: 'ARRAY', items: { type: 'NUMBER' } }, rightEye: { type: 'ARRAY', items: { type: 'NUMBER' } },
+              nose: { type: 'ARRAY', items: { type: 'NUMBER' } }, mouthLeft: { type: 'ARRAY', items: { type: 'NUMBER' } },
+              mouthRight: { type: 'ARRAY', items: { type: 'NUMBER' } },
+            }, required: ['leftEye', 'rightEye', 'nose', 'mouthLeft', 'mouthRight'] },
+          },
+          required: ['found', 'box_2d', 'skin', 'landmarks'],
         } as unknown as Schema,
       },
     });
@@ -283,12 +310,25 @@ export async function findMouth(png: Buffer): Promise<MouthBox | null> {
 
 /** Validates a mouth reply ({found, box_2d: [ymin, xmin, ymax, xmax] on 0-1000, skin}) from any vision model. */
 export function parseMouthBox(parsed: unknown): MouthBox | null {
-  const r = parsed as { found?: unknown; box_2d?: unknown; skin?: unknown } | null;
+  const r = parsed as { found?: unknown; box_2d?: unknown; skin?: unknown; landmarks?: unknown } | null;
   const box = Array.isArray(r?.box_2d) && r!.box_2d.length === 4 && r!.box_2d.every((v) => typeof v === 'number' && v >= 0 && v <= 1000) ? (r!.box_2d as number[]) : null;
-  if (r?.found !== true || !box) return null;
-  const [y0, x0, y1, x1] = box;
+  if (r?.found !== true) return null;
+  const l = landmarksOf(r?.landmarks);
+  if (!l) return null;
+  const eyeY = (l.leftEye[1] + l.rightEye[1]) / 2;
+  const eyeLeft = Math.min(l.leftEye[0], l.rightEye[0]), eyeRight = Math.max(l.leftEye[0], l.rightEye[0]);
+  const mouthMidX = (l.mouthLeft[0] + l.mouthRight[0]) / 2, mouthMidY = (l.mouthLeft[1] + l.mouthRight[1]) / 2;
+  const valid = (candidate: number[] | null) => {
+    if (!candidate) return false;
+    const [y0, x0, y1, x1] = candidate, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const w = (x1 - x0) / 1000;
+    return w > 0.005 && w <= 0.6 && y1 > y0 && cy > l.nose[1] && cy > eyeY + 35 && cx >= eyeLeft - 150 && cx <= eyeRight + 150 && Math.abs(cx - mouthMidX) <= 120 && Math.abs(cy - mouthMidY) <= 120;
+  };
+  // If vision boxed a forehead mark, recover from the validated mouth-corner landmarks.
+  const mouthBox = valid(box) ? box! : [mouthMidY - 20, Math.min(l.mouthLeft[0], l.mouthRight[0]), mouthMidY + 20, Math.max(l.mouthLeft[0], l.mouthRight[0])];
+  if (!valid(mouthBox)) return null;
+  const [y0, x0, y1, x1] = mouthBox;
   const w = (x1 - x0) / 1000;
-  if (w <= 0.005 || w > 0.6 || y1 <= y0) return null;
   const round = (v: number) => Math.round(v * 1000) / 1000;
   return { x: round((x0 + x1) / 2000), y: round((y0 + y1) / 2000), w: round(w), skin: typeof r.skin === 'string' && HEX_RE.test(r.skin) ? r.skin : '#f2c9a0' };
 }

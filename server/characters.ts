@@ -1,10 +1,10 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ART_POSES } from '../shared/types';
-import type { ArtCharacter, ArtPose, ImageProvider, MouthBox } from '../shared/types';
+import type { ArtCharacter, ArtPose, ImageProvider, LibraryCharacter, MouthBox } from '../shared/types';
 import { basePrompt, posePrompt } from '../shared/character/art';
 import type { ImageInput } from './gemini';
 import { imageProviders, locateMouth, paint } from './images';
@@ -63,6 +63,17 @@ async function readMeta(id: string): Promise<ArtCharacter> {
   }
 }
 
+async function saveMeta(character: ArtCharacter): Promise<void> {
+  const dir = dirOf(character.id);
+  const temp = join(dir, 'meta-' + randomUUID() + '.tmp');
+  try {
+    await writeFile(temp, JSON.stringify(character, null, 2), { flag: 'wx' });
+    await rename(temp, join(dir, 'meta.json'));
+  } finally {
+    await rm(temp, { force: true });
+  }
+}
+
 /** Mouth lookup is best effort: without it the character still works, it just doesn't move its lips. */
 async function mouthOf(png: Buffer) {
   try {
@@ -78,11 +89,9 @@ async function measureFrom(png: Buffer, seed: MouthBox | null): Promise<MouthBox
   return seed && ((await measureMouth(png, seed)) ?? seed);
 }
 
-/**
- * A pose's mouth. The neutral picture's comes from the vision lookup, refined in the pixels. Every other pose is an
- * edit with the same framing, so the neutral mouth seeds its measurement (no vision call).
- */
+/** A pose's mouth. User-anchored characters use local refinement; older characters retain the old neutral fallback. */
 async function mouthFor(c: ArtCharacter, pose: ArtPose, png: Buffer): Promise<MouthBox | null> {
+  if (c.mouthAnchor) return measureFrom(png, { x: c.mouthAnchor.x, y: c.mouthAnchor.y, w: 0.08, skin: '#f2c9a0' });
   return measureFrom(png, pose === 'neutral' ? await mouthOf(png) : c.images.neutral?.mouth ?? null);
 }
 
@@ -92,7 +101,7 @@ async function savePose(c: ArtCharacter, pose: ArtPose, png: Buffer): Promise<Ar
   await writeFile(join(dir, file), png);
   const old = c.images[pose]?.file;
   const next: ArtCharacter = { ...c, images: { ...c.images, [pose]: { file, mouth: await mouthFor(c, pose, png) } } };
-  await writeFile(join(dir, 'meta.json'), JSON.stringify(next, null, 2));
+  await saveMeta(next);
   if (old && old !== file) await rm(join(dir, old), { force: true });
   return next;
 }
@@ -101,10 +110,15 @@ export async function listCharacters(): Promise<ArtCharacter[]> {
   if (!existsSync(CHARACTERS_DIR)) return [];
   const ids = (await readdir(CHARACTERS_DIR)).filter((d) => UUID_RE.test(d));
   const all = await Promise.all(ids.map((id) => readMeta(id).catch(() => null)));
-  return all.filter((c): c is ArtCharacter => c !== null && Boolean(c.images.neutral)).sort((a, b) => a.name.localeCompare(b.name));
+  return all.filter((c): c is ArtCharacter => c !== null && (c as { kind?: string }).kind !== 'vector' && Boolean(c.images?.neutral)).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export const getCharacter = readMeta;
+
+/** Any library entry: an AI character or a vector one (scenes name both by `artId`). */
+export async function getLibraryCharacter(id: string): Promise<LibraryCharacter> {
+  return readMeta(id) as unknown as Promise<LibraryCharacter>;
+}
 
 export interface CreateInput { description: string; name: string; style: string; provider: ImageProvider; reference?: ImageInput }
 
@@ -133,8 +147,7 @@ export async function generatePose(id: string, pose: ArtPose): Promise<ArtCharac
 }
 
 /**
- * Measures every picture's mouth again (for characters made before mouths were measured, or whose lookup failed).
- * Only a neutral picture without any mouth needs a vision call; the rest is local pixel work.
+ * Measures every picture's mouth again so a changed image never reuses stale coordinates.
  */
 export async function measureMouths(id: string): Promise<ArtCharacter> {
   return withLock(id, async () => {
@@ -143,16 +156,29 @@ export async function measureMouths(id: string): Promise<ArtCharacter> {
     const images = { ...c.images };
     const neutral = images.neutral;
     const png = neutral && await read(neutral.file);
-    if (neutral && png) images.neutral = { ...neutral, mouth: await measureFrom(png, neutral.mouth ?? await mouthOf(png)) };
-    const seed = images.neutral?.mouth ?? null;
+    if (neutral && png) images.neutral = { ...neutral, mouth: await measureFrom(png, await mouthOf(png)) };
     for (const [pose, im] of Object.entries(images) as [ArtPose, NonNullable<ArtCharacter['images'][ArtPose]>][]) {
       if (pose === 'neutral') continue;
       const p = await read(im.file);
-      if (p) images[pose] = { ...im, mouth: await measureFrom(p, seed) };
+      if (p) images[pose] = { ...im, mouth: await measureFrom(p, await mouthOf(p)) };
     }
     const next: ArtCharacter = { ...c, mouthsMeasured: true, images };
-    await writeFile(join(dirOf(id), 'meta.json'), JSON.stringify(next, null, 2));
+    await saveMeta(next);
     return next;
+  });
+}
+
+/** Uses a user-clicked mouth centre and local pixel refinement; no vision request. */
+export async function setMouthPoint(id: string, x: number, y: number): Promise<ArtCharacter> {
+  return withLock(id, async () => {
+    const c = await readMeta(id);
+    const images = { ...c.images };
+    const seed: MouthBox = { x, y, w: 0.08, skin: '#f2c9a0' };
+    for (const [pose, im] of Object.entries(images) as [ArtPose, NonNullable<ArtCharacter['images'][ArtPose]>][]) {
+      const p = imagePath(id, im.file);
+      if (p) images[pose] = { ...im, mouth: await measureFrom(await readFile(p), seed) };
+    }
+    return saveMeta({ ...c, mouthsMeasured: true, mouthAnchor: { x, y }, images }).then(() => ({ ...c, mouthsMeasured: true, mouthAnchor: { x, y }, images }));
   });
 }
 
@@ -178,4 +204,20 @@ export async function imageDataUris(c: ArtCharacter): Promise<Record<string, str
     if (p) out[im.file] = `data:image/png;base64,${(await readFile(p)).toString('base64')}`;
   }
   return out;
+}
+
+export function captureCharacter(id: string) {
+  return withLock(id, async () => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const character = await readMeta(id);
+      try {
+        const images = await imageDataUris(character);
+        if (Object.values(character.images).every(image => !image || Object.hasOwn(images, image.file))) return { character, images };
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+      // A repaint in another process can remove a pose after we read its metadata.
+    }
+    throw new Error('Character pose images changed or are missing. Try rendering again.');
+  });
 }

@@ -1,0 +1,129 @@
+{
+  "title": "The Missing Mango",
+  "background": "set.svg",
+  "actors": [
+    {
+      "id": "mina",
+      "character": {
+        "starter": "kit",
+        "skin": "#ffd23f",
+        "hairStyle": "spiky",
+        "hairColor": "#4a2c2a",
+        "eyeStyle": "dot",
+        "outfit": "tshirt",
+        "outfitColor": "#3a86ff"
+      },
+      "voice": "default",
+      "speaker": "woman",
+      "x": 0.3,
+      "scale": 0.8,
+      "idleOffsetMs": 0
+    },
+    {
+      "id": "rafi",
+      "character": {
+        "starter": "milo",
+        "skin": "#e0ac69",
+        "hairStyle": "curly",
+        "hairColor": "#2b2b2b",
+        "eyeStyle": "glasses",
+        "outfit": "hoodie",
+        "outfitColor": "#2a9d8f"
+      },
+      "voice": "default",
+      "speaker": "man",
+      "x": 0.7,
+      "scale": 0.8,
+      "flip": true,
+      "idleOffsetMs": 1900
+    }
+  ],
+  "lines": [
+    {
+      "actor": "mina",
+      "text": "Rafi, the basket is empty. Where did the last mango go?",
+      "expression": "confused",
+      "gesture": "point"
+    },
+    {
+      "actor": "rafi",
+      "text": "Mango? What mango? I haven't seen any mango.",
+      "expression": "worried",
+      "gesture": "shrug"
+    },
+    {
+      "actor": "mina",
+      "text": "There is juice on your chin.",
+      "expression": "thinking",
+      "gesture": "none"
+    },
+    {
+      "actor": "rafi",
+      "text": "That is from a different mango.",
+      "expression": "worried",
+      "gesture": "none"
+    }
+  ],
+  "shots": [
+    {
+      "name": "wide",
+      "line": 0,
+      "at": 0,
+      "zoom": 1,
+      "focusX": 0.5,
+      "focusY": 0.5
+    },
+    {
+      "name": "rafi speaks",
+      "line": 1,
+      "at": 0,
+      "zoom": 1.8,
+      "focusX": 0.7,
+      "focusY": 0.55
+    },
+    {
+      "name": "mina reacts",
+      "line": 1,
+      "at": 0.6,
+      "zoom": 1.8,
+      "focusX": 0.3,
+      "focusY": 0.55
+    },
+    {
+      "name": "rafi reacts",
+      "line": 2,
+      "at": 0.6,
+      "zoom": 2,
+      "focusX": 0.7,
+      "focusY": 0.55
+    },
+    {
+      "name": "wide again",
+      "line": 3,
+      "at": 0,
+      "zoom": 1,
+      "focusX": 0.5,
+      "focusY": 0.5
+    }
+  ],
+  "reactions": [
+    {
+      "actor": "rafi",
+      "line": 0,
+      "at": 0.5,
+      "expression": "worried"
+    },
+    {
+      "actor": "mina",
+      "line": 1,
+      "at": 0.6,
+      "expression": "angry"
+    },
+    {
+      "actor": "mina",
+      "line": 3,
+      "at": 0.6,
+      "gesture": "nod"
+    }
+  ]
+}

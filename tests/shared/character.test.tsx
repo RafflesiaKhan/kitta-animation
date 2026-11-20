@@ -27,6 +27,12 @@ describe('mouthPath', () => {
   });
 });
 
+describe('Character root', () => {
+  it('lets gestures draw past the character box', () => {
+    expect(render()).toMatch(/^<svg[^>]*overflow="visible"/);
+  });
+});
+
 describe('STARTERS / OPTIONS', () => {
   it('has 3 starters', () => {
     expect(Object.keys(STARTERS).length).toBe(3);

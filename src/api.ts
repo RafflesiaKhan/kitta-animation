@@ -1,6 +1,9 @@
+import type { Episode, EpisodeSceneInput, Project, ProjectCharacterInput, ProjectScene, ProjectScenePreview, ProjectStyle } from '../shared/projects';
 import type { TtsProvider, VoiceStudioInfo } from '../shared/voices';
 import type { UsageReport } from '../shared/usage';
-import type { AnyCharacter, ArtCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, Marks, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
+import type { VectorJob } from '../shared/vector-job';
+import type { Scene } from '../shared/scene';
+import type { AnyCharacter, ArtCharacter, VectorCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, Marks, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
 
 async function post<T>(url: string, init: RequestInit): Promise<T> {
   let res: Response;
@@ -28,7 +31,7 @@ export async function lipsync(audioId: string, dialog?: string): Promise<MouthCu
   return cues;
 }
 
-export async function health(): Promise<{ rhubarb: boolean; gemini: boolean; imageProviders?: ImageProvider[]; ttsProviders?: TtsProvider[] }> {
+export async function health(): Promise<{ rhubarb: boolean; gemini: boolean; imageProviders?: ImageProvider[]; ttsProviders?: TtsProvider[]; vectorDraw?: boolean; vectorDrawProvider?: 'anthropic' | 'openai' }> {
   const res = await fetch('/api/health');
   return res.json();
 }
@@ -52,6 +55,16 @@ export async function previewLine(line: ScriptLineInput, provider?: TtsProvider,
 }
 
 /** Status, engines and voices of the local VoiceStudio; null if our server can't be reached. */
+/** The voices on the ElevenLabs account; null when they can't be loaded (no key, bad key, offline). */
+export async function elevenVoices(): Promise<{ id: string; label: string; kind: 'default' }[] | null> {
+  try {
+    const res = await fetch('/api/elevenlabs/voices');
+    return res.ok ? (await res.json()).voices : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function voiceStudio(): Promise<VoiceStudioInfo | null> {
   try {
     const res = await fetch('/api/voicestudio');
@@ -84,6 +97,27 @@ export async function listCharacters(): Promise<ArtCharacter[]> {
   }
 }
 
+/** The saved vector-avator characters; an empty list if the server can't be reached. */
+export async function listVectorCharacters(): Promise<VectorCharacter[]> {
+  try {
+    const res = await fetch('/api/vector-characters');
+    const body = res.ok ? await res.json() : null;
+    return Array.isArray(body?.characters) ? body.characters : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Adds the bundled sample character (or returns the one already added). */
+export function addVectorSample(): Promise<VectorCharacter> {
+  return post<{ character: VectorCharacter }>('/api/vector-characters/sample', {}).then((r) => r.character);
+}
+
+export async function deleteVectorCharacter(id: string): Promise<void> {
+  const res = await fetch(`/api/vector-characters/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Delete failed.');
+}
+
 export interface CreateCharacterInput { description: string; name: string; style: string; provider: ImageProvider; reference?: File }
 
 export function createCharacter({ description, name, style, provider, reference }: CreateCharacterInput): Promise<ArtCharacter> {
@@ -102,6 +136,10 @@ export function generatePose(id: string, pose: ArtPose): Promise<ArtCharacter> {
 
 export function measureMouths(id: string): Promise<ArtCharacter> {
   return post<{ character: ArtCharacter }>(`/api/characters/${id}/mouths`, {}).then((r) => r.character);
+}
+
+export function setMouthPoint(id: string, x: number, y: number): Promise<ArtCharacter> {
+  return post<{ character: ArtCharacter }>(`/api/characters/${id}/mouth-point`, { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ x, y }) }).then((r) => r.character);
 }
 
 export async function deleteCharacter(id: string): Promise<void> {
@@ -152,6 +190,19 @@ export async function exportVideo(body: ExportBody, onProgress: (p: number) => v
   return url;
 }
 
+/** A saved scene, built by `npm run scene`. */
+export async function getScene(name: string): Promise<Scene> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/scenes/${encodeURIComponent(name)}`);
+  } catch {
+    throw new Error('Could not reach the server. Is it running?');
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof body.error === 'string' ? body.error : `Request failed (${res.status})`);
+  return body as Scene;
+}
+
 /** Token telemetry from the server; null if it can't be reached. */
 export async function usage(): Promise<UsageReport | null> {
   try {
@@ -164,4 +215,64 @@ export async function usage(): Promise<UsageReport | null> {
 
 export async function resetUsage(): Promise<void> {
   await fetch('/api/usage', { method: 'DELETE' }).catch(() => {});
+}
+
+const projectsUrl = '/api/projects';
+const projectUrl = (id: string) => projectsUrl + '/' + id;
+const episodeUrl = (projectId: string, id: string) => projectUrl(projectId) + '/episodes/' + id;
+
+async function getJson<T>(url: string): Promise<T> {
+  let response: Response;
+  try { response = await fetch(url); }
+  catch { throw new Error('Could not reach the server. Is it running?'); }
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof body.error === 'string' ? body.error : 'Request failed (' + response.status + ')');
+  return body as T;
+}
+
+function projectJson(body: object): RequestInit {
+  return { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+}
+
+export const listProjectCharacters = () => getJson<{ characters: ArtCharacter[] }>('/api/characters').then(body => body.characters);
+export const listProjects = () => getJson<Project[]>(projectsUrl);
+export const getProject = (id: string) => getJson<Project>(projectUrl(id));
+export const createProject = (body: { name: string; premise: string; style: ProjectStyle }) => post<Project>(projectsUrl, projectJson(body));
+export const importProjectAsset = (id: string, body: FormData) => post<Project>(projectUrl(id) + '/assets', { body });
+export const createEpisode = (id: string, title: string) => post<Episode>(projectUrl(id) + '/episodes', projectJson({ title }));
+export const saveFirstScene = (projectId: string, id: string) => post<ProjectScene>(episodeUrl(projectId, id) + '/sample', {});
+export const getEpisodeScene = (projectId: string, id: string) => getJson<ProjectScenePreview>(episodeUrl(projectId, id) + '/scene');
+
+export const saveProjectCharacter = (id: string, character: ProjectCharacterInput, characterId?: string) =>
+  post<Project>(projectUrl(id) + '/characters' + (characterId ? '/' + characterId : ''), { ...projectJson(character), method: characterId ? 'PATCH' : 'POST' });
+export const saveEpisodeScene = (projectId: string, episodeId: string, input: EpisodeSceneInput) =>
+  post<Episode>(episodeUrl(projectId, episodeId) + '/scene', { ...projectJson(input), method: 'PUT' });
+
+export async function renderEpisodeScene(projectId: string, id: string): Promise<Blob> {
+  let response: Response;
+  try { response = await fetch(episodeUrl(projectId, id) + '/render', { method: 'POST' }); }
+  catch { throw new Error('Could not reach the server. Is it running?'); }
+  if (response.ok) return response.blob();
+  const body = await response.json().catch(() => ({}));
+  throw new Error(typeof body.error === 'string' ? body.error : 'Render failed (' + response.status + ')');
+}
+
+// ---------- vector characters created in the background ----------
+export interface CreateVectorInput { description: string; name: string; provider: ImageProvider; reference?: File }
+
+export const listVectorJobs = () => getJson<{ jobs: VectorJob[] }>('/api/vector-jobs').then((b) => b.jobs);
+export const getVectorJob = (id: string) => getJson<{ job: VectorJob }>(`/api/vector-jobs/${id}`).then((b) => b.job);
+export const cancelVectorJob = (id: string) => post<{ job: VectorJob }>(`/api/vector-jobs/${id}/cancel`, {}).then((b) => b.job);
+export const resumeVectorJob = (id: string) => post<{ job: VectorJob }>(`/api/vector-jobs/${id}/resume`, {}).then((b) => b.job);
+export async function discardVectorJob(id: string): Promise<void> {
+  const res = await fetch(`/api/vector-jobs/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Could not discard it.');
+}
+export function startVectorJob({ description, name, provider, reference }: CreateVectorInput): Promise<VectorJob> {
+  const form = new FormData();
+  form.append('provider', provider);
+  form.append('description', description);
+  form.append('name', name);
+  if (reference) form.append('reference', reference);
+  return post<{ job: VectorJob }>('/api/vector-jobs', { body: form }).then((b) => b.job);
 }

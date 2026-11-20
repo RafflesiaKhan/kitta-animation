@@ -2,9 +2,11 @@ import type { MouthBox, ScriptLineInput } from '../shared/types';
 import { CUES, DEFAULT_SPEAKER, isEngineDefaultVoice, LANGUAGES, SOUND_TAGS, SPEAKERS, type VoiceStudioEngine, type VoiceStudioInfo, type VoiceStudioVoice } from '../shared/voices';
 import { readFile } from 'node:fs/promises';
 import { TONES } from '../shared/character/expressions';
-import { MOUTH_PROMPT, parseMouthBox, type ImageInput } from './gemini';
+import { MOUTH_PROMPT, parseMouthBox, type ImageInput, type ImageShape } from './gemini';
 import { DIRECTION_CHOICES, directionPrompt, toMatch, type Direction, type Match } from '../shared/direction';
 import { recordOpenAI, recordUsage } from './usage';
+import type { ChatBlock, ToolChat, ToolSpec } from './tool-chat';
+import type { UsageEntry } from '../shared/usage';
 
 // OpenAI-style REST APIs over plain fetch (no extra SDK), models from env:
 // - OpenAI: image generation/editing, the mouth lookup and speech.
@@ -71,16 +73,18 @@ async function call(path: string, body: BodyInit | null, timeoutMs: number, json
   throw new OpenAIError('failed', service);
 }
 
-/** Paints one 1024² image; with reference images it is an edit of them (images/edits). */
-export async function generateImage(prompt: string, refs: ImageInput[] = []): Promise<Buffer> {
+const SIZES: Record<ImageShape, string> = { square: '1024x1024', portrait: '1024x1536', landscape: '1536x1024' };
+
+/** Paints one image (1024² by default); with reference images it is an edit of them (images/edits). */
+export async function generateImage(prompt: string, refs: ImageInput[] = [], shape: ImageShape = 'square'): Promise<Buffer> {
   let out: any;
   if (refs.length === 0) {
-    out = await call('/images/generations', JSON.stringify({ model: imageModel(), prompt, size: '1024x1024', n: 1 }), IMAGE_TIMEOUT_MS, true);
+    out = await call('/images/generations', JSON.stringify({ model: imageModel(), prompt, size: SIZES[shape], n: 1 }), IMAGE_TIMEOUT_MS, true);
   } else {
     const form = new FormData();
     form.append('model', imageModel());
     form.append('prompt', prompt);
-    form.append('size', '1024x1024');
+    form.append('size', SIZES[shape]);
     refs.forEach((r, i) => form.append('image[]', new Blob([new Uint8Array(r.data)], { type: r.mimeType }), `ref-${i}.${r.mimeType.split('/')[1]}`));
     out = await call('/images/edits', form, IMAGE_TIMEOUT_MS, false);
   }
@@ -122,8 +126,15 @@ export async function findMouth(png: Buffer): Promise<MouthBox | null> {
     ] }],
     response_format: { type: 'json_schema', json_schema: { name: 'mouth', strict: true, schema: {
       type: 'object',
-      properties: { found: { type: 'boolean' }, box_2d: { type: 'array', items: { type: 'number' } }, skin: { type: 'string' } },
-      required: ['found', 'box_2d', 'skin'],
+      properties: {
+        found: { type: 'boolean' }, box_2d: { type: 'array', items: { type: 'number' } }, skin: { type: 'string' },
+        landmarks: { type: 'object', properties: {
+          leftEye: { type: 'array', items: { type: 'number' } }, rightEye: { type: 'array', items: { type: 'number' } },
+          nose: { type: 'array', items: { type: 'number' } }, mouthLeft: { type: 'array', items: { type: 'number' } },
+          mouthRight: { type: 'array', items: { type: 'number' } },
+        }, required: ['leftEye', 'rightEye', 'nose', 'mouthLeft', 'mouthRight'], additionalProperties: false },
+      },
+      required: ['found', 'box_2d', 'skin', 'landmarks'],
       additionalProperties: false,
     } } },
   }), MOUTH_TIMEOUT_MS, true);
@@ -263,4 +274,87 @@ export async function voiceStudioTranscribe(wavPath: string): Promise<{ text: st
     return text && Number.isFinite(start) && Number.isFinite(end) && end > start ? [{ text, startMs: Math.round(start * 1000), endMs: Math.round(end * 1000) }] : [];
   }).sort((a, b) => a.startMs - b.startMs);
   return lines.map((l, i) => ({ ...l, endMs: Math.min(l.endMs, lines[i + 1]?.startMs ?? Infinity) })).filter((l) => l.endMs > l.startMs);
+}
+
+// ---- Drawing vector characters (version 2 planning/vector-create-plan.md): the OpenAI side of server/tool-chat.ts.
+
+export const drawModel = () => process.env.OPENAI_DRAW_MODEL || 'gpt-6.2-astra';
+const DRAW_TIMEOUT_MS = 40 * 60_000; // one drawing round can take many minutes
+const DRAW_POLL_MS = 5_000;
+const DRAW_ATTEMPTS = 3;
+const DRAW_RETRY_MS = 15_000;
+
+const toInput = (b: ChatBlock) => (b.type === 'text' ? { type: 'input_text', text: b.text } : { type: 'input_image', image_url: `data:image/png;base64,${b.png.toString('base64')}`, detail: 'high' });
+
+/**
+ * A drawing conversation on the Responses API. Each request runs in background mode and is polled, so a long round
+ * is not cut by an HTTP timeout; later rounds continue the stored conversation with previous_response_id. A tool
+ * result's text goes back as the function call output and its pictures as a user message right after it.
+ */
+export function openaiToolChat(system: string, tool: ToolSpec, model = drawModel()): ToolChat {
+  let previous: string | null = null;
+  let lastCall: string | null = null;
+  return {
+    provider: 'openai',
+    model,
+    async send(blocks, signal) {
+      const images = blocks.filter((b) => b.type === 'image');
+      const input = lastCall
+        ? [
+          { type: 'function_call_output', call_id: lastCall, output: blocks.filter((b) => b.type === 'text').map((b) => b.text).join('\n\n') },
+          ...(images.length ? [{ role: 'user', content: [{ type: 'input_text', text: 'The check picture for the call above:' }, ...images.map(toInput)] }] : []),
+        ]
+        : [{ role: 'user', content: blocks.map(toInput) }];
+      const body = JSON.stringify({
+        model, instructions: system, input, background: true, store: true,
+        ...(previous ? { previous_response_id: previous } : {}),
+        tools: [{ type: 'function', name: tool.name, description: tool.description, parameters: { type: 'object', ...tool.parameters }, strict: false }],
+        tool_choice: { type: 'function', name: tool.name }, parallel_tool_calls: false,
+        reasoning: { effort: 'high' }, max_output_tokens: 128_000,
+      });
+      let res: any; // eslint-disable-line @typescript-eslint/no-explicit-any -- Responses API JSON
+      let usage!: UsageEntry;
+      // A busy server (429/5xx, or a background job that fails as overloaded) is retried; the conversation is
+      // unchanged until a round completes, so the same request can simply be sent again.
+      for (let attempt = 1; ; attempt++) {
+        const wait = async (ms: number) => {
+          await new Promise((r) => setTimeout(r, ms));
+          if (signal?.aborted) {
+            // stop the background job too, so it is not billed to the end
+            if (res?.id) await call(`/responses/${res.id}/cancel`, '{}', 30_000, true).catch(() => {});
+            throw new DOMException('Cancelled', 'AbortError');
+          }
+        };
+        try {
+          res = await call('/responses', body, 120_000, true);
+          const until = Date.now() + DRAW_TIMEOUT_MS;
+          while (res?.status === 'queued' || res?.status === 'in_progress') {
+            if (Date.now() > until) throw new OpenAIError('timed_out');
+            await wait(DRAW_POLL_MS);
+            res = await call(`/responses/${res.id}`, null, 60_000, false);
+          }
+        } catch (e) {
+          if (attempt < DRAW_ATTEMPTS && e instanceof OpenAIError && (e.code === 'busy' || e.code === 'rate_limited')) { await wait(DRAW_RETRY_MS * attempt); continue; }
+          throw e;
+        }
+        usage = recordOpenAI('draw', model, res?.usage);
+        const err = res?.error ?? {};
+        const busy = res?.status === 'failed' && /overloaded|unavailable|rate_limit/i.test(`${err.type ?? ''} ${err.code ?? ''}`);
+        if (!busy || attempt >= DRAW_ATTEMPTS) break;
+        console.warn(`openai /responses: ${err.code ?? err.type}, retrying (attempt ${attempt + 1} of ${DRAW_ATTEMPTS})`);
+        await wait(Math.max(Number(err.headers?.['retry-after-ms']) || 0, DRAW_RETRY_MS * attempt));
+      }
+      if (res?.status !== 'completed') {
+        console.warn('openai /responses', res?.status, JSON.stringify(res?.incomplete_details ?? res?.error ?? '').slice(0, 300));
+        throw new OpenAIError(res?.status === 'incomplete' ? 'timed_out' : 'failed');
+      }
+      const fc = (res.output ?? []).find((o: { type?: string; name?: string }) => o.type === 'function_call' && o.name === tool.name);
+      if (!fc) throw new OpenAIError('failed');
+      previous = res.id;
+      lastCall = fc.call_id;
+      let parsed: unknown;
+      try { parsed = JSON.parse(fc.arguments); } catch { parsed = {}; }
+      return { input: parsed, usage };
+    },
+  };
 }
