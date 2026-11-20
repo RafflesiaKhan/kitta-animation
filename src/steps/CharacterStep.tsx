@@ -48,16 +48,16 @@ const imgUrl = (c: ArtCharacter, pose: ArtPose) => {
 };
 
 export function CharacterStep({ character, onChange, library, vectors = [], onImportVector, onDeleteVector, projectStyle, imageProviders = [], busy = false, error = null, onCreate, onDraw, onFindMouths, onSetMouth, onDelete, vectorJobs = [], vectorDraw = false, vectorDrawBy = 'openai', onCreateVector, onJob }: Props) {
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState<'picture' | 'vector' | null>(null);
   const aiOk = imageProviders.length > 0;
   // A finished creation selects the new character; leave the form then.
-  useEffect(() => { if (character && isArt(character)) setCreating(false); }, [character && isArt(character) ? character.id : null]);
+  useEffect(() => { if (character && isArt(character)) setCreating(null); }, [character && isArt(character) ? character.id : null]);
   // A started vector job shows as a card below; leave the form then too.
-  useEffect(() => { if (vectorJobs.length) setCreating(false); }, [vectorJobs[0]?.id]);
+  useEffect(() => { if (vectorJobs.length) setCreating(null); }, [vectorJobs[0]?.id]);
 
   const pickStarter = (id: StarterId) => {
     const { name: _name, ...config } = STARTERS[id];
-    setCreating(false);
+    setCreating(null);
     onChange(config);
   };
   const selected = (c: ArtCharacter) => !creating && !!character && isArt(character) && character.id === c.id;
@@ -76,7 +76,7 @@ export function CharacterStep({ character, onChange, library, vectors = [], onIm
           );
         })}
         {projectStyle !== 'svg' && library.map((c) => (
-          <button type="button" key={c.id} className={`tile${selected(c) ? ' selected' : ''}`} aria-pressed={selected(c)} onClick={() => { setCreating(false); onChange(c); }}>
+          <button type="button" key={c.id} className={`tile${selected(c) ? ' selected' : ''}`} aria-pressed={selected(c)} onClick={() => { setCreating(null); onChange(c); }}>
             <img src={imgUrl(c, 'neutral') ?? ''} alt="" width={84} height={84} />
             <span>{c.name}</span>
           </button>
@@ -84,7 +84,7 @@ export function CharacterStep({ character, onChange, library, vectors = [], onIm
         {!projectStyle && vectors.map((c) => {
           const on = !creating && !!character && isVector(character) && character.id === c.id;
           return (
-            <button type="button" key={c.id} className={`tile${on ? ' selected' : ''}`} aria-pressed={on} onClick={() => { setCreating(false); onChange(c); }}>
+            <button type="button" key={c.id} className={`tile${on ? ' selected' : ''}`} aria-pressed={on} onClick={() => { setCreating(null); onChange(c); }}>
               <CharacterView config={c} frame={REST} width={84} height={84} />
               <span>{c.name}</span>
             </button>
@@ -94,15 +94,20 @@ export function CharacterStep({ character, onChange, library, vectors = [], onIm
           <span className="plus"><Icon name="plus" size={22} /></span>
           <span>Add vector sample</span>
         </button>}
-        {!projectStyle && onCreate && <button className={`tile create${creating ? ' selected' : ''}`} aria-pressed={creating} onClick={() => setCreating(true)}>
+        {!projectStyle && onCreate && <button className={`tile create${creating === 'picture' ? ' selected' : ''}`} aria-pressed={creating === 'picture'} onClick={() => setCreating('picture')}>
           <span className="plus"><Icon name="plus" size={22} /></span>
           <span>Create with AI</span>
         </button>}
+        {!projectStyle && onCreateVector && <button className={`tile create${creating === 'vector' ? ' selected' : ''}`} aria-pressed={creating === 'vector'} onClick={() => setCreating('vector')}>
+          <span className="plus"><Icon name="plus" size={22} /></span>
+          <span>Create vector character</span>
+        </button>}
       </div>
       {!projectStyle && onJob && vectorJobs.map((j) => <VectorJobCard key={j.id} job={j} onJob={onJob} />)}
-      {creating && onCreate
-        ? <CreateForm busy={busy} providers={imageProviders} onCreate={onCreate} onCancel={() => setCreating(false)}
-          vectorDraw={vectorDraw} vectorDrawBy={vectorDrawBy} onCreateVector={onCreateVector} />
+      {creating === 'picture' && onCreate
+        ? <CreateForm busy={busy} providers={imageProviders} onCreate={onCreate} onCancel={() => setCreating(null)} />
+        : creating === 'vector' && onCreateVector
+        ? <VectorCreateForm busy={busy} providers={imageProviders} vectorDraw={vectorDraw} vectorDrawBy={vectorDrawBy} onCreate={onCreateVector} onCancel={() => setCreating(null)} />
         : character && (isVector(character)
           ? !projectStyle && <VectorSheet character={character} busy={busy} onDelete={onDeleteVector} />
           : isArt(character)
@@ -119,10 +124,7 @@ export function CharacterStep({ character, onChange, library, vectors = [], onIm
   );
 }
 
-function CreateForm({ busy, providers, onCreate, onCancel, vectorDraw, vectorDrawBy, onCreateVector }: {
-  busy: boolean; providers: ImageProvider[]; onCreate: NonNullable<Props['onCreate']>; onCancel: () => void;
-  vectorDraw: boolean; vectorDrawBy: 'anthropic' | 'openai'; onCreateVector?: Props['onCreateVector'];
-}) {
+function CreateForm({ busy, providers, onCreate, onCancel }: { busy: boolean; providers: ImageProvider[]; onCreate: NonNullable<Props['onCreate']>; onCancel: () => void }) {
   const geminiOk = providers.length > 0;
   const [picked, setPicked] = useState<ImageProvider | null>(null);
   const provider = picked && providers.includes(picked) ? picked : providers[0];
@@ -130,40 +132,24 @@ function CreateForm({ busy, providers, onCreate, onCancel, vectorDraw, vectorDra
   const [name, setName] = useState('');
   const [style, setStyle] = useState<string>(ART_STYLES[0]);
   const [reference, setReference] = useState<File | undefined>();
-  const [type, setType] = useState<'picture' | 'vector'>('picture');
-  const vector = type === 'vector';
-  const ready = geminiOk && !busy && (description.trim() !== '' || reference !== undefined) && (!vector || vectorDraw);
-  const drawKey = vectorDrawBy === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
-  const create = () => (vector
-    ? onCreateVector?.({ description: description.trim(), name: name.trim(), provider, reference })
-    : onCreate({ description: description.trim(), name: name.trim(), style, provider, reference }));
+  const ready = geminiOk && !busy && (description.trim() !== '' || reference !== undefined);
   return (
     <div className="create-form">
       <h3>Create a character</h3>
       {!geminiOk && <p className="hint">Add GEMINI_API_KEY or OPENAI_API_KEY to .env to create characters.</p>}
-      {onCreateVector && (
-        <label className="field"><span>Type</span>
-          <select aria-label="Type" disabled={busy} value={type} onChange={(e) => setType(e.target.value as 'picture' | 'vector')}>
-            <option value="picture">Picture</option>
-            <option value="vector" disabled={!vectorDraw}>Vector (moves smoothly){vectorDraw ? '' : ` (needs ${drawKey})`}</option>
-          </select>
-        </label>
-      )}
       <textarea aria-label="Describe your character" rows={3} maxLength={400} disabled={busy}
         placeholder="e.g. a cheerful round robot with a teal scarf and one antenna" value={description} onChange={(e) => setDescription(e.target.value)} />
       <div className="fields">
         <label className="field"><span>Name</span>
           <input aria-label="Name" maxLength={40} disabled={busy} placeholder="Optional" value={name} onChange={(e) => setName(e.target.value)} />
         </label>
-        {!vector && (
-          <label className="field"><span>Style</span>
-            <select aria-label="Style" disabled={busy} value={style} onChange={(e) => setStyle(e.target.value)}>
-              {ART_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </label>
-        )}
+        <label className="field"><span>Style</span>
+          <select aria-label="Style" disabled={busy} value={style} onChange={(e) => setStyle(e.target.value)}>
+            {ART_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
         {providers.length > 1 && (
-          <label className="field"><span>{vector ? 'Pictures by' : 'Drawn by'}</span>
+          <label className="field"><span>Drawn by</span>
             <select aria-label="Drawn by" disabled={busy} value={provider} onChange={(e) => setPicked(e.target.value as ImageProvider)}>
               {providers.map((p) => <option key={p} value={p}>{PROVIDER_NAMES[p]}</option>)}
             </select>
@@ -176,12 +162,73 @@ function CreateForm({ busy, providers, onCreate, onCancel, vectorDraw, vectorDra
       </label>
       <div className="line-actions">
         <button className="btn" disabled={!ready} title={geminiOk ? undefined : NEEDS_KEY}
-          onClick={create}><Icon name="spark" /> Create character</button>
+          onClick={() => onCreate({ description: description.trim(), name: name.trim(), style, provider, reference })}><Icon name="spark" /> Create character</button>
         <button className="btn secondary" disabled={busy} onClick={onCancel}>Cancel</button>
       </div>
-      {vector
-        ? <p className="hint">{provider ? PROVIDER_NAMES[provider] : 'The AI'} paints a front picture and a face sheet, then {DRAW_NAMES[vectorDrawBy]} draws the character as parts on a skeleton and checks them, so its arms bend and its head turns smoothly. It usually takes 5 to 10 minutes and costs about $1.50 to $2.50. It runs in the background: you can keep working or close Kitta, and resume it later.</p>
-        : <p className="hint">{provider ? PROVIDER_NAMES[provider] : 'The AI'} paints the character first. Then you draw its expressions and actions from it, so it stays the same character. Image generation is usually paid (Gemini's free tier may not include it).</p>}
+      <p className="hint">{provider ? PROVIDER_NAMES[provider] : 'The AI'} paints the character first. Then you draw its expressions and actions from it, so it stays the same character. Image generation is usually paid (Gemini's free tier may not include it).</p>
+    </div>
+  );
+}
+
+/** Starter descriptions to edit: the words in [brackets] are meant to be replaced. */
+export const VECTOR_PRESETS = {
+  Person: 'A friendly young [woman / man] with short [colour] [curly / straight] hair, wearing a [colour] [sweater / jacket] and [colour] trousers. Calm, warm face.',
+  Animal: 'A small [fox / cat / bear / rabbit] with [main colour] fur, a cream chest and a [colour] scarf. Calm, friendly face.',
+  Robot: 'A cheerful round robot with a [colour] body, a white face screen with simple dark eyes, one antenna with a [colour] ball on top, and short stubby arms and legs.',
+  Mascot: 'A round, cheerful mascot shaped like a [object], [main colour] with simple dark eyes, small rosy cheeks and short arms and legs.',
+} as const;
+
+function VectorCreateForm({ busy, providers, vectorDraw, vectorDrawBy, onCreate, onCancel }: {
+  busy: boolean; providers: ImageProvider[]; vectorDraw: boolean; vectorDrawBy: 'anthropic' | 'openai';
+  onCreate: NonNullable<Props['onCreateVector']>; onCancel: () => void;
+}) {
+  const [picked, setPicked] = useState<ImageProvider | null>(null);
+  const provider = picked && providers.includes(picked) ? picked : providers[0];
+  const [kind, setKind] = useState<keyof typeof VECTOR_PRESETS | null>(null);
+  const [description, setDescription] = useState('');
+  const [name, setName] = useState('');
+  const [reference, setReference] = useState<File | undefined>();
+  const drawKey = vectorDrawBy === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
+  const unfilled = /\[[^\]]*\]/.test(description);
+  const ready = providers.length > 0 && vectorDraw && !busy && !unfilled && (description.trim() !== '' || reference !== undefined);
+  const pick = (k: keyof typeof VECTOR_PRESETS) => { setKind(k); setDescription(VECTOR_PRESETS[k]); };
+  return (
+    <div className="create-form">
+      <h3>Create a vector character</h3>
+      <p className="hint">A character made of parts on a skeleton: its arms bend, its head turns and it lip-syncs smoothly, in every scene.</p>
+      {!providers.length && <p className="hint">Add OPENAI_API_KEY or GEMINI_API_KEY to .env to paint its pictures.</p>}
+      {!vectorDraw && <p className="hint">Add {drawKey} to .env to draw vector characters.</p>}
+      <div className="field"><span>Start from</span>
+        <div className="presets" role="group" aria-label="Start from">
+          {(Object.keys(VECTOR_PRESETS) as (keyof typeof VECTOR_PRESETS)[]).map((k) => (
+            <button key={k} type="button" className={`mini${kind === k ? ' selected' : ''}`} aria-pressed={kind === k} disabled={busy} onClick={() => pick(k)}>{k}</button>
+          ))}
+        </div>
+      </div>
+      <textarea aria-label="Describe your character" rows={3} maxLength={400} disabled={busy}
+        placeholder="Pick a starting point above, or describe your character" value={description} onChange={(e) => setDescription(e.target.value)} />
+      {unfilled && <p className="hint">Replace the words in [brackets] with your own.</p>}
+      <div className="fields">
+        <label className="field"><span>Name</span>
+          <input aria-label="Name" maxLength={40} disabled={busy} placeholder="Optional" value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        {providers.length > 1 && (
+          <label className="field"><span>Pictures by</span>
+            <select aria-label="Pictures by" disabled={busy} value={provider} onChange={(e) => setPicked(e.target.value as ImageProvider)}>
+              {providers.map((p) => <option key={p} value={p}>{PROVIDER_NAMES[p]}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
+      <label className="field"><span>Reference picture (optional): redraw your own character or logo</span>
+        <input type="file" accept="image/png,image/jpeg,image/webp" aria-label="Reference picture" disabled={busy}
+          onChange={(e) => setReference(e.target.files?.[0])} />
+      </label>
+      <p className="hint"><strong>Before you start:</strong> {provider ? PROVIDER_NAMES[provider] : 'The AI'} paints a front picture and a face sheet, then {DRAW_NAMES[vectorDrawBy]} draws the parts and checks them. It usually takes 5 to 10 minutes and costs about $1.50 to $2.50. It runs in the background: you can keep working or close Kitta, and resume it later.</p>
+      <div className="line-actions">
+        <button className="btn" disabled={!ready} onClick={() => onCreate({ description: description.trim(), name: name.trim(), provider, reference })}><Icon name="spark" /> Create vector character</button>
+        <button className="btn secondary" disabled={busy} onClick={onCancel}>Cancel</button>
+      </div>
     </div>
   );
 }
