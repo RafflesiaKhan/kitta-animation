@@ -2,23 +2,21 @@ import type { ScriptLineInput } from '../shared/types';
 import { CUES, LANGUAGES, type TtsProvider } from '../shared/voices';
 import { tts, wrapPcm, GeminiError } from './gemini';
 import { OpenAIError, speak } from './openai';
-import { ElevenLabsError, speakEleven } from './elevenlabs';
 import { speechPcm, SPEECH_RATE } from './audio';
 import { withRetries } from './retry';
 
-/** Voice providers that are set up: Gemini, OpenAI and ElevenLabs need their keys, VoiceStudio is opted into with VOICESTUDIO_URL. */
+/** Voice providers that are set up: Gemini and OpenAI need their keys, VoiceStudio is opted into with VOICESTUDIO_URL. */
 export function ttsProviders(): TtsProvider[] {
   const out: TtsProvider[] = [];
   if (process.env.GEMINI_API_KEY) out.push('gemini');
   if (process.env.OPENAI_API_KEY) out.push('openai');
-  if (process.env.ELEVENLABS_API_KEY) out.push('elevenlabs');
   if (process.env.VOICESTUDIO_URL) out.push('voicestudio');
   return out;
 }
 
 /** Overloaded or rate-limited: worth waiting for. Anything else (bad key, refusal, not running) fails at once. */
 export const isTransient = (e: unknown) =>
-  (e instanceof GeminiError || e instanceof OpenAIError || e instanceof ElevenLabsError) && (e.code === 'busy' || e.code === 'rate_limited');
+  (e instanceof GeminiError || e instanceof OpenAIError) && (e.code === 'busy' || e.code === 'rate_limited');
 
 /** A piece of a line: text spoken with the cue in force, or a silence. */
 export type Segment = { text: string; cue?: string } | { pauseMs: number };
@@ -82,7 +80,6 @@ export async function speakLine(provider: TtsProvider, line: ScriptLineInput, en
   const seed = studio ? lineSeed(line) : undefined;
   const once = (text: string, cue?: string) => withRetries(
     () => (provider === 'gemini' ? tts(directed(line, text, cue))
-      : provider === 'elevenlabs' ? speakEleven(text, line.voice) // takes no spoken direction: the plain words
       : studio ? speak('VoiceStudio', { ...line, text }, engine, { cue, seed })
       : speak('OpenAI', directed(line, text, cue), engine)),
     isTransient, `tts ${provider}`);

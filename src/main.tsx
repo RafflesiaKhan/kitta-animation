@@ -6,7 +6,6 @@ import './styles.css';
 
 const query = new URLSearchParams(window.location.search);
 const scene = query.get('scene');
-// The Character Studio is the home page (/?character-studio still opens it); Projects is in beta at /?projects.
-const page = scene ? <ScenePreview name={scene} /> : query.has('projects') ? <Projects /> : <App />;
+const page = scene ? <ScenePreview name={scene} /> : query.has('character-studio') ? <App /> : <Projects />;
 
 createRoot(document.getElementById('root')!).render(page);

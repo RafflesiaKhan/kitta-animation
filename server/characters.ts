@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ART_POSES } from '../shared/types';
-import type { ArtCharacter, ArtPose, ImageProvider, LibraryCharacter, MouthBox } from '../shared/types';
+import type { ArtCharacter, ArtPose, ImageProvider, MouthBox } from '../shared/types';
 import { basePrompt, posePrompt } from '../shared/character/art';
 import type { ImageInput } from './gemini';
 import { imageProviders, locateMouth, paint } from './images';
@@ -110,15 +110,10 @@ export async function listCharacters(): Promise<ArtCharacter[]> {
   if (!existsSync(CHARACTERS_DIR)) return [];
   const ids = (await readdir(CHARACTERS_DIR)).filter((d) => UUID_RE.test(d));
   const all = await Promise.all(ids.map((id) => readMeta(id).catch(() => null)));
-  return all.filter((c): c is ArtCharacter => c !== null && (c as { kind?: string }).kind !== 'vector' && Boolean(c.images?.neutral)).sort((a, b) => a.name.localeCompare(b.name));
+  return all.filter((c): c is ArtCharacter => c !== null && Boolean(c.images.neutral)).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export const getCharacter = readMeta;
-
-/** Any library entry: an AI character or a vector one (scenes name both by `artId`). */
-export async function getLibraryCharacter(id: string): Promise<LibraryCharacter> {
-  return readMeta(id) as unknown as Promise<LibraryCharacter>;
-}
 
 export interface CreateInput { description: string; name: string; style: string; provider: ImageProvider; reference?: ImageInput }
 

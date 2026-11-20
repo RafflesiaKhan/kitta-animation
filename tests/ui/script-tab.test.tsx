@@ -45,10 +45,10 @@ it('expression dropdown lists EXPRESSIONS', async () => {
 it('shows the notice and disables Generate when gemini is not configured', async () => {
   vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: false });
   await open();
-  expect(screen.getByText('Add GEMINI_API_KEY, OPENAI_API_KEY, ELEVENLABS_API_KEY or VOICESTUDIO_URL to .env to generate voices.')).toBeTruthy();
+  expect(screen.getByText('Add GEMINI_API_KEY, OPENAI_API_KEY or VOICESTUDIO_URL to .env to generate voices.')).toBeTruthy();
   const gen = screen.getByRole('button', { name: 'Generate voice' }) as HTMLButtonElement;
   expect(gen.disabled).toBe(true);
-  expect(gen.title).toBe('Needs GEMINI_API_KEY, OPENAI_API_KEY, ELEVENLABS_API_KEY or VOICESTUDIO_URL');
+  expect(gen.title).toBe('Needs GEMINI_API_KEY, OPENAI_API_KEY or VOICESTUDIO_URL');
 });
 
 it('delivery note input is capped at 200 characters', async () => {
@@ -209,27 +209,4 @@ it('shows VoiceStudio starting and checks back until it is running', async () =>
   await waitFor(() => expect(screen.getByTestId('studio-status').textContent).toMatch(/Starting VoiceStudio/));
   expect(screen.queryByRole('button', { name: 'check again' })).toBeNull();
   await waitFor(() => expect(screen.getByTestId('studio-status').textContent).toMatch(/running on mps/), { timeout: 5000 });
-});
-
-it('offers the voices on the ElevenLabs account and speaks with them', async () => {
-  vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: true, ttsProviders: ['gemini', 'elevenlabs'] });
-  vi.mocked(api.elevenVoices).mockResolvedValueOnce([{ id: 'v-rachel', label: 'Rachel (female, american)', kind: 'default' }, { id: 'v-mine', label: 'My clone (cloned)', kind: 'default' }]);
-  vi.mocked(api.tts).mockReturnValue(new Promise(() => {}));
-  await open();
-  const voice = () => screen.getByLabelText('Voice') as HTMLSelectElement;
-  fireEvent.change(await screen.findByLabelText('Voice by'), { target: { value: 'elevenlabs' } });
-  await waitFor(() => expect([...voice().options].map((o) => o.text)).toEqual(['Rachel (female, american)', 'My clone (cloned)']));
-  expect(voice().value).toBe('v-rachel');
-  fireEvent.change(screen.getByLabelText('Line text'), { target: { value: 'Hello there.' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Generate voice' }));
-  expect(api.tts).toHaveBeenCalledWith([expect.objectContaining({ text: 'Hello there.', voice: 'v-rachel' })], 'elevenlabs', undefined);
-  expect(screen.getByText(/Powered by ElevenLabs/)).toBeTruthy();
-});
-
-it('explains when the ElevenLabs voices cannot be loaded', async () => {
-  vi.mocked(api.health).mockResolvedValue({ rhubarb: true, gemini: true, ttsProviders: ['gemini', 'elevenlabs'] });
-  vi.mocked(api.elevenVoices).mockResolvedValueOnce(null);
-  await open();
-  fireEvent.change(await screen.findByLabelText('Voice by'), { target: { value: 'elevenlabs' } });
-  expect(await screen.findByText(/Could not load your ElevenLabs voices/)).toBeTruthy();
 });

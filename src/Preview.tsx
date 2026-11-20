@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { isArt, isVector } from '../shared/types';
+import { isArt } from '../shared/types';
 import type { AnyCharacter, FrameState, Timeline } from '../shared/types';
 import { CharacterView } from '../shared/character/CharacterView';
 import { frameAt } from '../shared/timeline';
-import type { FrameSource } from '../shared/vector-avator/stage';
 
 const IDLE: Timeline = { durationMs: 0, cues: [], lines: [] };
 
@@ -22,30 +21,23 @@ export function Preview({ character, timeline, audioUrl, status, audioRef: share
   const own = useRef<HTMLAudioElement>(null);
   const audioRef = shared ?? own;
   const [frame, setFrame] = useState<FrameState>(() => frameAt(IDLE, 0));
-  // Vector characters also need the clock and the frames before it (their springs replay them after a scrub).
-  const [clock, setClock] = useState<{ ms: number; source: FrameSource }>(() => ({ ms: 0, source: (ms) => frameAt(IDLE, ms) }));
 
   useEffect(() => {
     let raf = 0;
     const tick = () => {
       const audio = audioRef.current;
       const idle = frameAt(IDLE, performance.now());
-      if (!timeline || !audio) {
-        setFrame(idle);
-        if (isVector(character)) setClock({ ms: performance.now(), source: (ms) => frameAt(IDLE, ms) });
-      } else {
-        const ms = audio.currentTime * 1000;
-        const f = frameAt(timeline, ms);
+      if (!timeline || !audio) setFrame(idle);
+      else {
+        const f = frameAt(timeline, audio.currentTime * 1000);
         // While playing everything follows the audio (matches export); when paused keep blinking/breathing on the wall clock.
-        const idling = audio.paused || audio.ended;
-        setFrame(idling ? { ...f, blink: idle.blink, bob: idle.bob } : f);
-        if (isVector(character)) setClock(idling ? { ms: performance.now(), source: (t) => ({ ...f, blink: frameAt(IDLE, t).blink, bob: frameAt(IDLE, t).bob }) } : { ms, source: (t) => frameAt(timeline, t) });
+        setFrame(audio.paused || audio.ended ? { ...f, blink: idle.blink, bob: idle.bob } : f);
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [timeline, character]);
+  }, [timeline]);
 
   // Warm the browser cache with every pose of an AI character, so the first blink or gesture doesn't flash empty.
   useEffect(() => {
@@ -56,8 +48,8 @@ export function Preview({ character, timeline, audioUrl, status, audioRef: share
   return (
     <div className="preview">
       <div className="preview-head"><span>Preview</span>{timeline && <span className="ready">Lip sync ready</span>}</div>
-      <div className="stage" data-testid="stage" data-starter={isArt(character) ? `art:${character.id}` : isVector(character) ? `vector:${character.id}` : character.starter}>
-        <CharacterView config={character} frame={frame} width={420} height={420} clockMs={clock.ms} frameSource={clock.source} />
+      <div className="stage" data-testid="stage" data-starter={isArt(character) ? `art:${character.id}` : character.starter}>
+        <CharacterView config={character} frame={frame} width={420} height={420} />
         {status && <div className="status">{status}</div>}
       </div>
       {audioUrl && <audio ref={audioRef} src={audioUrl} controls />}

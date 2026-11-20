@@ -1,9 +1,0 @@
-{
-  "name": "raise_hand",
-  "description": "Raise one hand (right hand up beside the face, left hand down)",
-  "bones": {
-    "leftUpperArm": [0, 0, -72], "leftLowerArm": [0, 0, -5],
-    "rightUpperArm": [0, 0, -40], "rightLowerArm": [0, -70, 0], "rightHand": [0, 0, 10],
-    "head": [0, 0, -6]
-  }
-}
