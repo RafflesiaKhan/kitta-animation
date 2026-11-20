@@ -91,6 +91,8 @@ Each lands as its own commit, with tests and a check in the browser.
 
 ## Later (after these, when we want polish)
 
+- **Settings page with an admin password** (planned in [settings-page-plan.md](settings-page-plan.md)): add API keys and preferred models in the app instead of `.env`, and see a chart of tokens and cost by provider, model and use.
+
 - More drawing tests: the same character with each model at a quiet time (gpt-6.2-sol was cheapest at $0.81 but took 45 minutes on a busy day), and three new characters with the default model.
 - Gemini pictures for vector characters (blocked today by the key's quota).
 - Proportions of people (the teacher came out about 3.5 heads tall instead of 2 to 2.5) and a style setting per project.
