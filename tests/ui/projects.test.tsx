@@ -22,7 +22,7 @@ it('creates and reopens a project, imports media, and opens its saved episode', 
     .mockResolvedValueOnce({ ok: true, json: async () => ({ scene, audioUrl: '/api/projects/p/assets/audio' }) });
   vi.stubGlobal('fetch', fetch);
   const view = render(<Projects />);
-  expect(screen.getByRole('link', { name: 'Character Studio' }).getAttribute('href')).toBe('/?character-studio');
+  expect(screen.getByRole('link', { name: 'Character Studio' }).getAttribute('href')).toBe('/');
   fireEvent.change(screen.getByLabelText('Project name'), { target: { value: project.name } });
   fireEvent.change(screen.getByLabelText('Series premise'), { target: { value: project.premise } });
   await waitFor(() => expect((screen.getByRole('button', { name: 'Create project' }) as HTMLButtonElement).disabled).toBe(false));

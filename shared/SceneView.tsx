@@ -3,10 +3,12 @@ import { frameAt } from './timeline';
 import { CharacterView } from './character/CharacterView';
 import { isArt } from './types';
 
-export interface SceneViewProps { scene: Scene; ms: number; width?: number; height?: number; resolve?: (characterId: string, file: string) => string }
+export interface SceneViewProps { scene: Scene; ms: number; width?: number; height?: number; resolve?: (characterId: string, file: string) => string;
+  /** Export: the picture already drawn for a vector actor at this moment (data URI), by actor id. */
+  vectorPictures?: Record<string, string> }
 
 /** Draws a whole scene at one millisecond: the set, then every actor, inside the current shot's camera. Shared by preview and export. */
-export function SceneView({ scene, ms, width = STAGE_W, height = STAGE_H, resolve }: SceneViewProps) {
+export function SceneView({ scene, ms, width = STAGE_W, height = STAGE_H, resolve, vectorPictures }: SceneViewProps) {
   const cam = cameraAt(scene, ms);
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${STAGE_W} ${STAGE_H}`} width={width} height={height}>
@@ -20,7 +22,8 @@ export function SceneView({ scene, ms, width = STAGE_W, height = STAGE_H, resolv
           const pick = resolve && isArt(c) ? (file: string) => resolve(c.id, file) : undefined;
           return (
             <g key={a.id} data-actor={a.id} transform={place}>
-              <CharacterView config={a.character} frame={frameAt(a.timeline, ms, a.idleOffsetMs)} width={box} height={box} resolve={pick} />
+              <CharacterView config={a.character} frame={frameAt(a.timeline, ms, a.idleOffsetMs)} width={box} height={box} resolve={pick}
+                clockMs={ms + a.idleOffsetMs} frameSource={(clock) => frameAt(a.timeline, clock - a.idleOffsetMs, a.idleOffsetMs)} picture={vectorPictures?.[a.id]} />
             </g>
           );
         })}

@@ -9,6 +9,7 @@ import { normalizeAudio, concatWithGaps, AudioError, AUDIO_DIR } from './audio';
 import { autoTag, transcribe, GeminiError } from './gemini';
 import { OpenAIError, voiceStudioInfo, voiceStudioTranscribe, voiceStudioUrl } from './openai';
 import { isTransient, parseSegments, plainText, speakLine, ttsProviders } from './speech';
+import { ElevenLabsError, listElevenVoices } from './elevenlabs';
 import { directAll } from './director';
 import { canLaunchVoiceStudio, ensureVoiceStudio } from './launch';
 import { marksFromDirections, prepareLine } from '../shared/direction';
@@ -21,9 +22,12 @@ import { renderVideo } from './render';
 import { loadScene, MissingSceneCharacterError } from './scene';
 import { projectRoutes } from './projects';
 import { validateExport, validScriptLine } from './validate';
+import { deleteVectorCharacter, ensureSample, listVectorCharacters, readVectorMeta, vectorPath } from './vector';
+import { cancelVectorJob, discardVectorJob, getVectorJob, listVectorJobs, resumeVectorJob, startVectorJob, vectorJobFile, VectorJobError } from './vector-create';
+import { drawProvider } from './vector-draw';
 import { CharacterError, createCharacter, deleteCharacter, generatePose, getCharacter, imageDataUris, imagePath, listCharacters, measureMouths, setMouthPoint } from './characters';
 import { ART_STYLES } from '../shared/character/art';
-import { isArt, type ArtPose } from '../shared/types';
+import { isArt, isVector, type ArtPose } from '../shared/types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UPLOAD_DIR = join('data', 'uploads');
@@ -45,9 +49,23 @@ function sendOpenAIError(res: express.Response, e: OpenAIError, failed: string) 
   else res.status(502).json({ error: failed });
 }
 
-/** Sends the standard JSON error for a Gemini (or OpenAI) failure; `failed` is the 502 message. */
+/** Sends the standard JSON error for an ElevenLabs failure; `failed` is the 502 message. */
+function sendElevenError(res: express.Response, e: ElevenLabsError, failed: string) {
+  if (e.code === 'no_key') res.status(400).json({ error: 'ElevenLabs key missing: add ELEVENLABS_API_KEY to .env' });
+  else if (e.code === 'bad_key') res.status(400).json({ error: 'ElevenLabs key looks invalid: check ELEVENLABS_API_KEY in .env' });
+  else if (e.code === 'no_credit') res.status(402).json({ error: 'Your ElevenLabs account is out of characters or credit.' });
+  else if (e.code === 'no_voice') res.status(400).json({ error: 'That ElevenLabs voice was not found on your account. Pick another voice.' });
+  else if (e.code === 'rate_limited') res.status(429).json({ error: 'ElevenLabs limit reached, try again later' });
+  else if (e.code === 'busy') res.status(503).json({ error: 'ElevenLabs is busy right now. Please try again in a minute.' });
+  else if (e.code === 'timed_out') res.status(504).json({ error: 'ElevenLabs took too long to answer. Please try again.' });
+  else if (e.code === 'unreachable') res.status(503).json({ error: 'Could not reach ElevenLabs. Check your connection.' });
+  else res.status(502).json({ error: failed });
+}
+
+/** Sends the standard JSON error for a Gemini (or OpenAI or ElevenLabs) failure; `failed` is the 502 message. */
 function sendGeminiError(res: express.Response, e: unknown, failed: string): boolean {
   if (e instanceof OpenAIError) { sendOpenAIError(res, e, failed); return true; }
+  if (e instanceof ElevenLabsError) { sendElevenError(res, e, failed); return true; }
   if (!(e instanceof GeminiError)) return false;
   if (e.code === 'no_key') res.status(400).json({ error: 'Gemini key missing — add GEMINI_API_KEY to .env' });
   else if (e.code === 'bad_key') res.status(400).json({ error: 'Gemini key looks invalid — check GEMINI_API_KEY in .env' });
@@ -81,7 +99,8 @@ export function createApp() {
     typeof id === 'string' && UUID_RE.test(id) ? join(AUDIO_DIR, `${id}.wav`) : null;
 
   app.get('/api/health', async (_req, res) => {
-    res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(process.env.GEMINI_API_KEY), imageProviders: imageProviders(), ttsProviders: ttsProviders() });
+    const vectorDraw = Boolean(process.env[drawProvider() === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY']);
+    res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(process.env.GEMINI_API_KEY), imageProviders: imageProviders(), ttsProviders: ttsProviders(), vectorDraw, vectorDrawProvider: drawProvider() });
   });
 
   // Token telemetry for the usage panel.
@@ -95,6 +114,16 @@ export function createApp() {
 
   // VoiceStudio status, installed engines and voices (saved and cloned), read from the running app.
   // Not running but installed here: open it in the background; the script tab checks back until it answers.
+  // The voices on the person's ElevenLabs account, for the voice picker.
+  app.get('/api/elevenlabs/voices', async (_req, res) => {
+    try {
+      res.json({ voices: await listElevenVoices() });
+    } catch (e) {
+      if (e instanceof ElevenLabsError) sendElevenError(res, e, 'Could not load your ElevenLabs voices.');
+      else res.status(500).json({ error: 'Could not load your ElevenLabs voices.' });
+    }
+  });
+
   app.get('/api/voicestudio', async (_req, res) => {
     const info = await voiceStudioInfo();
     if (!info.running && canLaunchVoiceStudio()) {
@@ -327,6 +356,94 @@ export function createApp() {
     }
   });
 
+  // ---------- vector-avator characters (same folder, kind 'vector') ----------
+  app.get('/api/vector-characters', async (_req, res) => {
+    res.json({ characters: await listVectorCharacters() });
+  });
+
+  app.post('/api/vector-characters/sample', async (_req, res) => {
+    try {
+      res.json({ character: await ensureSample() });
+    } catch (e) {
+      console.error('add vector sample failed', e);
+      res.status(500).json({ error: 'Could not add the sample character.' });
+    }
+  });
+
+  app.delete('/api/vector-characters/:id', async (req, res) => {
+    try {
+      await deleteVectorCharacter(req.params.id);
+      res.status(204).end();
+    } catch (e) {
+      if (!sendCharacterError(res, e, 'Delete failed.')) res.status(500).json({ error: 'Delete failed.' });
+    }
+  });
+
+  // ---------- creating vector characters in the background (server/vector-create.ts) ----------
+  const sendJobError = (res: express.Response, e: unknown) => {
+    if (e instanceof VectorJobError) return res.status(e.code === 'not_found' ? 404 : 409).json({ error: e.code === 'not_found' ? 'Job not found' : 'This character is already finished.' });
+    console.error('vector job request failed', e);
+    res.status(500).json({ error: 'Something went wrong' });
+  };
+
+  app.get('/api/vector-jobs', async (_req, res) => {
+    res.json({ jobs: await listVectorJobs() });
+  });
+
+  app.post('/api/vector-jobs', (req, res) => {
+    imageUpload.single('reference')(req, res, async (err) => {
+      const ref = req.file;
+      const description = typeof req.body?.description === 'string' ? req.body.description.trim() : '';
+      const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+      const providers = imageProviders();
+      const provider = req.body?.provider || providers[0];
+      const drawKey = drawProvider() === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
+      if (!providers.length) return res.status(400).json({ error: 'Add GEMINI_API_KEY or OPENAI_API_KEY to .env to create characters.' });
+      if (!process.env[drawKey]) return res.status(400).json({ error: `Add ${drawKey} to .env to create vector characters.` });
+      if (!providers.includes(provider)) return res.status(400).json({ error: 'Invalid request' });
+      if (err || (ref && !IMAGE_TYPES.includes(ref.mimetype))) return res.status(400).json({ error: 'Reference must be a PNG, JPEG or WebP image up to 10 MB.' });
+      if ((!description && !ref) || description.length > 400 || name.length > 40) return res.status(400).json({ error: 'Invalid request' });
+      try {
+        const job = await startVectorJob({
+          description, imageProvider: provider,
+          name: name || description.split(/\s+/).slice(0, 3).join(' ') || 'My character',
+          reference: ref ? { data: ref.buffer, mimeType: ref.mimetype } : undefined,
+        });
+        res.json({ job });
+      } catch (e) {
+        sendJobError(res, e);
+      }
+    });
+  });
+
+  app.get('/api/vector-jobs/:id', async (req, res) => {
+    try { res.json({ job: await getVectorJob(req.params.id) }); } catch (e) { sendJobError(res, e); }
+  });
+
+  app.post('/api/vector-jobs/:id/cancel', async (req, res) => {
+    try { res.json({ job: await cancelVectorJob(req.params.id) }); } catch (e) { sendJobError(res, e); }
+  });
+
+  app.post('/api/vector-jobs/:id/resume', async (req, res) => {
+    try { res.json({ job: await resumeVectorJob(req.params.id) }); } catch (e) { sendJobError(res, e); }
+  });
+
+  app.delete('/api/vector-jobs/:id', async (req, res) => {
+    try { await discardVectorJob(req.params.id); res.status(204).end(); } catch (e) { sendJobError(res, e); }
+  });
+
+  app.get('/api/vector-jobs/:id/:file', (req, res) => {
+    const p = vectorJobFile(req.params.id, req.params.file);
+    if (!p) return res.status(404).json({ error: 'Picture not found' });
+    res.set('Cache-Control', 'no-store').type('image/png').sendFile(p, { root: process.cwd() });
+  });
+
+  app.get('/api/characters/:id/vector.json', (req, res) => {
+    const p = vectorPath(req.params.id);
+    if (!p) return res.status(404).json({ error: 'Vector data not found' });
+    res.type('application/json').sendFile(p, { root: process.cwd() });
+  });
+
   app.get('/api/characters/:id/:file', (req, res) => {
     const p = imagePath(req.params.id, req.params.file);
     if (!p) return res.status(404).json({ error: 'Image not found' });
@@ -340,7 +457,13 @@ export function createApp() {
     if (!input) return res.status(400).json({ error: 'Invalid request' });
     // An AI character is always drawn from the library on disk, never from images named by the client.
     let images: Record<string, string> | undefined;
-    if (isArt(input.character)) {
+    if (isVector(input.character)) {
+      try {
+        input.character = await readVectorMeta(input.character.id);
+      } catch {
+        return res.status(404).json({ error: 'Character not found' });
+      }
+    } else if (isArt(input.character)) {
       try {
         input.character = await getCharacter(input.character.id);
         images = await imageDataUris(input.character);
