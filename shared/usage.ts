@@ -1,6 +1,6 @@
 // Token telemetry shapes shared by the server ledger (server/usage.ts) and the usage panel.
 
-export type UsageProvider = 'gemini' | 'openai' | 'voicestudio' | 'anthropic';
+export type UsageProvider = 'gemini' | 'openai' | 'voicestudio' | 'anthropic' | 'elevenlabs';
 export type UsageKind = 'voice' | 'auto-tag' | 'direct' | 'transcribe' | 'image' | 'mouth' | 'draw';
 
 export interface UsageEntry {

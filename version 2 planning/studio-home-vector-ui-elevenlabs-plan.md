@@ -82,6 +82,13 @@ Each lands as its own commit, with tests and a check in the browser.
 - **ElevenLabs voices:** the voices on the person's ElevenLabs account, fetched from it.
 - **Projects while Beta:** fully usable behind a **Projects · Beta** header button.
 
+## Status (2026-11-20)
+
+- **1. Home and Beta: done** (`af520ff`). Checked in the browser.
+- **2b. Vector character sheet: done** (`3b7fed8`). Checked with Rusty and the sample. Head turn is not shown as a tile: Kitta's scenes don't turn the head yet, and the check picture shows the ±30° turns.
+- **2a. Create vector character tile: done** (`9ab83a0`). Checked in the browser without starting a paid job.
+- **3. ElevenLabs: built and tested against a fake ElevenLabs** (request shape, voice list with paging, error messages, character cost). Not yet tried with a real key: add `ELEVENLABS_API_KEY` to `.env` and speak a short script. The docs list no quota error code, so "out of credit" is recognised from the error message; check it the first time it happens.
+
 ## Later (after these, when we want polish)
 
 - More drawing tests: the same character with each model at a quiet time (gpt-6.2-sol was cheapest at $0.81 but took 45 minutes on a busy day), and three new characters with the default model.

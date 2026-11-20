@@ -55,6 +55,16 @@ export async function previewLine(line: ScriptLineInput, provider?: TtsProvider,
 }
 
 /** Status, engines and voices of the local VoiceStudio; null if our server can't be reached. */
+/** The voices on the ElevenLabs account; null when they can't be loaded (no key, bad key, offline). */
+export async function elevenVoices(): Promise<{ id: string; label: string; kind: 'default' }[] | null> {
+  try {
+    const res = await fetch('/api/elevenlabs/voices');
+    return res.ok ? (await res.json()).voices : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function voiceStudio(): Promise<VoiceStudioInfo | null> {
   try {
     const res = await fetch('/api/voicestudio');

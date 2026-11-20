@@ -2,6 +2,8 @@
 // - OpenAI: https://developers.openai.com/api/docs/pricing
 // - Gemini: https://aistudio.google.com/docs/pricing (paid tier)
 // - Anthropic: https://platform.claude.com/docs/en/about-claude/pricing
+// - ElevenLabs: https://elevenlabs.io/pricing/api (billed per character: a call's input is its characters, so the price
+//   per 1M "tokens" here is the price per 1M characters, i.e. 1000 × the price per 1K characters)
 // A model can have dated periods (Gemini 3.8 prices double on 2027-01-01). A call is priced when it is recorded, with
 // the period in force then, so later price changes do not rewrite past costs. A model missing here is shown unpriced.
 
@@ -34,6 +36,10 @@ const PRICES: Record<string, { from?: string; price: Price }[]> = {
   'openai/gpt-6.2-sol': [{ price: { input: 2, cachedInput: 0.1, output: 10 } }],
   'openai/gpt-5-mini': [{ price: { input: 0.25, cachedInput: 0.025, output: 2 } }],
   'openai/gpt-4o-mini-tts': [{ price: { input: 0.6, output: 12 } }],
+  'elevenlabs/eleven_multilingual_v2': [{ price: { input: 80, output: 0 } }],
+  'elevenlabs/eleven_v3': [{ price: { input: 80, output: 0 } }],
+  'elevenlabs/eleven_flash_v2_5': [{ price: { input: 40, output: 0 } }],
+  'elevenlabs/eleven_flash_v2': [{ price: { input: 40, output: 0 } }],
   'gemini/gemini-3.8-flash': [
     { price: { input: 0.75, cachedInput: 0.075, output: 3.75 } },
     { from: '2027-01-01', price: { input: 1.5, cachedInput: 0.15, output: 7.5 } },

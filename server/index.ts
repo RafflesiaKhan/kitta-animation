@@ -9,6 +9,7 @@ import { normalizeAudio, concatWithGaps, AudioError, AUDIO_DIR } from './audio';
 import { autoTag, transcribe, GeminiError } from './gemini';
 import { OpenAIError, voiceStudioInfo, voiceStudioTranscribe, voiceStudioUrl } from './openai';
 import { isTransient, parseSegments, plainText, speakLine, ttsProviders } from './speech';
+import { ElevenLabsError, listElevenVoices } from './elevenlabs';
 import { directAll } from './director';
 import { canLaunchVoiceStudio, ensureVoiceStudio } from './launch';
 import { marksFromDirections, prepareLine } from '../shared/direction';
@@ -48,9 +49,23 @@ function sendOpenAIError(res: express.Response, e: OpenAIError, failed: string) 
   else res.status(502).json({ error: failed });
 }
 
-/** Sends the standard JSON error for a Gemini (or OpenAI) failure; `failed` is the 502 message. */
+/** Sends the standard JSON error for an ElevenLabs failure; `failed` is the 502 message. */
+function sendElevenError(res: express.Response, e: ElevenLabsError, failed: string) {
+  if (e.code === 'no_key') res.status(400).json({ error: 'ElevenLabs key missing: add ELEVENLABS_API_KEY to .env' });
+  else if (e.code === 'bad_key') res.status(400).json({ error: 'ElevenLabs key looks invalid: check ELEVENLABS_API_KEY in .env' });
+  else if (e.code === 'no_credit') res.status(402).json({ error: 'Your ElevenLabs account is out of characters or credit.' });
+  else if (e.code === 'no_voice') res.status(400).json({ error: 'That ElevenLabs voice was not found on your account. Pick another voice.' });
+  else if (e.code === 'rate_limited') res.status(429).json({ error: 'ElevenLabs limit reached, try again later' });
+  else if (e.code === 'busy') res.status(503).json({ error: 'ElevenLabs is busy right now. Please try again in a minute.' });
+  else if (e.code === 'timed_out') res.status(504).json({ error: 'ElevenLabs took too long to answer. Please try again.' });
+  else if (e.code === 'unreachable') res.status(503).json({ error: 'Could not reach ElevenLabs. Check your connection.' });
+  else res.status(502).json({ error: failed });
+}
+
+/** Sends the standard JSON error for a Gemini (or OpenAI or ElevenLabs) failure; `failed` is the 502 message. */
 function sendGeminiError(res: express.Response, e: unknown, failed: string): boolean {
   if (e instanceof OpenAIError) { sendOpenAIError(res, e, failed); return true; }
+  if (e instanceof ElevenLabsError) { sendElevenError(res, e, failed); return true; }
   if (!(e instanceof GeminiError)) return false;
   if (e.code === 'no_key') res.status(400).json({ error: 'Gemini key missing — add GEMINI_API_KEY to .env' });
   else if (e.code === 'bad_key') res.status(400).json({ error: 'Gemini key looks invalid — check GEMINI_API_KEY in .env' });
@@ -99,6 +114,16 @@ export function createApp() {
 
   // VoiceStudio status, installed engines and voices (saved and cloned), read from the running app.
   // Not running but installed here: open it in the background; the script tab checks back until it answers.
+  // The voices on the person's ElevenLabs account, for the voice picker.
+  app.get('/api/elevenlabs/voices', async (_req, res) => {
+    try {
+      res.json({ voices: await listElevenVoices() });
+    } catch (e) {
+      if (e instanceof ElevenLabsError) sendElevenError(res, e, 'Could not load your ElevenLabs voices.');
+      else res.status(500).json({ error: 'Could not load your ElevenLabs voices.' });
+    }
+  });
+
   app.get('/api/voicestudio', async (_req, res) => {
     const info = await voiceStudioInfo();
     if (!info.running && canLaunchVoiceStudio()) {
