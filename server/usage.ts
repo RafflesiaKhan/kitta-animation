@@ -45,6 +45,13 @@ export function recordOpenAI(kind: UsageKind, model: string, usage: unknown, pro
   recordUsage({ provider, model, kind, input: num(u.input_tokens ?? u.prompt_tokens), output: num(u.output_tokens ?? u.completion_tokens), total: num(u.total_tokens) });
 }
 
+/** Anthropic's usage block: cache writes and reads are input too (thinking is billed as output). */
+export function recordAnthropic(kind: UsageKind, model: string, usage: unknown) {
+  const u = (usage ?? {}) as Record<string, unknown>;
+  const input = num(u.input_tokens) === null ? null : num(u.input_tokens)! + (num(u.cache_creation_input_tokens) ?? 0) + (num(u.cache_read_input_tokens) ?? 0);
+  recordUsage({ provider: 'anthropic', model, kind, input, output: num(u.output_tokens) });
+}
+
 function totals(entries: UsageEntry[]): { all: UsageTotals; rows: UsageRow[] } {
   const zero = (): UsageTotals => ({ calls: 0, input: 0, output: 0, total: 0, unreported: 0 });
   const add = (t: UsageTotals, e: UsageEntry) => {

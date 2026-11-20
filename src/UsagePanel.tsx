@@ -3,7 +3,7 @@ import type { UsageEntry, UsageReport, UsageRow, UsageTotals } from '../shared/u
 import * as api from './api';
 import { Icon } from './Icon';
 
-const NAMES = { gemini: 'Gemini', openai: 'OpenAI', voicestudio: 'VoiceStudio' } as const;
+const NAMES = { gemini: 'Gemini', openai: 'OpenAI', voicestudio: 'VoiceStudio', anthropic: 'Claude' } as const;
 const fmt = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${Math.round(n / 1e3)}k` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 

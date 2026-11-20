@@ -9,6 +9,12 @@
 Copied: `src/core/*`, `src/renderers/vector/*`, a few motions/poses, and the tests (`tests/shared/vector-avator/`).
 Not copied: `src/vviewer`, the Python tools, body-view data.
 
+Also copied, for making characters in Kitta: `.claude/skills/vector-avator/references/parts-spec.md` → `skill/parts-spec.md` (unchanged).
+
+## Kitta additions
+
+- `check.ts`: TypeScript port of `check()` in `tools/vector/check_parts.py` (the structural checks), plus a parse of every path as `prepareVector` reads it and skeleton points on the picture. The pixel and layer checks are not ported; `server/vector-check.ts` draws check pictures instead.
+
 ## Local changes
 
 - `canvasFactory.ts` (new): replaces `document.createElement("canvas")` so the server can use `@napi-rs/canvas`.

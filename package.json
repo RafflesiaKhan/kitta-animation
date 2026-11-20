@@ -9,6 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.6.0",
     "@google/genai": "^2.31.0",
     "@napi-rs/canvas": "1.1.1",
     "@resvg/resvg-js": "^2.6.2",
