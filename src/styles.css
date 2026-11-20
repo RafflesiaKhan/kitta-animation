@@ -40,6 +40,7 @@ h4 { font-weight: 600; color: var(--ink); }
 .pills { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 auto; justify-content: center; }
 .pill { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 16px 0 8px; border-radius: var(--r-pill); border: 0; background: transparent; color: var(--taupe); cursor: pointer; font-size: 14px; font-weight: 500; }
 .pill:hover { background: var(--charcoal); color: var(--cream); }
+.beta { display: inline-block; margin-left: 2px; padding: 1px 7px; border-radius: var(--r-pill); background: var(--accent); color: var(--white); font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: middle; }
 .pill.active, .pill.active:hover { background: var(--accent); color: var(--white); font-weight: 700; }
 .step-n { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--gray); font-size: 12px; }
 .pill.active .step-n { border: 0; background: var(--white); color: var(--accent-press); }

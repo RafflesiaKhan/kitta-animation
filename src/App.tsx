@@ -229,7 +229,7 @@ export function App() {
   return (
     <div className="app">
       <header>
-        <a className="pill" href="/">Projects</a>
+        <a className="pill" href="/?projects" title="Projects is still being built: scenes, episodes and sets may change.">Projects <span className="beta">Beta</span></a>
         <span className="logo" aria-hidden="true">K</span>
         <div className="brand">
           <h1>Kitta Animation</h1>
