@@ -22,10 +22,10 @@ export class VectorStage {
   private renderer = new VectorRenderer();
   private lastTick: number | null = null;
 
-  /** Draws a square `size` × `size` transparent picture, readable from `canvas`. */
-  constructor(lv: LoadedVector, readonly size: number, private warmup = WARMUP_TICKS) {
+  /** Draws a square `size` × `size` transparent picture, readable from `canvas`; `face` frames the head only. */
+  constructor(lv: LoadedVector, readonly size: number, private warmup = WARMUP_TICKS, framing: 'body' | 'face' = 'body') {
     this.renderer.dpr = 1;
-    this.renderer.setup(size, size, 'body', false, lv);
+    this.renderer.setup(size, size, framing, false, lv);
   }
 
   get canvas(): HTMLCanvasElement { return this.renderer.canvas; }

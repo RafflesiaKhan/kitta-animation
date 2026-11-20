@@ -11,10 +11,12 @@ export interface CharacterViewProps {
   clockMs?: number; picture?: string;
   /** Vector characters in the browser: the frame at any idle-clock time, so a scrub replays the motion before it. */
   frameSource?: FrameSource;
+  /** Vector characters in browser tiles: `face` shows the head close up. */
+  framing?: 'body' | 'face';
 }
 
 /** Draws any kind of character: the customisable SVG rig, an AI-painted one or a vector-avator one. */
-export function CharacterView({ config, resolve, clockMs, picture, frameSource, ...rest }: CharacterViewProps) {
-  if (isVector(config)) return <VectorCharacterView character={config} clockMs={clockMs} frameSource={frameSource} picture={picture} {...rest} />;
+export function CharacterView({ config, resolve, clockMs, picture, frameSource, framing, ...rest }: CharacterViewProps) {
+  if (isVector(config)) return <VectorCharacterView character={config} clockMs={clockMs} frameSource={frameSource} picture={picture} framing={framing} {...rest} />;
   return isArt(config) ? <ArtCharacterView character={config} resolve={resolve} {...rest} /> : <Character config={config} {...rest} />;
 }

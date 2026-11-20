@@ -10,6 +10,7 @@ import { Icon } from '../Icon';
 import type { ProjectStyle } from '../../shared/projects';
 import { RUNNING_STAGES, type VectorJob } from '../../shared/vector-job';
 import { Tile } from './AnimateStep';
+import { VectorSheet } from './VectorSheet';
 
 const REST: FrameState = { expression: 'neutral', mouth: 'X', gesture: 'none', gestureProgress: 0, blink: false, bob: 0 };
 const NEEDS_KEY = 'Needs GEMINI_API_KEY or OPENAI_API_KEY';
@@ -103,7 +104,7 @@ export function CharacterStep({ character, onChange, library, vectors = [], onIm
         ? <CreateForm busy={busy} providers={imageProviders} onCreate={onCreate} onCancel={() => setCreating(false)}
           vectorDraw={vectorDraw} vectorDrawBy={vectorDrawBy} onCreateVector={onCreateVector} />
         : character && (isVector(character)
-          ? !projectStyle && onDeleteVector && <p className="hint">{character.name}: a vector-avator character, drawn live. <button type="button" className="btn secondary" disabled={busy} onClick={() => onDeleteVector(character.id)}>Remove</button></p>
+          ? !projectStyle && <VectorSheet character={character} busy={busy} onDelete={onDeleteVector} />
           : isArt(character)
           ? !projectStyle && onDraw && onFindMouths && onSetMouth && onDelete && <ArtSheet character={character} busy={busy} geminiOk={aiOk} onDraw={onDraw} onFindMouths={onFindMouths} onSetMouth={onSetMouth} onDelete={onDelete} />
           : <Customize character={character} onChange={onChange} showExpressions={!projectStyle} />)}

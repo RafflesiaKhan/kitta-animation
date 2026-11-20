@@ -4,10 +4,10 @@ import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promise
 import { join } from 'node:path';
 import type { ImageProvider } from '../shared/types';
 import { RUNNING_STAGES, type VectorJob } from '../shared/vector-job';
-import { AnthropicError } from './anthropic';
+import { AnthropicError, anthropicModel } from './anthropic';
 import { CHARACTERS_DIR } from './characters';
 import { GeminiError } from './gemini';
-import { OpenAIError } from './openai';
+import { OpenAIError, drawModel } from './openai';
 import { trackUsage } from './usage';
 import { paintFaceSheet, paintFront, type VectorArtInput } from './vector-art';
 import { drawProvider, drawVector } from './vector-draw';
@@ -72,7 +72,7 @@ export async function startVectorJob(inp: StartInput): Promise<VectorJob> {
   if (inp.reference) await writeFile(join(workOf(id), 'reference.json'), JSON.stringify({ mimeType: inp.reference.mimeType, data: inp.reference.data.toString('base64') }));
   const now = new Date().toISOString();
   const job: VectorJob = {
-    id, name: inp.name, description: inp.description, imageProvider: inp.imageProvider, drawProvider: drawProvider(),
+    id, name: inp.name, description: inp.description, imageProvider: inp.imageProvider, drawProvider: drawProvider(), drawModel: drawProvider() === 'anthropic' ? anthropicModel() : drawModel(),
     stage: 'front', round: 0, maxRounds: MAX_ROUNDS, errors: null, cost: 0, hasFront: false, hasFace: false, hasCheck: false, startedAt: now, updatedAt: now,
   };
   await writeJob(job);
@@ -163,7 +163,7 @@ async function run(id: string, signal: AbortSignal): Promise<void> {
 
       await save({ stage: 'drawing', round: 0, errors: null });
       const result = await drawVector({
-        name: job.name, front, faceSheet: face, notes: job.description || undefined, maxRounds: job.maxRounds, provider: job.drawProvider, signal,
+        name: job.name, front, faceSheet: face, notes: job.description || undefined, maxRounds: job.maxRounds, provider: job.drawProvider, model: job.drawModel, signal,
         onRound: async (r) => {
           if (r.doc !== undefined) await writeFile(join(work, `round-${r.round}.vector.json`), JSON.stringify(r.doc));
           if (r.sheet) await writeFile(join(work, 'check.png'), r.sheet);

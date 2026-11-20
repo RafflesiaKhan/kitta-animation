@@ -12,6 +12,8 @@ export interface VectorJob {
   /** Who paints the pictures and who draws the parts. */
   imageProvider: 'gemini' | 'openai';
   drawProvider: 'anthropic' | 'openai';
+  /** The drawing model's id (older jobs may not have it). */
+  drawModel?: string;
   stage: VectorJobStage;
   /** Drawing rounds finished so far, out of maxRounds. */
   round: number;
