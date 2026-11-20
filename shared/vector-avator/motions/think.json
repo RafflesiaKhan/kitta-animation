@@ -1,5 +1,5 @@
 {
-  "name": "think", "label": "5. 首を傾けて考える", "duration": 3.4, "loop": true,
+  "name": "think", "label": "5. Tilt the head and think", "duration": 3.4, "loop": true,
   "keys": [
     {"t": 0, "bones": {"leftUpperArm": [0, 0, -70], "leftLowerArm": [0, 0, -5], "rightUpperArm": [0, 0, 70], "rightLowerArm": [0, 0, 5], "head": [0, 0, 0], "neck": [0, 0, 0]}, "face": {"expression": "neutral", "gazeY": 0, "eye": "open"}, "hands": {"L": "open", "R": "open"}},
     {"t": 0.6, "hands": {"R": "fist"}},

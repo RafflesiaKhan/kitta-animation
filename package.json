@@ -6,7 +6,8 @@
   "scripts": {
     "scene": "tsx server/scene-cli.ts",
     "dev": "concurrently -k -n web,api \"vite\" \"tsx watch server/index.ts\"",
-    "test": "vitest run"
+    "test": "vitest run",
+    "vector:draw": "tsx server/vector-draw-cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.6.0",

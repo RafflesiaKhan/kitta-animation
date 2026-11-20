@@ -1,5 +1,5 @@
 {
-  "name": "nod_surprise", "label": "6. うなずく・驚く", "duration": 3.6, "loop": true,
+  "name": "nod_surprise", "label": "6. Nod, be surprised", "duration": 3.6, "loop": true,
   "keys": [
     {"t": 0, "bones": {"leftUpperArm": [0, 0, -70], "leftLowerArm": [0, 0, -5], "rightUpperArm": [0, 0, 70], "rightLowerArm": [0, 0, 5], "head": [0, 0, 0], "chest": [0, 0, 0]}, "hips": [0, 0, 0], "face": {"expression": "neutral", "mouth": "sil", "eye": "open"}, "hands": {"L": "open", "R": "open"}},
     {"t": 0.3, "bones": {"head": [16, 0, 0]}, "face": {"eye": "half"}},

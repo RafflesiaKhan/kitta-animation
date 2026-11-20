@@ -71,7 +71,7 @@ interface HandState { a: number; v: number; init: boolean }
 
 export class VectorRenderer implements Renderer {
   readonly id = "V" as const;
-  readonly label = "V：ベクター立ち絵";
+  readonly label = "V: vector character";
   private cv!: HTMLCanvasElement;
   private g!: CanvasRenderingContext2D;
   private lv!: LoadedVector;

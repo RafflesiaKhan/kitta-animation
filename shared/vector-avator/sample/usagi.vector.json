@@ -7,7 +7,7 @@
  "parts": [
   {
    "id": "tail",
-   "label": "しっぽ（丸い玉の全体）",
+   "label": "Tail (the whole round ball)",
    "parent": "torso",
    "pivot": [
     612,
@@ -16,7 +16,7 @@
    "bone": "tail",
    "layer": "body",
    "visible": true,
-   "coverage": "胴・脚に隠れる左半分まで、丸い玉の全体を描く。",
+   "coverage": "The whole round ball, including the left half hidden by the torso and legs.",
    "shapes": [
     {
      "name": "fur",
@@ -29,7 +29,7 @@
   },
   {
    "id": "ear_R",
-   "label": "耳（キャラの右・画面左）",
+   "label": "Ear (character's right, screen left)",
    "parent": "head",
    "pivot": [
     386,
@@ -38,7 +38,7 @@
    "bone": "ear_R",
    "layer": "ear",
    "visible": true,
-   "coverage": "付け根を頭の中（y=700 付近）まで丸く描く。水色の内耳は全体が見えているため補完不要。",
+   "coverage": "Root drawn round into the head (to about y=700). The light-blue inner ear is fully visible, so it needs no completion.",
    "shapes": [
     {
      "name": "fur",
@@ -68,7 +68,7 @@
   },
   {
    "id": "ear_L",
-   "label": "耳（キャラの左・画面右）",
+   "label": "Ear (character's left, screen right)",
    "parent": "head",
    "pivot": [
     634.0,
@@ -77,7 +77,7 @@
    "bone": "ear_L",
    "layer": "ear",
    "visible": true,
-   "coverage": "付け根を頭の中（y=700 付近）まで丸く描く。水色の内耳は全体が見えているため補完不要。",
+   "coverage": "Root drawn round into the head (to about y=700). The light-blue inner ear is fully visible, so it needs no completion.",
    "shapes": [
     {
      "name": "fur",
@@ -107,7 +107,7 @@
   },
   {
    "id": "leg_R",
-   "label": "脚（キャラの右・画面左）",
+   "label": "Leg (character's right, screen left)",
    "parent": "torso",
    "pivot": [
     440,
@@ -116,7 +116,7 @@
    "bone": "rightUpperLeg",
    "layer": "body",
    "visible": true,
-   "coverage": "付け根を胴の裏（y=1236）まで丸く描く。足先まで 1 つの形。",
+   "coverage": "Root drawn round behind the torso (to y=1236). One shape down to the foot.",
    "shapes": [
     {
      "name": "fur",
@@ -132,7 +132,7 @@
   },
   {
    "id": "leg_L",
-   "label": "脚（キャラの左・画面右）",
+   "label": "Leg (character's left, screen right)",
    "parent": "torso",
    "pivot": [
     571.0,
@@ -141,7 +141,7 @@
    "bone": "leftUpperLeg",
    "layer": "body",
    "visible": true,
-   "coverage": "付け根を胴の裏（y=1236）まで丸く描く。足先まで 1 つの形。",
+   "coverage": "Root drawn round behind the torso (to y=1236). One shape down to the foot.",
    "shapes": [
     {
      "name": "fur",
@@ -157,7 +157,7 @@
   },
   {
    "id": "torso",
-   "label": "胴（腕を外した全体）",
+   "label": "Torso (whole, without arms)",
    "parent": null,
    "pivot": [
     505.5,
@@ -166,7 +166,7 @@
    "bone": "chest",
    "layer": "body",
    "visible": true,
-   "coverage": "腕を外した胴。肩は腕の付け根の内側（x=424〜587）で閉じ、頭に隠れる上端（y=984）まで。下は脚の付け根を覆う腰（y=1341）まで。",
+   "coverage": "Torso without arms. Shoulders close inside the arm roots (x=424 to 587), up to the top edge hidden by the head (y=984). Down to the hips covering the leg roots (y=1341).",
    "shapes": [
     {
      "name": "fur",
@@ -179,7 +179,7 @@
   },
   {
    "id": "neck",
-   "label": "首（頭と胴のつなぎ）",
+   "label": "Neck (joins head and torso)",
    "parent": "torso",
    "pivot": [
     506,
@@ -188,7 +188,7 @@
    "bone": "neck",
    "layer": "body",
    "visible": true,
-   "coverage": "首は外から見えないキャラ。頭の下端に隠れるつなぎとして、頭と胴の重なりの中に描く。",
+   "coverage": "The neck never shows on this character. Drawn inside the overlap of head and torso as a connector hidden under the bottom of the head.",
    "shapes": [
     {
      "name": "fur",
@@ -201,7 +201,7 @@
   },
   {
    "id": "head",
-   "label": "頭の本体（顔）",
+   "label": "Head itself (face)",
    "parent": "neck",
    "pivot": [
     508,
@@ -210,7 +210,7 @@
    "bone": "head",
    "layer": "head",
    "visible": true,
-   "coverage": "耳の付け根の下の頭頂（y=565〜636 のドーム）まで補完。あごは胴に重なる下端（y=1022）まで。",
+   "coverage": "Completed up to the top of the head under the ear roots (the dome at y=565 to 636). Chin down to the bottom edge overlapping the torso (y=1022).",
    "shapes": [
     {
      "name": "fur",
@@ -223,7 +223,7 @@
   },
   {
    "id": "chest_cover",
-   "label": "胸元の白（あごの下・肩の付け根の線を消す）",
+   "label": "Chest white (removes the lines under the chin and at the shoulder roots)",
    "parent": "torso",
    "pivot": [
     505.5,
@@ -232,7 +232,7 @@
    "bone": "chest",
    "layer": "body",
    "visible": true,
-   "coverage": "参照画像では頭と胴・腕と胴が線なしでつながる。あごの中央の線と肩の付け根の線を白で覆う部品（輪郭線は出さない）。",
+   "coverage": "In the reference, head and torso and arms and torso join without lines. A part that covers the line at the middle of the chin and the shoulder-root lines with white (draws no outline).",
    "shapes": [
     {
      "name": "fur",
@@ -246,7 +246,7 @@
   },
   {
    "id": "eye_R_white",
-   "label": "白目と縁の輪（キャラの右・画面左）",
+   "label": "Eye white and rim ring (character's right, screen left)",
    "parent": "head",
    "pivot": [
     389,
@@ -255,7 +255,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": true,
-   "coverage": "補完不要（半目のまぶたの下も全体を描いてある）。縁の灰色の輪は奥の shape。閉じ・笑顔でも輪と白は残す（元のシートの「楽しい」）。",
+   "coverage": "No completion needed (drawn whole, also under the half-closed lid). The grey rim ring is the back shape. The ring and white stay for closed and smiling eyes too (the \"happy\" face on the original sheet).",
    "shapes": [
     {
      "name": "ring",
@@ -282,7 +282,7 @@
   },
   {
    "id": "eye_R_iris",
-   "label": "虹彩（キャラの右・画面左）",
+   "label": "Iris (character's right, screen left)",
    "parent": "head",
    "pivot": [
     389,
@@ -291,7 +291,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": true,
-   "coverage": "全体を丸く描き、白目で切り抜く。",
+   "coverage": "Drawn whole and round, clipped by the eye white.",
    "shapes": [
     {
      "name": "rim",
@@ -317,7 +317,7 @@
   },
   {
    "id": "eye_R_pupil",
-   "label": "瞳孔（キャラの右・画面左）",
+   "label": "Pupil (character's right, screen left)",
    "parent": "head",
    "pivot": [
     389,
@@ -326,7 +326,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": true,
-   "coverage": "全体を丸く描き、白目で切り抜く。",
+   "coverage": "Drawn whole and round, clipped by the eye white.",
    "shapes": [
     {
      "name": "pupil",
@@ -345,7 +345,7 @@
   },
   {
    "id": "eye_R_half",
-   "label": "半目のまぶた（キャラの右・画面左）",
+   "label": "Half-closed lid (character's right, screen left)",
    "parent": "head",
    "pivot": [
     389,
@@ -354,7 +354,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "まぶたは白目の上端まで描き、虹彩の上 4 割を覆う。虹彩・瞳孔は潰さない。",
+   "coverage": "The lid reaches the top of the eye white and covers the upper 40% of the iris. Iris and pupil are not flattened.",
    "shapes": [
     {
      "name": "lid",
@@ -378,7 +378,7 @@
   },
   {
    "id": "eye_R_closed",
-   "label": "閉じた目のまぶたの弧（キャラの右・画面左）",
+   "label": "Closed-eye lid arc (character's right, screen left)",
    "parent": "head",
    "pivot": [
     389,
@@ -387,7 +387,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "白目の輪の中に描く、ゆるい下凸（︶）の弧。輪と白は白目の部品を使う。虹彩・瞳孔は出さない。",
+   "coverage": "A gentle downward-bulging arc (︶) inside the eye-white ring. The ring and white come from the eye-white part. No iris or pupil.",
    "shapes": [
     {
      "name": "arc",
@@ -404,7 +404,7 @@
   },
   {
    "id": "eye_R_smile",
-   "label": "笑顔の目のまぶたの弧（キャラの右・画面左）",
+   "label": "Smiling-eye lid arc (character's right, screen left)",
    "parent": "head",
    "pivot": [
     389,
@@ -413,7 +413,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "白目の輪の中に描く、∩ 型の弧（元のシートの「楽しい」）。輪と白は白目の部品を使う。",
+   "coverage": "A ∩-shaped arc inside the eye-white ring (the \"happy\" face on the original sheet). The ring and white come from the eye-white part.",
    "shapes": [
     {
      "name": "arc",
@@ -430,7 +430,7 @@
   },
   {
    "id": "eye_L_white",
-   "label": "白目と縁の輪（キャラの左・画面右）",
+   "label": "Eye white and rim ring (character's left, screen right)",
    "parent": "head",
    "pivot": [
     623.5,
@@ -439,7 +439,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": true,
-   "coverage": "補完不要（半目のまぶたの下も全体を描いてある）。縁の灰色の輪は奥の shape。閉じ・笑顔でも輪と白は残す（元のシートの「楽しい」）。",
+   "coverage": "No completion needed (drawn whole, also under the half-closed lid). The grey rim ring is the back shape. The ring and white stay for closed and smiling eyes too (the \"happy\" face on the original sheet).",
    "shapes": [
     {
      "name": "ring",
@@ -466,7 +466,7 @@
   },
   {
    "id": "eye_L_iris",
-   "label": "虹彩（キャラの左・画面右）",
+   "label": "Iris (character's left, screen right)",
    "parent": "head",
    "pivot": [
     623.5,
@@ -475,7 +475,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": true,
-   "coverage": "全体を丸く描き、白目で切り抜く。",
+   "coverage": "Drawn whole and round, clipped by the eye white.",
    "shapes": [
     {
      "name": "rim",
@@ -501,7 +501,7 @@
   },
   {
    "id": "eye_L_pupil",
-   "label": "瞳孔（キャラの左・画面右）",
+   "label": "Pupil (character's left, screen right)",
    "parent": "head",
    "pivot": [
     623.5,
@@ -510,7 +510,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": true,
-   "coverage": "全体を丸く描き、白目で切り抜く。",
+   "coverage": "Drawn whole and round, clipped by the eye white.",
    "shapes": [
     {
      "name": "pupil",
@@ -529,7 +529,7 @@
   },
   {
    "id": "eye_L_half",
-   "label": "半目のまぶた（キャラの左・画面右）",
+   "label": "Half-closed lid (character's left, screen right)",
    "parent": "head",
    "pivot": [
     623.5,
@@ -538,7 +538,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "まぶたは白目の上端まで描き、虹彩の上 4 割を覆う。虹彩・瞳孔は潰さない。",
+   "coverage": "The lid reaches the top of the eye white and covers the upper 40% of the iris. Iris and pupil are not flattened.",
    "shapes": [
     {
      "name": "lid",
@@ -562,7 +562,7 @@
   },
   {
    "id": "eye_L_closed",
-   "label": "閉じた目のまぶたの弧（キャラの左・画面右）",
+   "label": "Closed-eye lid arc (character's left, screen right)",
    "parent": "head",
    "pivot": [
     623.5,
@@ -571,7 +571,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "白目の輪の中に描く、ゆるい下凸（︶）の弧。輪と白は白目の部品を使う。虹彩・瞳孔は出さない。",
+   "coverage": "A gentle downward-bulging arc (︶) inside the eye-white ring. The ring and white come from the eye-white part. No iris or pupil.",
    "shapes": [
     {
      "name": "arc",
@@ -588,7 +588,7 @@
   },
   {
    "id": "eye_L_smile",
-   "label": "笑顔の目のまぶたの弧（キャラの左・画面右）",
+   "label": "Smiling-eye lid arc (character's left, screen right)",
    "parent": "head",
    "pivot": [
     623.5,
@@ -597,7 +597,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "白目の輪の中に描く、∩ 型の弧（元のシートの「楽しい」）。輪と白は白目の部品を使う。",
+   "coverage": "A ∩-shaped arc inside the eye-white ring (the \"happy\" face on the original sheet). The ring and white come from the eye-white part.",
    "shapes": [
     {
      "name": "arc",
@@ -614,7 +614,7 @@
   },
   {
    "id": "brow_R_normal",
-   "label": "眉・通常（キャラの右・画面左）",
+   "label": "Brow, normal (character's right, screen left)",
    "parent": "head",
    "pivot": [
     412,
@@ -623,7 +623,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": true,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "brow",
@@ -640,7 +640,7 @@
   },
   {
    "id": "brow_R_smile",
-   "label": "眉・笑顔（キャラの右・画面左）",
+   "label": "Brow, smile (character's right, screen left)",
    "parent": "head",
    "pivot": [
     412,
@@ -649,7 +649,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "brow",
@@ -666,7 +666,7 @@
   },
   {
    "id": "brow_R_surprise",
-   "label": "眉・驚き（キャラの右・画面左）",
+   "label": "Brow, surprised (character's right, screen left)",
    "parent": "head",
    "pivot": [
     412,
@@ -675,7 +675,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "brow",
@@ -692,7 +692,7 @@
   },
   {
    "id": "brow_R_trouble",
-   "label": "眉・困り（キャラの右・画面左）",
+   "label": "Brow, troubled (character's right, screen left)",
    "parent": "head",
    "pivot": [
     412,
@@ -701,7 +701,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "brow",
@@ -718,7 +718,7 @@
   },
   {
    "id": "brow_L_normal",
-   "label": "眉・通常（キャラの左・画面右）",
+   "label": "Brow, normal (character's left, screen right)",
    "parent": "head",
    "pivot": [
     597.0,
@@ -727,7 +727,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": true,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "brow",
@@ -744,7 +744,7 @@
   },
   {
    "id": "brow_L_smile",
-   "label": "眉・笑顔（キャラの左・画面右）",
+   "label": "Brow, smile (character's left, screen right)",
    "parent": "head",
    "pivot": [
     597.0,
@@ -753,7 +753,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "brow",
@@ -770,7 +770,7 @@
   },
   {
    "id": "brow_L_surprise",
-   "label": "眉・驚き（キャラの左・画面右）",
+   "label": "Brow, surprised (character's left, screen right)",
    "parent": "head",
    "pivot": [
     597.0,
@@ -779,7 +779,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "brow",
@@ -796,7 +796,7 @@
   },
   {
    "id": "brow_L_trouble",
-   "label": "眉・困り（キャラの左・画面右）",
+   "label": "Brow, troubled (character's left, screen right)",
    "parent": "head",
    "pivot": [
     597.0,
@@ -805,7 +805,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "brow",
@@ -822,7 +822,7 @@
   },
   {
    "id": "nose",
-   "label": "鼻",
+   "label": "Nose",
    "parent": "head",
    "pivot": [
     508,
@@ -831,7 +831,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": true,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "rim",
@@ -851,7 +851,7 @@
   },
   {
    "id": "mouth_closed",
-   "label": "口（閉じ）",
+   "label": "Mouth (closed)",
    "parent": "head",
    "pivot": [
     512.0,
@@ -860,7 +860,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": true,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "line",
@@ -877,7 +877,7 @@
   },
   {
    "id": "mouth_a",
-   "label": "口（あ）",
+   "label": "Mouth (a)",
    "parent": "head",
    "pivot": [
     512.0,
@@ -886,7 +886,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "rim",
@@ -917,7 +917,7 @@
   },
   {
    "id": "mouth_i",
-   "label": "口（い）",
+   "label": "Mouth (i)",
    "parent": "head",
    "pivot": [
     512.0,
@@ -926,7 +926,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "rim",
@@ -950,7 +950,7 @@
   },
   {
    "id": "mouth_u",
-   "label": "口（う）",
+   "label": "Mouth (u)",
    "parent": "head",
    "pivot": [
     512.0,
@@ -959,7 +959,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "rim",
@@ -983,7 +983,7 @@
   },
   {
    "id": "mouth_e",
-   "label": "口（え）",
+   "label": "Mouth (e)",
    "parent": "head",
    "pivot": [
     512.0,
@@ -992,7 +992,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "rim",
@@ -1023,7 +1023,7 @@
   },
   {
    "id": "mouth_o",
-   "label": "口（お）",
+   "label": "Mouth (o)",
    "parent": "head",
    "pivot": [
     512.0,
@@ -1032,7 +1032,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "rim",
@@ -1056,7 +1056,7 @@
   },
   {
    "id": "mouth_smile",
-   "label": "口（笑顔）",
+   "label": "Mouth (smile)",
    "parent": "head",
    "pivot": [
     512.0,
@@ -1065,7 +1065,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "rim",
@@ -1096,7 +1096,7 @@
   },
   {
    "id": "mouth_surprise",
-   "label": "口（驚き）",
+   "label": "Mouth (surprised)",
    "parent": "head",
    "pivot": [
     512.0,
@@ -1105,7 +1105,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "rim",
@@ -1129,7 +1129,7 @@
   },
   {
    "id": "mouth_trouble",
-   "label": "口（困り）",
+   "label": "Mouth (troubled)",
    "parent": "head",
    "pivot": [
     512.0,
@@ -1138,7 +1138,7 @@
    "bone": "head",
    "layer": "feature",
    "visible": false,
-   "coverage": "補完不要。",
+   "coverage": "No completion needed.",
    "shapes": [
     {
      "name": "line",
@@ -1155,7 +1155,7 @@
   },
   {
    "id": "hand_L_open",
-   "label": "手・開き（キャラの左・画面右）",
+   "label": "Hand, open (character's left, screen right)",
    "parent": "torso",
    "pivot": [
     674.0,
@@ -1164,7 +1164,7 @@
    "bone": "leftHand",
    "layer": "body",
    "visible": true,
-   "coverage": "手首から真下向き。手首の切り口は前腕の中（手首より 25px 上）まで丸く閉じてある。",
+   "coverage": "Pointing straight down from the wrist. The cut at the wrist is closed round inside the forearm (25 px above the wrist).",
    "shapes": [
     {
      "name": "fur",
@@ -1181,7 +1181,7 @@
   },
   {
    "id": "hand_L_point",
-   "label": "手・指差し（キャラの左・画面右）",
+   "label": "Hand, pointing (character's left, screen right)",
    "parent": "torso",
    "pivot": [
     674.0,
@@ -1190,7 +1190,7 @@
    "bone": "leftHand",
    "layer": "body",
    "visible": false,
-   "coverage": "手首から真下向き。手首の切り口は前腕の中（手首より 25px 上）まで丸く閉じてある。",
+   "coverage": "Pointing straight down from the wrist. The cut at the wrist is closed round inside the forearm (25 px above the wrist).",
    "shapes": [
     {
      "name": "fur",
@@ -1207,7 +1207,7 @@
   },
   {
    "id": "hand_L_fist",
-   "label": "手・グー（キャラの左・画面右）",
+   "label": "Hand, fist (character's left, screen right)",
    "parent": "torso",
    "pivot": [
     674.0,
@@ -1216,7 +1216,7 @@
    "bone": "leftHand",
    "layer": "body",
    "visible": false,
-   "coverage": "手首から真下向き。手首の切り口は前腕の中（手首より 25px 上）まで丸く閉じてある。",
+   "coverage": "Pointing straight down from the wrist. The cut at the wrist is closed round inside the forearm (25 px above the wrist).",
    "shapes": [
     {
      "name": "fur",
@@ -1240,7 +1240,7 @@
   },
   {
    "id": "hand_L_palm",
-   "label": "手・手のひら（キャラの左・画面右）",
+   "label": "Hand, palm (character's left, screen right)",
    "parent": "torso",
    "pivot": [
     674.0,
@@ -1249,7 +1249,7 @@
    "bone": "leftHand",
    "layer": "body",
    "visible": false,
-   "coverage": "手首から真下向き。手首の切り口は前腕の中（手首より 25px 上）まで丸く閉じてある。",
+   "coverage": "Pointing straight down from the wrist. The cut at the wrist is closed round inside the forearm (25 px above the wrist).",
    "shapes": [
     {
      "name": "fur",
@@ -1266,7 +1266,7 @@
   },
   {
    "id": "hand_L_point_front",
-   "label": "手・カメラへ指差し（キャラの左・画面右）",
+   "label": "Hand, pointing at the camera (character's left, screen right)",
    "parent": "torso",
    "pivot": [
     674.0,
@@ -1275,7 +1275,7 @@
    "bone": "leftHand",
    "layer": "body",
    "visible": false,
-   "coverage": "手首から真下向き。手首の切り口は前腕の中（手首より 25px 上）まで丸く閉じてある。",
+   "coverage": "Pointing straight down from the wrist. The cut at the wrist is closed round inside the forearm (25 px above the wrist).",
    "shapes": [
     {
      "name": "fur",
@@ -1313,7 +1313,7 @@
   },
   {
    "id": "hand_R_open",
-   "label": "手・開き（キャラの右・画面左）",
+   "label": "Hand, open (character's right, screen left)",
    "parent": "torso",
    "pivot": [
     338,
@@ -1322,7 +1322,7 @@
    "bone": "rightHand",
    "layer": "body",
    "visible": true,
-   "coverage": "手首から真下向き。手首の切り口は前腕の中（手首より 25px 上）まで丸く閉じてある。",
+   "coverage": "Pointing straight down from the wrist. The cut at the wrist is closed round inside the forearm (25 px above the wrist).",
    "shapes": [
     {
      "name": "fur",
@@ -1339,7 +1339,7 @@
   },
   {
    "id": "hand_R_point",
-   "label": "手・指差し（キャラの右・画面左）",
+   "label": "Hand, pointing (character's right, screen left)",
    "parent": "torso",
    "pivot": [
     338,
@@ -1348,7 +1348,7 @@
    "bone": "rightHand",
    "layer": "body",
    "visible": false,
-   "coverage": "手首から真下向き。手首の切り口は前腕の中（手首より 25px 上）まで丸く閉じてある。",
+   "coverage": "Pointing straight down from the wrist. The cut at the wrist is closed round inside the forearm (25 px above the wrist).",
    "shapes": [
     {
      "name": "fur",
@@ -1365,7 +1365,7 @@
   },
   {
    "id": "hand_R_fist",
-   "label": "手・グー（キャラの右・画面左）",
+   "label": "Hand, fist (character's right, screen left)",
    "parent": "torso",
    "pivot": [
     338,
@@ -1374,7 +1374,7 @@
    "bone": "rightHand",
    "layer": "body",
    "visible": false,
-   "coverage": "手首から真下向き。手首の切り口は前腕の中（手首より 25px 上）まで丸く閉じてある。",
+   "coverage": "Pointing straight down from the wrist. The cut at the wrist is closed round inside the forearm (25 px above the wrist).",
    "shapes": [
     {
      "name": "fur",
@@ -1398,7 +1398,7 @@
   },
   {
    "id": "hand_R_palm",
-   "label": "手・手のひら（キャラの右・画面左）",
+   "label": "Hand, palm (character's right, screen left)",
    "parent": "torso",
    "pivot": [
     338,
@@ -1407,7 +1407,7 @@
    "bone": "rightHand",
    "layer": "body",
    "visible": false,
-   "coverage": "手首から真下向き。手首の切り口は前腕の中（手首より 25px 上）まで丸く閉じてある。",
+   "coverage": "Pointing straight down from the wrist. The cut at the wrist is closed round inside the forearm (25 px above the wrist).",
    "shapes": [
     {
      "name": "fur",
@@ -1424,7 +1424,7 @@
   },
   {
    "id": "hand_R_point_front",
-   "label": "手・カメラへ指差し（キャラの右・画面左）",
+   "label": "Hand, pointing at the camera (character's right, screen left)",
    "parent": "torso",
    "pivot": [
     338,
@@ -1433,7 +1433,7 @@
    "bone": "rightHand",
    "layer": "body",
    "visible": false,
-   "coverage": "手首から真下向き。手首の切り口は前腕の中（手首より 25px 上）まで丸く閉じてある。",
+   "coverage": "Pointing straight down from the wrist. The cut at the wrist is closed round inside the forearm (25 px above the wrist).",
    "shapes": [
     {
      "name": "fur",
@@ -1678,7 +1678,7 @@
     "head",
     "chest_cover"
    ],
-   "check": "頭を外しても、耳が付け根まで丸く閉じ、内耳が途中で切れていない"
+   "check": "With the head removed, the ears are closed round down to their roots and the inner ears are not cut off"
   },
   {
    "name": "reveal_head",
@@ -1687,7 +1687,7 @@
     "ear_L",
     "ear_R"
    ],
-   "check": "耳を外しても、頭が頭頂まで丸く完結している"
+   "check": "With the ears removed, the head is complete and round up to its top"
   },
   {
    "name": "reveal_torso",
@@ -1710,7 +1710,7 @@
     "eye_R_pupil",
     "chest_cover"
    ],
-   "check": "頭と手を外しても、胴が上端・肩の内側まで閉じ、首が胴の上に乗っている"
+   "check": "With the head and hands removed, the torso is closed at its top and inside the shoulders, and the neck sits on the torso"
   },
   {
    "name": "reveal_legs_tail",
@@ -1719,7 +1719,7 @@
     "torso",
     "chest_cover"
    ],
-   "check": "胴を外しても、脚が付け根まで、しっぽが丸い玉の全体まで完結している"
+   "check": "With the torso removed, the legs are complete up to their roots and the tail is the whole round ball"
   },
   {
    "name": "move_sway_a",
@@ -1744,7 +1744,7 @@
      "deg": -7
     }
    },
-   "check": "頭・耳・しっぽ・脚を動かしても、透明な穴や切り口が出ない"
+   "check": "Moving the head, ears, tail and legs shows no transparent holes or cuts"
   },
   {
    "name": "move_sway_b",
@@ -1769,7 +1769,7 @@
      "deg": 7
     }
    },
-   "check": "逆方向でも、首・耳の根元・脚の付け根・しっぽの付け根がつながっている"
+   "check": "In the opposite direction too, the neck, ear roots, leg roots and tail root stay joined"
   },
   {
    "name": "expr_blink",
@@ -1784,7 +1784,7 @@
     "eye_L_closed",
     "eye_R_closed"
    ],
-   "check": "虹彩・瞳孔が残らず、白目の輪の中に閉じたまぶたの弧だけがある"
+   "check": "No iris or pupil remains; only the closed-lid arc is inside the eye-white ring"
   },
   {
    "name": "expr_half",
@@ -1793,7 +1793,7 @@
     "eye_L_half",
     "eye_R_half"
    ],
-   "check": "半目で虹彩と瞳孔が下 6 割に残り、潰れていない。縁の輪は残る"
+   "check": "Half-closed: iris and pupil remain in the lower 60%, not flattened. The rim ring stays"
   },
   {
    "name": "expr_mouth_a",
@@ -1804,7 +1804,7 @@
    "show": [
     "mouth_a"
    ],
-   "check": "閉じ口の線が残らず、口の中と舌が見える"
+   "check": "No closed-mouth line remains; the inside of the mouth and the tongue show"
   }
  ]
 }

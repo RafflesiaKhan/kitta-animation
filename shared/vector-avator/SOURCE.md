@@ -9,7 +9,12 @@
 Copied: `src/core/*`, `src/renderers/vector/*`, a few motions/poses, and the tests (`tests/shared/vector-avator/`).
 Not copied: `src/vviewer`, the Python tools, body-view data.
 
-Also copied, for making characters in Kitta: `.claude/skills/vector-avator/references/parts-spec.md` → `skill/parts-spec.md` (unchanged).
+Also copied, for making characters in Kitta, and **translated from Japanese into English**:
+
+- `.claude/skills/vector-avator/references/parts-spec.md`, `drawing-workflow.md`, `visual-qa.md` → `skill/`
+- `tools/vector/sheets/style_base.md` and `layouts/front.md`, `restyle.md`, `sheet_turnaround.md`, `sheet_face.md` → `skill/sheets/` (the sheet labels are asked for in English)
+
+Translated in place: the labels and notes in `sample/usagi.vector.json` (geometry unchanged), motion labels, pose descriptions, the face labels in `core/face.ts`, and the renderer label. Left in Japanese: the kana tables in `core/lipsync.ts` (they are data for Japanese lip sync) and `ASSETS_LICENSE.md` (a licence text; it has its own English section).
 
 ## Kitta additions
 

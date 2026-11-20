@@ -1,5 +1,5 @@
 {
-  "name": "explain", "label": "2. 片手を上げて説明", "duration": 3.2, "loop": true,
+  "name": "explain", "label": "2. Explain with one hand raised", "duration": 3.2, "loop": true,
   "keys": [
     {"t": 0, "bones": {"leftUpperArm": [0, 0, -70], "leftLowerArm": [0, 0, -5], "rightUpperArm": [0, 0, 70], "rightLowerArm": [0, 0, 5], "rightHand": [0, 0, 0], "spine": [0, 0, 0], "head": [0, 0, 0]}, "face": {"mouth": "sil"}, "hands": {"L": "open", "R": "open"}},
     {"t": 0.4, "hands": {"R": "palm"}},

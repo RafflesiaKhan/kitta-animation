@@ -1,5 +1,5 @@
 {
-  "name": "point", "label": "3. 指差し", "duration": 3, "loop": true,
+  "name": "point", "label": "3. Point", "duration": 3, "loop": true,
   "keys": [
     {"t": 0, "bones": {"leftUpperArm": [0, 0, -70], "leftLowerArm": [0, 0, -5], "rightUpperArm": [0, 0, 70], "rightLowerArm": [0, 0, 5], "chest": [0, 0, 0], "head": [0, 0, 0]}, "face": {"yaw": 0, "expression": "neutral"}, "hands": {"L": "open", "R": "open"}},
     {"t": 0.4, "hands": {"R": "point"}},

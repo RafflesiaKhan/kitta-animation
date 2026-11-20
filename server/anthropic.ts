@@ -34,7 +34,7 @@ export async function callTool(opts: { system: string; messages: BetaMessagePara
       max_tokens: MAX_TOKENS,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      cache_control: { type: 'ephemeral' },
+      cache_control: { type: 'ephemeral', ttl: '1h' }, // a drawing round takes longer than the default 5 min
       output_config: { effort: opts.effort ?? 'high' },
       system: opts.system,
       tools: [{ ...opts.tool, eager_input_streaming: true }],

@@ -7,9 +7,9 @@ export const EYE_STATES: EyeState[] = ["open", "half", "closed"];
 export const MOUTH_SHAPES: MouthShape[] = ["sil", "a", "i", "u", "e", "o"];
 export const EXPRESSIONS: Expression[] = ["neutral", "smile", "surprised", "troubled"];
 
-export const EYE_LABEL: Record<EyeState, string> = { open: "開", half: "半閉", closed: "閉" };
-export const MOUTH_LABEL: Record<MouthShape, string> = { sil: "無音", a: "あ", i: "い", u: "う", e: "え", o: "お" };
-export const EXPRESSION_LABEL: Record<Expression, string> = { neutral: "通常", smile: "笑顔", surprised: "驚き", troubled: "困り" };
+export const EYE_LABEL: Record<EyeState, string> = { open: "open", half: "half", closed: "closed" };
+export const MOUTH_LABEL: Record<MouthShape, string> = { sil: "silent", a: "a", i: "i", u: "u", e: "e", o: "o" };
+export const EXPRESSION_LABEL: Record<Expression, string> = { neutral: "neutral", smile: "smile", surprised: "surprised", troubled: "troubled" };
 
 export interface FaceState {
   /** Head yaw in degrees, + = the character turns to its left (viewer's right). Target range ±45. */

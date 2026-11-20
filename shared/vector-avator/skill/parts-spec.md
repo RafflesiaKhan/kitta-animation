@@ -1,120 +1,122 @@
-# ベクター立ち絵の部品仕様
+<!-- English translation of vector-avator's .claude/skills/vector-avator/references/parts-spec.md (commit f28d35d, MIT). Paths and commands refer to the upstream repository; in Kitta, shared/vector-avator/check.ts and server/vector-check.ts replace the checks in §6. -->
 
-ベクター立ち絵のレンダラー（`src/renderers/vector/`）が読むキャラクターデータの仕様です。
-新しいキャラは、本書に沿って部品を描き、`vector.json` に骨格の目印を書けば、共通の骨格テンプレートで動きます。
-作業の流れは `../SKILL.md` を参照してください。
+# Parts spec for vector characters
 
-## 1. ファイル構成
+This is the spec of the character data that the vector renderer (`src/renderers/vector/`) reads.
+A new character that draws its parts by this spec and writes its skeleton landmarks in `vector.json` moves on the shared skeleton template.
+For the overall workflow, see `../SKILL.md`.
 
-キャラごとに `public/characters/<キャラID>/vector/` に置く。
+## 1. Files
 
-| パス | 内容 | 作る人 |
+Each character lives in `public/characters/<character id>/vector/`.
+
+| Path | Contents | Made by |
 |---|---|---|
-| `ref/front.png` | 画風を変換した正面の立ち姿（1024×1536）。部品を描く主な参照 | Codex imagegen（SKILL.md の 2） |
-| `ref/sheet_turnaround.png`・`ref/sheet_face.png` | キャラクターシート 2 枚 | Codex imagegen（SKILL.md の 4） |
-| `ref/angle_<度>.png`・`ref/turntable.mp4` | MiniMax H3 の 360 度回転動画とコマ（角度の見本。任意） | `turntable.sh`（SKILL.md の 3） |
-| `vector.json` | **本体**。全部品のパス、骨格の目印、腕の定義、揺れ物、差分、表情 | Fable 5.2 |
-| `build/` | 確認用の書き出し：`character_layers.svg`（Inkscape レイヤー）、`layers/`・`variants/`（部品ごとの SVG） | `check_parts.py` |
-| `preview.png` | 通常状態の統合画像 | `check_parts.py` |
+| `ref/front.png` | The front standing picture in the common style (1024×1536). The main reference for drawing the parts | Codex imagegen (SKILL.md step 2) |
+| `ref/sheet_turnaround.png`, `ref/sheet_face.png` | The two character sheets | Codex imagegen (SKILL.md step 4) |
+| `ref/angle_<degrees>.png`, `ref/turntable.mp4` | MiniMax H3 360° turntable video and frames (angle references, optional) | `turntable.sh` (SKILL.md step 3) |
+| `vector.json` | **The character.** Paths of every part, skeleton landmarks, arm definition, swinging parts, variants, expressions | Fable 5.2 |
+| `build/` | Exports for checking: `character_layers.svg` (Inkscape layers), `layers/` and `variants/` (one SVG per part) | `check_parts.py` |
+| `preview.png` | The default state as one picture | `check_parts.py` |
 
-`vector.json` は、`art.json`（schema_version 1、`art-json.md`）の上位互換とする。
-部品のパスを JSON に直接持つため、レンダラーは 1 ファイルを読めば描ける。`tools/vector/layers/vector_layers.py`（validate・build）もそのまま使える。
+`vector.json` is a superset of `art.json` (schema_version 1, `art-json.md`).
+The paths of the parts are stored in the JSON itself, so the renderer needs only this one file. `tools/vector/layers/vector_layers.py` (validate, build) works on it as is.
 
-## 2. 座標と描き方の共通ルール
+## 2. Coordinates and common drawing rules
 
-- キャンバスは `ref/front.png` と同じ **幅 1024 × 高さ 1536**。右が +X、下が +Y。全部品が同じ座標を使う（部品ごとのローカル座標にしない）。
-- 正面の立ち姿（A ポーズ）を、`ref/front.png` と重なる位置・大きさで描く。
-- **塗りだけで描く。** `stroke` は `null`、`width` は 0。輪郭線は描画時に自動生成する。眉・閉じた目・口の線のような細い形も、細い閉じた塗りの形として描く。
-- 1 つの shape は 1 つの閉じた輪郭（穴なし）。穴や複数の輪郭が要る場合は shape を分ける。グラデーション・透明・マスク・クリップ・`<image>`・フィルターは使わない。パスのコマンドは `M/L/C/Q/Z`（絶対座標）。
-- 部品の中の模様（耳の内側、毛の房の段差、スカートのひだ、ネクタイの影）は、同じ部品の中に別の shape として、少し濃い同系色の塗りで描いてよい。広く弱い影 1 段（共通の画風）も同様。
-- **自動輪郭線は部品単位で引く**（線を出さない指定は §3.1 の `seamlessWith`・`outline`）。 部品の外形（全 shape の和）のうち、先に描かれた近い色の部品に重なる縁にだけ、部品の内側に線が出る。同じ部品の中の shape どうしの境目には線が出ない。したがって、白一色のキャラでは「線を出したい房」は別部品に、「線を出したくない塊」は同じ部品の shape にする。
-- 線は「手前の部品」と「先に描かれた近い色の部品」の組で決まり、間に挟まる部品は考えない。例えば前髪の縁は、顔を挟んだ奥の後ろ髪に対しても線を出す（顔と髪の境の線として働く）。
-- 奥の同色の部品（後ろ髪など）は、首振り（§3.5）でずれても手前の部品の外へはみ出さないよう、手前より内側に描く（目安：頭の半径の 7% 程度。髪の多いキャラで約 14px）。
-- **顔パーツ（`layer: "feature"`）には自動輪郭線を引かない。** 白目の縁、閉じた目の線、口の線など、顔に必要な線は shape として描く（白い顔に白い白目を置くキャラでは、白目の縁の灰色の輪を白目の部品の奥の shape にする）。
-- 房の途中から始まって消える線（毛の房の切れ込み、しっぽの巻き）は、線の色の細い閉じた塗り（先細りの形）を、その部品の shape として描いてよい。色は部品の色を少し暗くした灰色（例：白 `#FBF7F4` に対して `#D9D3D0` 前後）。
-- 部品は意味の単位で**ゼロから描く**。元画像の画素の切り抜き、自動トレース、色分けや可視輪郭の当てはめで形を決めない。画像処理は、色の抽出、寸法・座標の測定、重ねての比較に限る。
-- 部品単体で表示しても形が成立するようにする。**隠れる部分も補完する**（§5）。
-- 左右の `_L`・`_R` は**キャラ自身の左右**とする（VRM の骨名と同じ）。正面図では、キャラの左（`_L`）が画面の右側にある。
+- The canvas is **1024 wide × 1536 high**, the same as `ref/front.png`. +X is right, +Y is down. Every part uses the same coordinates (no local coordinates per part).
+- Draw the front standing pose (A-pose) at the same position and size as `ref/front.png`, so they overlap.
+- **Fill only.** `stroke` is `null` and `width` is 0. Outlines are generated when drawing. Thin shapes such as brows, closed eyes and mouth lines are drawn as thin closed filled shapes.
+- One shape is one closed contour (no holes). When a hole or several contours are needed, split into several shapes. No gradients, transparency, masks, clips, `<image>` or filters. Path commands are `M/L/C/Q/Z` (absolute coordinates).
+- Markings inside a part (the inside of an ear, steps between tufts, skirt pleats, the shadow of a tie) may be separate shapes in the same part, filled with a slightly darker colour of the same hue. So may one broad, weak shadow (as in the common style).
+- **Outlines are drawn per part** (to turn lines off, see `seamlessWith` and `outline` in §3.1). Of the part's outer shape (the union of all its shapes), only the edges that overlap an earlier-drawn part of a similar colour get a line, on the inside of the part. Edges between shapes of the same part get no line. So in an all-white character, a tuft that should have a line is a separate part, and a mass that should not have one is shapes of the same part.
+- A line depends only on the pair "front part" and "earlier part of a similar colour"; parts in between are ignored. For example, the edge of the fringe also gets a line against the back hair behind the face (it works as the line between face and hair).
+- A back part of the same colour (such as back hair) is drawn inside the front part, so it does not stick out of it when the head turns (§3.5). Guide: about 7% of the head radius (about 14 px for a character with a lot of hair).
+- **Face parts (`layer: "feature"`) get no automatic outline.** Lines the face needs (the rim of the eye white, the closed-eye line, the mouth line) are drawn as shapes. (For a character with white eye whites on a white face, the grey ring of the eye white is a shape at the back of the eye-white part.)
+- A line that starts and fades in the middle of a mass (a notch between tufts, the curl of a tail) may be a thin closed tapering shape in the line colour, as a shape of that part. Its colour is a grey slightly darker than the part (for example about `#D9D3D0` against white `#FBF7F4`).
+- Draw each part **from scratch** as a meaningful unit. Do not take shapes from cutting out pixels of the source picture, auto-tracing, or fitting colour regions or visible outlines. Image processing is only for picking colours, measuring sizes and positions, and overlaying to compare.
+- Each part must make sense when shown alone. **Complete the hidden areas too** (§5).
+- `_L` and `_R` are the **character's own left and right** (the same as VRM bone names). In the front view, the character's left (`_L`) is on the right of the screen.
 
-## 3. `vector.json` の項目
+## 3. Fields of `vector.json`
 
 ```jsonc
 {
-  "schema_version": 1,            // art.json と同じ
+  "schema_version": 1,            // as in art.json
   "format": "so-chara-vector/1",
   "character": "usagi",
   "width": 1024, "height": 1536,
-  "parts": [ /* §3.1。配列の順が描画順（0 が一番奥） */ ],
+  "parts": [ /* §3.1. The array order is the drawing order (0 is at the back) */ ],
   "skeleton": { /* §3.2 */ },
   "arms": { /* §3.3 */ },
   "chains": [ /* §3.4 */ ],
   "parallax": { /* §3.5 */ },
-  "headTurn": { /* §3.5.1（省略可） */ },
+  "headTurn": { /* §3.5.1 (optional) */ },
   "expressions": { /* §3.6 */ },
-  "qa": [ /* art.json と同じ。reveal と move を必ず含める */ ]
+  "qa": [ /* as in art.json. Must include reveal and move */ ]
 }
 ```
 
-### 3.1 部品（`parts[]`）
+### 3.1 Parts (`parts[]`)
 
-art.json の項目（`id`、`label`、`parent`、`pivot`、`visible`、`coverage`、`shapes`）に、次を足す。
+On top of the art.json fields (`id`, `label`, `parent`, `pivot`, `visible`, `coverage`, `shapes`):
 
-| 項目 | 必須 | 内容 |
+| Field | Required | Contents |
 |---|---|---|
-| `id` | 必須 | 小文字のスネークケース。左右だけ大文字の `_L`・`_R`。§4 の名前を使う |
-| `bone` | 必須 | 動かす骨。共通骨格の骨名（`hips`、`spine`、`chest`、`neck`、`head`、`leftUpperLeg` など。`src/core/skeleton.ts`）か、揺れ物チェーンの id |
-| `layer` | 必須 | 首振りの変形の層（§3.5）。体の部品は `body` |
-| `group` | 差分のみ | 差分グループ（`eye_L`、`brow_R`、`mouth`、`hand_L`、`sleeve_R` など） |
-| `variants` | 差分のみ | その部品が表示される差分の名前の配列。例：白目は `["open","half"]`、半目のまぶたは `["half"]` |
-| `clipTo` | 任意 | この部品を、指定した部品の形で切り抜いて描く（虹彩・瞳孔を白目で切り抜くなど）。指定した部品の全 shape の和で切り抜くので、白目の部品に縁の輪の shape を入れると、虹彩は輪の外縁まで見える |
-| `color` | 任意 | 自動輪郭線の色の元になる基本色（`#RRGGBB`）。省略時は最初の shape の `fill`。線を消す目的で塗りにない色を書かない（下の 2 項目を使う） |
-| `seamlessWith` | 任意 | 線を出さない相手（部品 id、生成した腕は `arm_L`・`arm_R`）。どちらの部品に書いても同じ。例：耳と頭、胴と脚が線なしでつながるキャラ |
-| `outline` | 任意 | `false` でこの部品は線を出さない（継ぎ目を覆うための部品など） |
-| `pivot` | 必須 | 回転の支点。腕・脚は付け根、耳・髪の房は根元、手は手首 |
-| `visible` | 必須 | 通常状態（表情：通常、目：開、口：閉、手：開き）で表示するか |
-| `coverage` | 必須 | 補完した範囲を具体的に書く（「前髪の下の額まで」など）。隠れない部品は「補完不要」と書く |
+| `id` | yes | Lower snake case; only the sides are upper case, `_L` and `_R`. Use the names in §4 |
+| `bone` | yes | The bone that moves it. A bone of the shared skeleton (`hips`, `spine`, `chest`, `neck`, `head`, `leftUpperLeg` and so on; `src/core/skeleton.ts`) or the id of a swinging chain |
+| `layer` | yes | The head-turn deformation layer (§3.5). Body parts are `body` |
+| `group` | variants only | The variant group (`eye_L`, `brow_R`, `mouth`, `hand_L`, `sleeve_R` and so on) |
+| `variants` | variants only | The names of the variants in which the part is shown. For example the eye white is `["open","half"]` and the half-closed lid is `["half"]` |
+| `clipTo` | optional | Draw this part clipped to the shape of the given part (iris and pupil clipped to the eye white, for example). It clips to the union of all shapes of that part, so if the eye-white part has a rim-ring shape, the iris shows up to the outer edge of the ring |
+| `color` | optional | The base colour for the automatic outline (`#RRGGBB`). Defaults to the first shape's `fill`. Do not write a colour that is not in the fills just to remove lines (use the next two fields) |
+| `seamlessWith` | optional | Parts with which no line is drawn (part ids; the generated arms are `arm_L` and `arm_R`). Writing it on either part has the same effect. Example: a character whose ears and head, or torso and legs, join without a line |
+| `outline` | optional | `false`: this part draws no lines (for a part that covers a seam, for example) |
+| `pivot` | yes | The centre of rotation. Arms and legs at their root, ears and hair tufts at their base, hands at the wrist |
+| `visible` | yes | Whether it is shown in the default state (expression normal, eyes open, mouth closed, hands open) |
+| `coverage` | yes | What hidden area was completed, specifically ("up to the forehead under the fringe" and so on). For a part that is never hidden, write "no completion needed" |
 
-### 3.2 骨格の目印（`skeleton`）
+### 3.2 Skeleton landmarks (`skeleton`)
 
-正面の A ポーズでの関節の位置（キャンバス座標）。キャラごとの骨の長さは、ここから求める。
+The joint positions in the front A-pose (canvas coordinates). The character's bone lengths are taken from these.
 
-| キー | 内容 |
+| Key | Contents |
 |---|---|
-| `hips` | 骨盤の中心（脚の付け根の高さ） |
-| `chest` | 胸の中心（肩の高さより少し下） |
-| `neck` | 首の付け根（胴の上端の中央） |
-| `head` | 頭の回転の支点（あごの下、首の上端） |
-| `head_center`・`head_radius` | 頭の本体（耳・髪のふくらみを除く）の中心と、横・縦の半径 `[rx, ry]`。顔パーツが乗る球の大きさなので、髪の多いキャラは顔の肌の幅を基準にし、髪のドームより小さくてよい |
-| `shoulder_L/R`・`elbow_L/R`・`wrist_L/R` | 肩・肘・手首の中心。腕の骨の長さ（上腕 = 肩〜肘、前腕 = 肘〜手首）になる |
-| `hip_L/R`・`ankle_L/R` | 脚の付け根と足首 |
+| `hips` | Centre of the pelvis (at the height of the leg roots) |
+| `chest` | Centre of the chest (a little below shoulder height) |
+| `neck` | Root of the neck (middle of the top of the torso) |
+| `head` | Pivot of head rotation (under the chin, top of the neck) |
+| `head_center`, `head_radius` | Centre of the head itself (without ears and hair volume) and its horizontal and vertical radius `[rx, ry]`. It is the size of the sphere the face parts sit on, so for a character with a lot of hair, base it on the width of the face skin; it may be smaller than the hair dome |
+| `shoulder_L/R`, `elbow_L/R`, `wrist_L/R` | Centres of shoulder, elbow and wrist. They give the arm bone lengths (upper arm = shoulder to elbow, forearm = elbow to wrist) |
+| `hip_L/R`, `ankle_L/R` | Leg roots and ankles |
 
-### 3.3 腕の定義（`arms`）
+### 3.3 Arm definition (`arms`)
 
-腕は絵を持たず、描画時に生成する。左右それぞれに次を書く。
+Arms have no drawing; they are generated when drawing. Write the following for each side.
 
 ```jsonc
 "arms": {
   "L": {
-    "width": { "shoulder": 52, "elbow": 42, "wrist": 34 },   // 正面から見た腕の太さ（px）
-    "bands": [                                              // 腕に沿った色の帯。t は肩 0 → 手首 1
+    "width": { "shoulder": 52, "elbow": 42, "wrist": 34 },   // arm thickness seen from the front (px)
+    "bands": [                                              // colour bands along the arm; t is shoulder 0 → wrist 1
       { "from": 0.0, "to": 0.55, "color": "#FFFFFF" },
       { "from": 0.55, "to": 1.0, "color": "#22305E" }
     ],
-    "shade": { "color": "#E2E4EA", "side": "under", "ratio": 0.32 }, // 影の帯：色、側（under = 腕の下側／体側）、太さの割合
-    "attach": "torso",                                      // 通常時、腕をこの部品の直前（裏）に描く
-    "seamlessHand": false                                   // true: 手首（手と腕の境目）に線を出さない
+    "shade": { "color": "#E2E4EA", "side": "under", "ratio": 0.32 }, // shadow band: colour, side (under = underside of the arm / body side), thickness ratio
+    "attach": "torso",                                      // normally draw the arm just before (behind) this part
+    "seamlessHand": false                                   // true: no line at the wrist (between hand and arm)
   },
   "R": { ... }
 }
 ```
 
-- `shade.ratio` を 0 にすると影なし。色の帯が 2 つ以上あるときは、影の色は帯ごとに帯の色を少し暗くして自動で決める（`shade.color` は帯が 1 つのときだけ使う）。
-- 帯の境目は正確な位置で切り替わる（標本点に合わせる必要はない）。自動輪郭線の「近い色」の判定も帯ごとに行う（紺のアームカバーと紺のスカートの間には線が出る）。
-- 帯は上腕と前腕で別々に作る。肘をまたぐ帯は肘の丸い端まで塗るので、肘を深く曲げても切れ目は出ない。上腕と前腕が別の層に分かれたときは、それぞれ自分の区間の帯だけを描く。腕がカメラの方を向くと、帯の境目は奥の側へふくらむ楕円の弧になる（腕の輪の見え方）。帯が 2 つ以上あり、肩 0 から手首 1 まですき間なく並んでいるときは、帯の下に下地を塗らない（下地の縁が明るい細い線として出るため）。すき間があるときは、最初の帯の色で下地を塗る。
-- 骨の長さだけを目印から測る。ビューアの姿勢（気をつけ等）は共通のポーズデータで決まり、参照画像の A ポーズの腕の角度は使わない。
-- `attach`：腕（通常時）を、この部品の直前に描く。胴の手前・胸元の毛の裏に腕を通すキャラは `"chest_fur"` のように、胴より手前の部品を指定する。腕が胴の前方へ大きく出たとき（奥行きで判定）は、全部品の手前に描く。
+- `shade.ratio` 0 means no shadow. With two or more colour bands, the shadow colour is chosen per band, slightly darker than the band (`shade.color` is used only with one band).
+- Band boundaries switch at the exact position (they need not match sample points). The "similar colour" test for automatic outlines is also done per band (a line is drawn between a navy arm cover and a navy skirt).
+- Bands are built separately for the upper arm and the forearm. A band that crosses the elbow is filled up to the rounded end at the elbow, so no gap appears when the elbow bends deeply. When the upper arm and forearm fall into different layers, each draws only the bands of its own section. When the arm points at the camera, a band boundary becomes an elliptical arc bulging to the far side (how a ring around the arm looks). When there are two or more bands covering shoulder 0 to wrist 1 without gaps, no base is filled under them (its edge would show as a thin bright line). With gaps, the base is filled with the first band's colour.
+- Only the bone lengths are measured from the landmarks. Viewer poses (attention and so on) come from the shared pose data; the arm angle of the A-pose in the reference picture is not used.
+- `attach`: normally draw the arm just before this part. For a character whose arms pass in front of the torso but behind the chest fur, give a part in front of the torso, such as `"chest_fur"`. When the arm comes far in front of the torso (judged by depth), it is drawn in front of every part.
 
-### 3.4 揺れ物チェーン（`chains[]`）
+### 3.4 Swinging chains (`chains[]`)
 
 ```jsonc
 { "id": "ear_L", "bone": "head", "parts": ["ear_L", "ear_L_inner"],
@@ -122,65 +124,65 @@ art.json の項目（`id`、`label`、`parent`、`pivot`、`visible`、`coverage
   "stiffness": 0.6, "damping": 0.35, "gravity": 0.15 }
 ```
 
-- `root`→`tip` の折れ線を `segments` 個の節に分け、部品のパスの点を節に重み付きで割り当てて曲げる。
-- `gain`（任意、既定 1）は、動きへの反応の強さをチェーンごとに変える倍率。
-- 胴の揺れ物（ネクタイ・リボンなど）は、`bone` を `chest` にして、付け根を結び目のすぐ下に置く。部品の `bone` はチェーンの id にする（例：ネクタイの `tie`）。
-- `stiffness`・`damping`・`gravity` は 0〜1 の目安値（レンダラーで物理量に換算する）。目安：耳・ツインテールは柔らかく揺れるのが魅力なので、`stiffness` 0.5〜0.75、`damping` 0.3〜0.4（行き過ぎて戻る）。
-- 頭のチェーンは、頭の移動・傾きに加えて、首振りの速さ（横の遅れ）と、うなずき・呼吸・跳ね（長さの伸び縮み）でも揺れる。しっぽ（`hips` のチェーン）は、待機中もゆるく揺れる（`vWag`）。
+- The polyline `root`→`tip` is split into `segments` segments, and the points of the part's paths are assigned to the segments with weights, so the part bends.
+- `gain` (optional, default 1) scales how strongly each chain reacts to movement.
+- Swinging parts on the body (tie, ribbon and so on) have `bone` `chest`, with the root just below the knot. The part's `bone` is the chain id (for example `tie` for the tie).
+- `stiffness`, `damping` and `gravity` are guide values from 0 to 1 (the renderer converts them to physical amounts). Guide: ears and twin tails are charming when they swing softly, so `stiffness` 0.5 to 0.75 and `damping` 0.3 to 0.4 (they overshoot and come back).
+- Head chains swing with the head's movement and tilt, and also with the speed of a head turn (sideways lag) and with nods, breathing and hops (stretching of the length). A tail (a chain on `hips`) also sways gently while idle (`vWag`).
 
-### 3.5 首振りの変形（`parallax`・`headTurn`）
+### 3.5 Head-turn deformation (`parallax`, `headTurn`)
 
-頭の左右回転（±30° まで）と上下は、正面の絵 1 枚を Live2D のように変形して表す（`src/renderers/vector/head.ts`）。
-部品の `layer` で、変形の種類が決まる。
+Turning the head left and right (up to ±30°) and up and down is shown by deforming the single front drawing, like Live2D (`src/renderers/vector/head.ts`).
+The part's `layer` decides the kind of deformation.
 
-| 層 | 変形 | 部品 |
+| Layer | Deformation | Parts |
 |---|---|---|
-| `feature` | **剛体**。部品（差分グループ）の左右の端が顔の球面に乗って動き、その間は横に縮むだけで中身は歪めない。向いた側の目は細く、反対側の目は少し広くなる。虹彩・瞳孔（`clipTo` 付き）は白目の中でさらに向いた方へ転がる。口（group `mouth`）は鼻の列に乗り、鼻の下を保つ | 目・眉・鼻・口・頬 |
-| `head` | **顔の球面の点ごとの変形**。`feature` と同じ式なので、目が顔の輪郭を追い越さない。顔の球の縁（`head_radius` × `headTurn.radius`）では動かない | 頭の本体（顔の肌） |
-| `hair_front`・`hair_side` | **殻（点ごとの変形）**。中央がいちばん動き、頭全体の縁（`headTurn.reach`）で 0 になる（縁で傾きも 0）。向いた側は縁の手前で縮み、反対側は広がる。頭頂に近いほど動きが小さい（球の上は動かない） | 前髪、髪飾り、横髪、頭頂の毛 |
-| `hair_back`（負の値） | 全体が逆方向へずれる | 後ろ髪 |
-| `ear`、頭の揺れ物チェーンの部品 | **付け根での剛体**。付け根（チェーンの `root`、チェーンでなければ `pivot`）の位置で頭に追従し、左右の付け根は頭の中心へ少し寄る。向いた側は横に細く、反対側は広くなる。2 つめ以降の shape（内耳など）は、向いた方へ少しずれる（部品の最初の shape で切り抜く） | 耳、うさ耳のツインテール |
-| `body` | — | 体の部品（首振りの変形に入らない） |
+| `feature` | **Rigid.** The left and right ends of the part (variant group) ride on the face sphere; in between it only narrows sideways and its contents are not distorted. The eye on the side turned to gets narrower and the other eye a little wider. Iris and pupil (with `clipTo`) roll further inside the eye white towards the turn. The mouth (group `mouth`) rides on the nose column and stays under the nose | Eyes, brows, nose, mouth, cheeks |
+| `head` | **Point-by-point deformation on the face sphere.** The same formula as `feature`, so the eyes never overtake the face outline. Nothing moves at the rim of the face sphere (`head_radius` × `headTurn.radius`) | The head itself (face skin) |
+| `hair_front`, `hair_side` | **Shell (point-by-point deformation).** The middle moves most and it falls to 0 at the rim of the whole head (`headTurn.reach`), with slope 0 at the rim. The side turned to shrinks just before the rim and the other side widens. The nearer the top of the head, the smaller the movement (the top of the sphere does not move) | Fringe, hair ornaments, side hair, tufts on top of the head |
+| `hair_back` (negative value) | The whole layer shifts the opposite way | Back hair |
+| `ear`, parts of head chains | **Rigid at the root.** At the root (the chain's `root`, otherwise the `pivot`) it follows the head, and the left and right roots move a little towards the head centre. The side turned to gets narrower, the other wider. The second and later shapes (inner ear and so on) shift a little towards the turn (clipped to the part's first shape) | Ears, rabbit-ear twin tails |
+| `body` | — | Body parts (not deformed by head turns) |
 
-頭の部品すべてに、向いた方への小さな移動（`headTurn.shift`）が加わる。
+Every head part also gets a small shift towards the turn (`headTurn.shift`).
 
-`parallax` には、層ごとの動きの量を書く。単位は「層の中央が動く量 ÷ 頭の半径」で、首を 90° 振ったときの値（30° ではその半分）。正は向いた方向。
+`parallax` gives the amount of movement per layer. The unit is "movement of the middle of the layer ÷ head radius", at a 90° turn (half of it at 30°). Positive is towards the turn.
 
-| 層 | 既定 | 目安 |
+| Layer | Default | Guide |
 |---|---:|---|
-| `hair_back` | -0.10 | 手前の髪より内側に描いた余白（§2）を超えない量にする。超えると、前髪の縁の近くに後ろ髪が細くはみ出し、輪郭線が二重に見える |
-| `ear` | -0.04 | 耳は頭の後ろ寄りに付くので、わずかに逆へ |
-| `head` | 0.45 | 顔の肌が頭の輪郭そのもののキャラ（仮うさぎ）は 0.45 前後。顔が髪・毛の中の「窓」になっているキャラは `feature` に近づける |
+| `hair_back` | -0.10 | Keep it below the margin by which it is drawn inside the front hair (§2). Beyond that, back hair sticks out thinly near the edge of the fringe and the outline looks doubled |
+| `ear` | -0.04 | Ears sit towards the back of the head, so slightly the opposite way |
+| `head` | 0.45 | About 0.45 for a character whose face skin is the head outline itself (Kariusagi). For a character whose face is a "window" in hair or fur, bring it close to `feature` |
 | `feature` | 0.75 | |
-| `hair_side` | 0.65 | `feature` より少し小さく（向いた側の反対で頬が広く見える） |
-| `hair_front` | 0.85 | `feature` より少し大きく（前髪は顔より手前） |
+| `hair_side` | 0.65 | A little less than `feature` (the cheek looks wider on the side away from the turn) |
+| `hair_front` | 0.85 | A little more than `feature` (the fringe is in front of the face) |
 
-#### 3.5.1 調整値（`headTurn`、すべて省略可）
+#### 3.5.1 Tuning values (`headTurn`, all optional)
 
-| キー | 既定 | 意味 |
+| Key | Default | Meaning |
 |---|---:|---|
-| `radius` | 1 | 顔の球の半径（`head_radius` に対する倍率）。顔が頭（毛の玉）に対して小さく描かれているキャラは 1 より大きくする |
-| `reach` | 自動 | 頭全体の縁 `[半幅, 中心から上, 中心から下]`（px、`head_center` から）。省略時は、頭の固定部品（`feature`・`ear`・揺れ物を除く）の外接から求める |
-| `shift` | 0.08 | 頭全体の移動（頭の半径に対する割合、90° のとき） |
-| `rimFalloff` | 1 | 顔の変形を縁へ向けて弱める指数（`cos^n`、1 以上） |
-| `domeFloor` | 0.35 | 頭頂で残る動きの割合（0 で頭頂は動かない） |
-| `irisRoll` | 0.2 | 虹彩の転がり（白目の幅に対する割合、90° のとき）。虹彩が大きい目は小さくする |
-| `pupilDepth` | 1.35 | 瞳孔は虹彩より手前（角膜のふくらみ）にあるとみなし、虹彩の何倍動かすか。虹彩の板が回るだけに見えないようにする |
-| `irisSqueeze` | 1 | 転がったときの虹彩・瞳孔の横（上下）の縮み（1 = 転がり角の cos） |
-| `noseDepth` | 1.1 | 鼻の出っ張り（鼻だけ動きを大きくする倍率） |
-| `earSqueeze` | 0.3 | 向いた側の耳が細くなる割合（90° のとき） |
-| `earIn` | 1 | 耳の付け根が頭の中心へ寄る量（1 で、円柱の横に付いた点と同じ） |
-| `earInner` | 0.08 | 耳の 2 つめ以降の shape のずれ（耳の幅に対する割合、90° のとき） |
-| `pitchGain` | 1 | 上下の動きの倍率 |
+| `radius` | 1 | Radius of the face sphere (multiple of `head_radius`). Above 1 for a character whose face is drawn small relative to the head (a ball of fur) |
+| `reach` | auto | Rim of the whole head `[half width, up from centre, down from centre]` (px, from `head_center`). By default, the bounding box of the fixed head parts (excluding `feature`, `ear` and swinging parts) |
+| `shift` | 0.08 | Movement of the whole head (ratio of the head radius, at 90°) |
+| `rimFalloff` | 1 | Exponent that weakens the face deformation towards the rim (`cos^n`, 1 or more) |
+| `domeFloor` | 0.35 | Share of movement left at the top of the head (0: the top does not move) |
+| `irisRoll` | 0.2 | Roll of the iris (ratio of the eye-white width, at 90°). Smaller for eyes with a large iris |
+| `pupilDepth` | 1.35 | The pupil is taken to be in front of the iris (the bulge of the cornea): how many times as far as the iris it moves. Keeps it from looking like a flat iris disc turning |
+| `irisSqueeze` | 1 | Sideways (or vertical) squeeze of iris and pupil when they roll (1 = cos of the roll angle) |
+| `noseDepth` | 1.1 | How far the nose sticks out (a multiplier for the nose alone) |
+| `earSqueeze` | 0.3 | How much the ear on the side turned to narrows (at 90°) |
+| `earIn` | 1 | How far the ear roots move towards the head centre (1: like a point on the side of a cylinder) |
+| `earInner` | 0.08 | Shift of the ear's second and later shapes (ratio of the ear width, at 90°) |
+| `pitchGain` | 1 | Multiplier for up-and-down movement |
 
-値は、ビューアの URL で試してから `vector.json` に書く：`vPar=feature:0.8,head:0.6`、`vTurn=radius:1.3,irisRoll:0.14`。首振りの上限は `vMaxYaw`（既定 30）。
+Try values in the viewer URL before writing them into `vector.json`: `vPar=feature:0.8,head:0.6`, `vTurn=radius:1.3,irisRoll:0.14`. The head-turn limit is `vMaxYaw` (default 30).
 
-確認の観点：±30° で、(1) 目・頬が顔の輪郭や横髪の外へ出ない、(2) 髪の縁に二重の輪郭線が出ない、(3) 耳・ツインテールの付け根が頭から離れない、(4) 半目・閉じ目・口の差分でもずれない。
+What to check: at ±30°, (1) eyes and cheeks do not leave the face outline or the side hair, (2) no doubled outline at the hair edge, (3) the roots of ears and twin tails stay on the head, (4) nothing shifts in the half-closed and closed eye or mouth variants either.
 
 
-### 3.6 表情（`expressions`）
+### 3.6 Expressions (`expressions`)
 
-表情ごとに、各差分グループで使う差分を書く。口は、話していないときの形。
+For each expression, give the variant used in each variant group. The mouth is the shape when not speaking.
 
 ```jsonc
 "expressions": {
@@ -191,83 +193,83 @@ art.json の項目（`id`、`label`、`parent`、`pivot`、`visible`、`coverage
 }
 ```
 
-`eye` は `eye_L`・`eye_R` の両方、`brow` は `brow_L`・`brow_R` の両方に適用する。
+`eye` applies to both `eye_L` and `eye_R`, and `brow` to both `brow_L` and `brow_R`.
 
-## 4. 部品一覧と命名
+## 4. Parts and names
 
-### 4.1 体
+### 4.1 Body
 
-| id | bone | 必須 | 補完 |
+| id | bone | Required | Completion |
 |---|---|---|---|
-| `tail` | `hips`（揺れ物にする場合はチェーン id） | 任意 | 付け根を胴・スカートの裏まで |
-| `leg_L`・`leg_R` | `leftUpperLeg`・`rightUpperLeg` | 必須 | 付け根を胴・スカートの下まで |
-| `torso` | `chest` | 必須 | **腕を外した胴**（腕は生成するため、脇・腕の付け根の下まで完結させる）。首の付け根まで |
-| `skirt` | `hips` | 任意 | |
-| `chest_fur`・`collar`・`tie` など | `chest` | 任意 | 衣装・胸元の毛 |
-| `neck` | `neck` | 必須 | 頭に隠れる上端まで。首が外から見えないキャラは、頭の下に隠れるつなぎでよい |
+| `tail` | `hips` (the chain id when it swings) | optional | Its root continues behind the torso or skirt |
+| `leg_L`, `leg_R` | `leftUpperLeg`, `rightUpperLeg` | yes | Their roots continue under the torso or skirt |
+| `torso` | `chest` | yes | **The torso without arms** (arms are generated, so it is complete under the armpits and arm roots). Up to the root of the neck |
+| `skirt` | `hips` | optional | |
+| `chest_fur`, `collar`, `tie` and so on | `chest` | optional | Clothes and chest fur |
+| `neck` | `neck` | yes | Up to its top edge hidden by the head. For a character whose neck never shows, a connector hidden under the head is enough |
 
-### 4.2 頭（すべて `parent` は `head`、`bone` は `head`）
+### 4.2 Head (all with `parent` `head` and `bone` `head`)
 
-| id | layer | 必須 | 補完・注意 |
+| id | layer | Required | Completion and notes |
 |---|---|---|---|
-| `hair_back` | `hair_back` | 髪のあるキャラ | 頭の裏のドーム |
-| `ear_L`・`ear_R`（うさ耳のツインテールは `twintail_L/R`） | `ear` | 任意 | **付け根を頭の中まで**描く（首振り・揺れで切り口が見えない） |
-| `head` | `head` | 必須 | 顔の肌。前髪・横髪・耳の付け根の下の額・こめかみまで |
-| `cheek_L/R` | `feature` | 任意 | 頬紅 |
-| `eye_L_white`・`eye_L_iris`・`eye_L_pupil` | `feature` | 必須 | 虹彩・瞳孔は白目の外まで丸く描き、`clipTo: "eye_L_white"` で切り抜く。差分 `open` |
-| `eye_L_lash` | `feature` | まつ毛のあるキャラ | 上のまつ毛・上まぶたの線。差分 `open` |
-| `eye_L_half` | `feature` | 必須 | 半目：上まぶた（肌色）と下げたまつ毛を、白目・虹彩の上に重ねる。**虹彩は潰さない**。差分 `half` |
-| `eye_L_closed` | `feature` | 必須 | 閉じた目の弧（細い塗り）。差分 `closed` |
-| `eye_L_smile` | `feature` | 任意 | 笑顔の目（∩ 型）。差分 `smile` |
-| `eye_L_surprise`・`eye_L_trouble` | `feature` | 任意 | 驚き（虹彩が小さい目など）・困り（まぶたの形）の目。`expressions` の `eye` に差分名を書く |
-| `brow_L_normal`・`_smile`・`_surprise`・`_trouble` | `feature` | 眉のあるキャラ | 差分 `normal` など |
-| `nose` | `feature` | 必須 | |
-| `mouth_closed`・`_a`・`_i`・`_u`・`_e`・`_o`・`_smile`・`_surprise`・`_trouble` | `feature` | 必須 | group `mouth`。口の中・歯・舌は同じ部品の別 shape |
-| `hair_side_L`・`hair_side_R` | `hair_side` | 髪のあるキャラ | |
-| `hair_front` | `hair_front` | 髪のあるキャラ | 房の重なりは同じ部品の別 shape でよい |
-| `clip_L/R`、`ribbon` など | `hair_front` | 任意 | |
+| `hair_back` | `hair_back` | characters with hair | The dome behind the head |
+| `ear_L`, `ear_R` (rabbit-ear twin tails: `twintail_L/R`) | `ear` | optional | **Draw the root into the head** (so no cut shows when the head turns or the ear swings) |
+| `head` | `head` | yes | Face skin. Up to the forehead and temples under the fringe, side hair and ear roots |
+| `cheek_L/R` | `feature` | optional | Blush |
+| `eye_L_white`, `eye_L_iris`, `eye_L_pupil` | `feature` | yes | Draw iris and pupil round, beyond the eye white, and clip them with `clipTo: "eye_L_white"`. Variant `open` |
+| `eye_L_lash` | `feature` | characters with lashes | Upper lashes and upper lid line. Variant `open` |
+| `eye_L_half` | `feature` | yes | Half-closed: the upper lid (skin colour) and the lowered lashes, over the eye white and iris. **Do not flatten the iris.** Variant `half` |
+| `eye_L_closed` | `feature` | yes | The arc of the closed eye (a thin fill). Variant `closed` |
+| `eye_L_smile` | `feature` | optional | Smiling eye (∩ shape). Variant `smile` |
+| `eye_L_surprise`, `eye_L_trouble` | `feature` | optional | Surprised eye (a small iris, for example) and troubled eye (lid shape). Write the variant name in the `eye` of `expressions` |
+| `brow_L_normal`, `_smile`, `_surprise`, `_trouble` | `feature` | characters with brows | Variant `normal` and so on |
+| `nose` | `feature` | yes | |
+| `mouth_closed`, `_a`, `_i`, `_u`, `_e`, `_o`, `_smile`, `_surprise`, `_trouble` | `feature` | yes | Group `mouth`. The inside of the mouth, teeth and tongue are other shapes of the same part |
+| `hair_side_L`, `hair_side_R` | `hair_side` | characters with hair | |
+| `hair_front` | `hair_front` | characters with hair | Overlapping tufts may be other shapes of the same part |
+| `clip_L/R`, `ribbon` and so on | `hair_front` | optional | |
 
-右目・右眉も同じ名前で `_R` とする。
+The right eye and right brow use the same names with `_R`.
 
-まつ毛・眉などを髪の手前に描くキャラは、配列（描画順）で髪の後ろに置いてよい。その場合、半目のまぶた（肌色）だけを髪の奥に分ける（例：`eye_L_lid_half`）。
+For a character whose lashes or brows are drawn in front of the hair, they may come after the hair in the array (drawing order). Then only the half-closed lid (skin colour) is split off behind the hair (for example `eye_L_lid_half`).
 
-### 4.3 手と袖（腕の先に付ける差分）
+### 4.3 Hands and sleeves (variants at the end of the arm)
 
-| id | 必須 | 描き方 |
+| id | Required | How to draw |
 |---|---|---|
-| `hand_L_open`・`_point`・`_fist`・`_palm`（右も同じ） | 必須 | `pivot` を手首の中心とし、**手首から指先へ真下（+Y）に向けて**描く。前腕はこの向きに続く。`open`・`point`・`fist` は手の甲側、`palm` は手のひら側を見せる。手首の切り口は丸く閉じる。置き場所は、A ポーズの手首の位置（`skeleton.wrist_L`）でよい。group `hand_L`、差分 `open` など |
-| `hand_L_point_front`（右も同じ） | 任意 | カメラの方を指差す手（人差し指が手前に縮んで見え、指先が正面を向く）。手の向きがカメラに近いときに `point` の代わりに使う（ない場合は `point` を手の長さ方向に縮める）。差分 `point_front` |
-| `sleeve_L_straight`・`_bent`・`_folded`（右も同じ） | 袖のあるキャラ | 肘のシワ・袖口の重ね絵。`pivot` を肘の中心とし、上腕を真上（-Y）、前腕を `straight` は真下、`bent` は約 60°、`folded` は約 120° 体の内側へ曲げた形で描く。group `sleeve_L` |
+| `hand_L_open`, `_point`, `_fist`, `_palm` (the same for the right) | yes | `pivot` at the centre of the wrist, drawn **straight down (+Y) from the wrist to the fingertips**. The forearm continues in this direction. `open`, `point` and `fist` show the back of the hand, `palm` the palm. The cut at the wrist is closed and round. It may be placed at the wrist position of the A-pose (`skeleton.wrist_L`). Group `hand_L`, variant `open` and so on |
+| `hand_L_point_front` (the same for the right) | optional | A hand pointing at the camera (the index finger is foreshortened towards the viewer and the fingertip faces front). Used instead of `point` when the hand points close to the camera (without it, `point` is shortened along the hand). Variant `point_front` |
+| `sleeve_L_straight`, `_bent`, `_folded` (the same for the right) | characters with sleeves | Overlay drawings of the elbow wrinkles and cuff. `pivot` at the centre of the elbow, upper arm straight up (-Y), forearm straight down for `straight`, bent about 60° towards the body for `bent`, about 120° for `folded`. Group `sleeve_L` |
 
-### 4.4 表にない部品
+### 4.4 Parts not in the tables
 
-表にない部品（前髪の奥の塊 `hair_top`、手前の房 `hair_front_over` など）は、小文字のスネークケースで自由に名付けてよい。動きは名前ではなく `bone` と `layer` で決まる。頭の毛の塊は、手前に重なるほど `hair_front` に近い層にする。
+Parts not in the tables (a mass behind the fringe `hair_top`, a front tuft `hair_front_over` and so on) may be named freely in lower snake case. Their movement comes from `bone` and `layer`, not the name. The more a mass of head hair overlaps in front, the closer its layer is to `hair_front`.
 
-### 4.5 部品数の目安
+### 4.5 Number of parts
 
-差分込みで 1 キャラ 45〜70 部品。
+45 to 70 parts per character, including variants.
 
-## 5. 補完のルール
+## 5. Completion rules
 
-隠れる部分も描く。動かしたときに穴が見えないことを、`qa` の `reveal`（手前の部品を隠す）と `move`（部品を支点から動かす）で確認する。
+Draw the hidden areas too. Check with the `qa` cases `reveal` (hide the front part) and `move` (move a part about its pivot) that no hole shows when parts move.
 
-- 前髪・横髪の下の額・こめかみ・頬（`head`）。
-- 耳・髪の付け根の下の頭（耳は頭の中まで伸ばす）。
-- 腕を外した胴（脇の下、腕の付け根）。
-- 頭の下の首、首の下の胴の上端。
-- しっぽの付け根、スカートの下の脚の付け根。
+- Forehead, temples and cheeks under the fringe and side hair (`head`).
+- The head under the roots of ears and hair (ears continue into the head).
+- The torso without arms (armpits, arm roots).
+- The neck under the head, and the top of the torso under the neck.
+- The root of the tail, and the leg roots under a skirt.
 
-## 6. 検査（`tools/vector/check_parts.py`）
+## 6. Checks (`tools/vector/check_parts.py`)
 
 ```bash
-.venv/bin/python tools/vector/check_parts.py <キャラID>
+.venv/bin/python tools/vector/check_parts.py <character id>
 ```
 
-- 構造の検査：命名、必須部品、`stroke` の禁止、`bone`・`layer`・差分・表情・チェーン・腕の項目、支点の位置、`_L`・`_R` が正面図のキャラの左右（画面の右・左）にあるか。
-- `tools/vector/layers/vector_layers.py validate` を通す。
-- `build/` と `preview.png` を書き出し、確認画像（`var/vector/<キャラID>/check/`）を作る：通常、`qa` の各ケース、差分の一覧（目・眉・口・手・袖・表情）、部品の一覧。
-- エラーが 0 件で合格。警告は内容を見て判断する。
-- 確認画像には自動輪郭線と生成した腕が入らない。**最終確認はビューアで行う**（開発サーバー起動中）：
+- Structural checks: names, required parts, no `stroke`, the fields of `bone`, `layer`, variants, expressions, chains and arms, pivot positions, and whether `_L` and `_R` are on the character's left and right in the front view (screen right and left).
+- Runs `tools/vector/layers/vector_layers.py validate`.
+- Writes `build/` and `preview.png`, and the check pictures (`var/vector/<character id>/check/`): default state, each `qa` case, the variant lists (eyes, brows, mouths, hands, sleeves, expressions), and the parts list.
+- 0 errors passes. Judge each warning by its content.
+- The check pictures do not include automatic outlines or generated arms. **The final check is in the viewer** (while the dev server runs):
 
 ```bash
 DSF=2 node tools/capture/viewer_shots.mjs var/vector/<id>/check/viewer \
@@ -276,6 +278,6 @@ DSF=2 node tools/capture/viewer_shots.mjs var/vector/<id>/check/viewer \
   half="char=<id>&framing=face&eye=half&blink=0" point="char=<id>&motion=point&t=1.5"
 ```
 
-開発サーバーを 5280 以外のポートで起動したときは、`VIEWER_URL=http://127.0.0.1:<ポート>/` を付ける。
+When the dev server runs on a port other than 5280, add `VIEWER_URL=http://127.0.0.1:<port>/`.
 
-- 参照画像の座標は、目測ではなく画素を走査して測る（目・鼻・耳の位置は 15〜25px ずれやすい）。
+- Measure coordinates on the reference picture by scanning pixels, not by eye (eyes, nose and ears are easily 15 to 25 px off).

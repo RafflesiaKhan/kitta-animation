@@ -1,6 +1,6 @@
 {
   "name": "attention",
-  "description": "気をつけ（腕を体の横に下ろす）",
+  "description": "Attention (arms down at the sides)",
   "bones": {
     "leftUpperArm": [0, 0, -72], "rightUpperArm": [0, 0, 72],
     "leftLowerArm": [0, 0, -5], "rightLowerArm": [0, 0, 5]
