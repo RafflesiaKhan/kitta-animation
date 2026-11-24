@@ -19,3 +19,5 @@ export interface UsageEntry {
 export interface UsageTotals { calls: number; input: number; output: number; total: number; unreported: number; cost: number; unpriced: number; estimated: number }
 export interface UsageRow extends UsageTotals { provider: UsageProvider; model: string }
 export interface UsageReport { since: string; session: UsageTotals; sessionRows: UsageRow[]; allTime: UsageTotals; allTimeRows: UsageRow[]; recent: UsageEntry[] }
+export interface UsageHistoryDay { date: string; providers: Record<UsageProvider, { cost: number; tokens: number; estimated: boolean }>; cost: number; tokens: number; estimated: boolean }
+export interface UsageHistory { days: UsageHistoryDay[]; rows: UsageRow[]; kindRows: (UsageRow & { kind: UsageKind })[]; totals: UsageTotals }

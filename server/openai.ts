@@ -7,6 +7,7 @@ import { DIRECTION_CHOICES, directionPrompt, toMatch, type Direction, type Match
 import { recordOpenAI, recordUsage } from './usage';
 import type { ChatBlock, ToolChat, ToolSpec } from './tool-chat';
 import type { UsageEntry } from '../shared/usage';
+import { setting } from './settings';
 
 // OpenAI-style REST APIs over plain fetch (no extra SDK), models from env:
 // - OpenAI: image generation/editing, the mouth lookup and speech.
@@ -23,22 +24,29 @@ export class OpenAIError extends Error {
 }
 
 const API = 'https://api.openai.com/v1';
-export const voiceStudioUrl = () => (process.env.VOICESTUDIO_URL || 'http://localhost:3900').replace(/\/+$/, '');
+export const voiceStudioUrl = () => {
+  const raw = setting('VOICESTUDIO_URL') || 'http://localhost:3900';
+  try {
+    const url = new URL(raw);
+    if (url.username || url.password || url.search || url.hash) return 'http://localhost:3900';
+    return raw.replace(/\/+$/, '');
+  } catch { return 'http://localhost:3900'; }
+};
 const SPEECH_TIMEOUT_MS = 120_000; // a local CPU-only VoiceStudio can be slow
 const IMAGE_TIMEOUT_MS = 180_000; // gpt-image models can take a minute or more per picture
 const MOUTH_TIMEOUT_MS = 30_000;
 const DIRECT_TIMEOUT_MS = 30_000;
-const imageModel = () => process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2';
-const visionModel = () => process.env.OPENAI_VISION_MODEL || 'gpt-5-mini';
-const textModel = () => process.env.OPENAI_TEXT_MODEL || 'gpt-5-mini';
+const imageModel = () => setting('OPENAI_IMAGE_MODEL')!;
+const visionModel = () => setting('OPENAI_VISION_MODEL')!;
+const textModel = () => setting('OPENAI_TEXT_MODEL')!;
 
 /** Base URL and auth for a service. OpenAI needs its key; a local VoiceStudio needs none (its key is for remote backends). */
 function endpoint(service: Service): { base: string; headers: Record<string, string> } {
   if (service === 'VoiceStudio') {
-    const k = process.env.VOICESTUDIO_API_KEY;
+    const k = setting('VOICESTUDIO_API_KEY');
     return { base: `${voiceStudioUrl()}/v1`, headers: k ? { Authorization: `Bearer ${k}` } : {} };
   }
-  const k = process.env.OPENAI_API_KEY;
+  const k = setting('OPENAI_API_KEY');
   if (!k) throw new OpenAIError('no_key');
   return { base: API, headers: { Authorization: `Bearer ${k}` } };
 }
@@ -182,7 +190,7 @@ export interface SpeakOptions { cue?: string; seed?: number }
 export async function speak(service: Service, line: ScriptLineInput, engine?: string, opts: SpeakOptions = {}): Promise<Buffer> {
   const studio = service === 'VoiceStudio';
   const body: Record<string, unknown> = {
-    model: service === 'OpenAI' ? process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts' : engine || process.env.VOICESTUDIO_TTS_MODEL || 'tts-1',
+    model: service === 'OpenAI' ? setting('OPENAI_TTS_MODEL')! : engine || setting('VOICESTUDIO_TTS_MODEL')!,
     voice: studio && line.voice.startsWith('persona:') ? 'default' : line.voice,
     input: speakableText(line.text, service, !engine || engine.startsWith('omnivoice')),
     response_format: 'wav',
@@ -278,7 +286,7 @@ export async function voiceStudioTranscribe(wavPath: string): Promise<{ text: st
 
 // ---- Drawing vector characters (version 2 planning/vector-create-plan.md): the OpenAI side of server/tool-chat.ts.
 
-export const drawModel = () => process.env.OPENAI_DRAW_MODEL || 'gpt-6.2-astra';
+export const drawModel = () => setting('OPENAI_DRAW_MODEL')!;
 const DRAW_TIMEOUT_MS = 40 * 60_000; // one drawing round can take many minutes
 const DRAW_POLL_MS = 5_000;
 const DRAW_ATTEMPTS = 3;

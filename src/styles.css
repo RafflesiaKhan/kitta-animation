@@ -20,6 +20,9 @@
   --shadow-lg: 0 10px 28px rgba(37, 36, 34, .14);
   --font: Arimo, 'Helvetica Neue', Arial, system-ui, sans-serif;
 }
+@media (prefers-color-scheme: dark) {
+  :root { --ink: #f5efe4; --charcoal: #d9d0c3; --gray: #b9afa2; --taupe: #756b60; --sand: #514a43; --cream: #211f1c; --white: #2b2824; --accent-tint: #5a2d20; --negative-bg: #4d2528; }
+}
 * { box-sizing: border-box; }
 body { margin: 0; font: 400 15px/22px var(--font); color: var(--charcoal); background: var(--cream); -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -190,6 +193,21 @@ input[type=checkbox] { width: 20px; height: 20px; margin: 0; accent-color: var(-
 .usage-panel table { width: 100%; border-collapse: collapse; }
 .usage-panel th, .usage-panel td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--sand); }
 .usage-panel th { font-weight: 600; color: var(--gray); font-size: 12px; background: var(--cream); }
+.settings-page { max-width: 900px; margin: 0 auto; }
+.settings-page section { margin-top: 28px; padding-top: 8px; border-top: 1px solid var(--sand); }
+.settings-title { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.settings-row { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 10px 14px; align-items: end; padding: 12px 0; border-bottom: 1px solid var(--sand); }
+.settings-row .field { margin: 0; }
+.settings-row .hint { padding-bottom: 10px; }
+.settings-row .mini { margin: 0 4px 6px 0; }
+.settings-back { margin-top: 16px; }
+.usage-history { margin-top: 28px; padding-top: 8px; border-top: 1px solid var(--sand); overflow: auto; }
+.usage-switch { display: flex; gap: 6px; margin-bottom: 10px; }
+.usage-switch .selected { background: var(--accent); color: var(--white); }
+.usage-chart { display: block; width: 100%; min-width: 640px; height: 210px; color: var(--gray); overflow: visible; }
+.usage-history table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.usage-history th, .usage-history td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--sand); }
+@media (max-width: 700px) { .settings-row { grid-template-columns: 1fr; } .settings-row .hint { padding: 0; } }
 
 /* ---------- per-line voice controls ---------- */
 .voice-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; background: var(--cream); border-top: 1px solid var(--sand); border-radius: 0 0 12px 12px; }

@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 // Calls whose provider reports no tokens (OpenAI speech returns only audio, VoiceStudio is local) are counted as calls.
 
 import { costOf, type TokenBreakdown } from '../shared/prices';
-import type { UsageEntry, UsageKind, UsageProvider, UsageReport, UsageRow, UsageTotals } from '../shared/usage';
+import type { UsageEntry, UsageKind, UsageProvider, UsageReport, UsageRow, UsageTotals, UsageHistory } from '../shared/usage';
 export type { UsageKind } from '../shared/usage';
 
 /** KITTA_USAGE_FILE=off keeps the ledger in memory only (tests use it). */
@@ -112,6 +112,36 @@ async function readLedger(): Promise<UsageEntry[]> {
 export async function usageReport(): Promise<UsageReport> {
   const s = totals(session), a = totals(await readLedger());
   return { since, session: s.all, sessionRows: s.rows, allTime: a.all, allTimeRows: a.rows, recent: session.slice(-15).reverse() };
+}
+
+export async function usageHistory(dayCount = 30): Promise<UsageHistory> {
+  const count = Math.max(1, Math.min(366, Math.floor(dayCount) || 30));
+  const today = new Date();
+  const dates = Array.from({ length: count }, (_, i) => {
+    const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - (count - 1 - i)));
+    return d.toISOString().slice(0, 10);
+  });
+  const start = dates[0];
+  const entries = (await readLedger()).filter((e) => e.at.slice(0, 10) >= start && e.at.slice(0, 10) <= dates.at(-1)!);
+  const providers: UsageProvider[] = ['gemini', 'openai', 'anthropic', 'elevenlabs', 'voicestudio'];
+  const blank = () => Object.fromEntries(providers.map((p) => [p, { cost: 0, tokens: 0, estimated: false }])) as UsageHistory['days'][number]['providers'];
+  const dayMap = new Map(dates.map((date) => [date, { date, providers: blank(), cost: 0, tokens: 0, estimated: false }]));
+  const kindMap = new Map<string, UsageRow & { kind: UsageKind }>();
+  for (const e of entries) {
+    const single = totals([e]);
+    const rowKey = `${e.provider}\0${e.model}\0${e.kind}`;
+    const row = kindMap.get(rowKey) ?? { provider: e.provider, model: e.model, kind: e.kind, calls: 0, input: 0, output: 0, total: 0, unreported: 0, cost: 0, unpriced: 0, estimated: 0 };
+    const t = single.all;
+    row.calls += t.calls; row.input += t.input; row.output += t.output; row.total += t.total; row.unreported += t.unreported; row.cost += t.cost; row.unpriced += t.unpriced; row.estimated += t.estimated;
+    kindMap.set(rowKey, row);
+    const day = dayMap.get(e.at.slice(0, 10));
+    if (!day) continue;
+    const estimated = t.estimated > 0;
+    day.providers[e.provider].cost += t.cost; day.providers[e.provider].tokens += e.total ?? 0; day.providers[e.provider].estimated ||= estimated;
+    day.cost += t.cost; day.tokens += e.total ?? 0; day.estimated ||= estimated;
+  }
+  const rows = totals(entries).rows;
+  return { days: dates.map((d) => dayMap.get(d)!), rows, kindRows: [...kindMap.values()], totals: totals(entries).all };
 }
 
 export async function resetUsage(): Promise<void> {

@@ -7,8 +7,10 @@ import { join } from 'node:path';
 const generateContent = vi.fn();
 vi.mock('@google/genai', () => ({ GoogleGenAI: class { models = { generateContent }; } }));
 import { createApp } from '../../server/index';
+import { resetAuthStateForTests } from '../../server/auth';
+import { resetSettingsCache, setSettingsFileForTests } from '../../server/settings';
 import { autoTag } from '../../server/gemini';
-import { recordAnthropic, recordGemini, recordOpenAI, recordUsage, resetUsage, usageReport } from '../../server/usage';
+import { recordAnthropic, recordGemini, recordOpenAI, recordUsage, resetUsage, usageHistory, usageReport } from '../../server/usage';
 import { costOf } from '../../shared/prices';
 
 describe('prices', () => {
@@ -20,13 +22,17 @@ describe('prices', () => {
 });
 
 const app = createApp();
+let settingsDir = '';
 beforeEach(async () => {
   generateContent.mockReset();
   process.env.GEMINI_API_KEY = 'k';
   vi.spyOn(console, 'log').mockImplementation(() => {});
+  settingsDir = mkdtempSync(join(tmpdir(), 'kitta-usage-settings-'));
+  setSettingsFileForTests(join(settingsDir, 'settings.json'));
+  resetAuthStateForTests();
   await resetUsage();
 });
-afterEach(() => { delete process.env.GEMINI_API_KEY; vi.mocked(console.log).mockRestore(); });
+afterEach(() => { delete process.env.GEMINI_API_KEY; vi.mocked(console.log).mockRestore(); resetSettingsCache(); rmSync(settingsDir, { recursive: true, force: true }); });
 
 describe('usage ledger', () => {
   it('maps Gemini usageMetadata, counting thinking tokens as output', () => {
@@ -102,7 +108,38 @@ describe('usage ledger', () => {
   it('serves and resets the report over the API', async () => {
     recordUsage({ provider: 'gemini', model: 'm', kind: 'image', input: 1, output: 2 });
     expect((await request(app).get('/api/usage')).body.session).toMatchObject({ calls: 1, total: 3 });
-    expect((await request(app).delete('/api/usage')).status).toBe(204);
+    const admin = request.agent(app);
+    await admin.post('/api/auth/setup').send({ password: 'usage-test-password' }).expect(201);
+    expect((await admin.delete('/api/usage')).status).toBe(204);
     expect((await request(app).get('/api/usage')).body.session.calls).toBe(0);
+  });
+
+  it('groups the last days by provider, model, use, and estimates old lines', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kitta-history-'));
+    process.env.KITTA_USAGE_FILE = join(dir, 'usage.jsonl');
+    vi.useFakeTimers({ now: new Date('2026-11-24T12:00:00Z'), toFake: ['Date'] });
+    try {
+      writeFileSync(process.env.KITTA_USAGE_FILE, `${JSON.stringify({ at: '2026-11-23T12:00:00.000Z', provider: 'openai', model: 'gpt-5-mini', kind: 'mouth', input: 100, output: 50, total: 150 })}\n`);
+      recordUsage({ provider: 'gemini', model: 'gemini-3.8-flash', kind: 'voice', input: 10, output: 20 });
+      const result = await usageHistory(3);
+      expect(result.days.map((d) => d.date)).toEqual(['2026-11-22', '2026-11-23', '2026-11-24']);
+      expect(result.days[0]?.tokens).toBe(0);
+      expect(result.days[1]?.providers.openai.tokens).toBe(150);
+      expect(result.days[1]?.providers.openai.estimated).toBe(true);
+      expect(result.rows).toEqual(expect.arrayContaining([expect.objectContaining({ provider: 'openai', model: 'gpt-5-mini', total: 150, estimated: 1 })]));
+      expect(result.kindRows).toEqual(expect.arrayContaining([expect.objectContaining({ provider: 'openai', kind: 'mouth', calls: 1 })]));
+      expect(result.totals.calls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+      process.env.KITTA_USAGE_FILE = 'off';
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('protects usage history with the same admin session as settings', async () => {
+    expect((await request(app).get('/api/usage/history?days=3')).status).toBe(401);
+    const admin = request.agent(app);
+    await admin.post('/api/auth/setup').send({ password: 'usage-history-password' }).expect(201);
+    expect((await admin.get('/api/usage/history?days=3')).status).toBe(200);
   });
 });

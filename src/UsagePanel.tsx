@@ -5,6 +5,7 @@ import * as api from './api';
 import { Icon } from './Icon';
 
 const NAMES = { gemini: 'Gemini', openai: 'OpenAI', voicestudio: 'VoiceStudio', anthropic: 'Claude', elevenlabs: 'ElevenLabs' } as const;
+const USE_NAMES = { voice: 'Voice', image: 'Pictures', 'auto-tag': 'Directions', direct: 'Directions', mouth: 'Mouth lookup', draw: 'Vector drawing', transcribe: 'Voice' } as const;
 const fmt = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${Math.round(n / 1e3)}k` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
 const money = (n: number) => (n === 0 ? '$0' : n < 0.01 ? '<$0.01' : n < 100 ? `$${n.toFixed(2)}` : `$${Math.round(n)}`);
 /** Cost of a set of calls: n/a when none has a price, ≈ when some were priced from input/output only. */
@@ -41,7 +42,6 @@ export function UsagePanel({ refreshKey }: { refreshKey: unknown }) {
             Token counts as reported by each provider. Cost uses the providers' published standard prices (checked {PRICES_CHECKED}) at the time of each call; your bill is the final word.
             OpenAI speech and VoiceStudio don't report tokens, so those count as calls only; ElevenLabs bills by characters, shown as its input. ≈ marks calls recorded before costs were tracked, priced without cache or image rates.
           </p>
-          <button className="mini" onClick={async () => { if (confirm('Reset all usage numbers?')) { await api.resetUsage(); load(); } }}>Reset</button>
         </div>
       )}
     </div>
@@ -77,7 +77,7 @@ function Recent({ e }: { e: UsageEntry }) {
   return (
     <tr>
       <td className="hint">{time(e.at)}</td>
-      <td>{NAMES[e.provider]} {e.kind}</td>
+      <td>{NAMES[e.provider]} {USE_NAMES[e.kind]}</td>
       <td>{e.total === null ? 'n/a' : `${fmt(e.input ?? 0)} → ${fmt(e.output ?? 0)}`}</td>
       <td>{e.cost == null ? '' : money(e.cost)}</td>
     </tr>

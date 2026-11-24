@@ -13,7 +13,7 @@ import { ElevenLabsError, listElevenVoices } from './elevenlabs';
 import { directAll } from './director';
 import { canLaunchVoiceStudio, ensureVoiceStudio } from './launch';
 import { marksFromDirections, prepareLine } from '../shared/direction';
-import { resetUsage, usageReport } from './usage';
+import { resetUsage, usageHistory, usageReport } from './usage';
 import { TTS_PROVIDERS, TTS_PROVIDER_NAMES, type TtsProvider } from '../shared/voices';
 import { imageProviders } from './images';
 import type { Line, ScriptLineInput } from '../shared/types';
@@ -29,12 +29,16 @@ import { drawProvider } from './vector-draw';
 import { CharacterError, createCharacter, deleteCharacter, generatePose, getCharacter, imageDataUris, imagePath, listCharacters, measureMouths, setMouthPoint } from './characters';
 import { ART_STYLES } from '../shared/character/art';
 import { isArt, isVector, type ArtPose } from '../shared/types';
+import { setting } from './settings';
+import { clearSession, createAdminPasswordIfAbsent, createSession, hasAdminPassword, initializeAdminResetState, readSession, requireAdmin, requireSameOrigin, setSessionCookie, verifyWithDelay } from './auth';
+import { publicSettings, setSettings, SettingsFileError } from './settings';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UPLOAD_DIR = join('data', 'uploads');
 const EXPORT_DIR = join('data', 'exports');
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const EXPORT_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(mp4|webm)$/i;
+const SETTINGS_NAMES = new Set(['OPENAI_API_KEY','GEMINI_API_KEY','ANTHROPIC_API_KEY','ELEVENLABS_API_KEY','VOICESTUDIO_API_KEY','VOICESTUDIO_URL','OPENAI_TEXT_MODEL','OPENAI_IMAGE_MODEL','OPENAI_VISION_MODEL','OPENAI_TTS_MODEL','OPENAI_DRAW_MODEL','GEMINI_TEXT_MODEL','GEMINI_IMAGE_MODEL','GEMINI_TTS_MODEL','ANTHROPIC_MODEL','ELEVENLABS_MODEL','VOICESTUDIO_TTS_MODEL','VECTOR_DRAW_PROVIDER','DEFAULT_TTS_PROVIDER','DEFAULT_IMAGE_PROVIDER']);
 
 /** Sends the standard JSON error for an OpenAI failure; `failed` is the 502 message. */
 function sendOpenAIError(res: express.Response, e: OpenAIError, failed: string) {
@@ -101,15 +105,92 @@ export function createApp() {
     typeof id === 'string' && UUID_RE.test(id) ? join(AUDIO_DIR, `${id}.wav`) : null;
 
   app.get('/api/health', async (_req, res) => {
-    const vectorDraw = Boolean(process.env[drawProvider() === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY']);
-    res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(process.env.GEMINI_API_KEY), imageProviders: imageProviders(), ttsProviders: ttsProviders(), vectorDraw, vectorDrawProvider: drawProvider() });
+    const vectorDraw = Boolean(setting(drawProvider() === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'));
+    res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(setting('GEMINI_API_KEY')), imageProviders: imageProviders(), ttsProviders: ttsProviders(), vectorDraw, vectorDrawProvider: drawProvider() });
+  });
+
+  app.get('/api/auth/status', async (req, res) => {
+    try { res.json({ configured: await hasAdminPassword(), authenticated: readSession(req) }); }
+    catch (e) { if (e instanceof SettingsFileError) return res.status(409).json({ error: e.message }); throw e; }
+  });
+
+  app.post('/api/auth/setup', requireSameOrigin, async (req, res) => {
+    const password = req.body?.password;
+    if (typeof password !== 'string' || password.length < 8 || password.length > 200) return res.status(400).json({ error: 'Invalid password.' });
+    try {
+      if (!await createAdminPasswordIfAbsent(password)) return res.status(409).json({ error: 'Admin password is already configured.' });
+      const token = createSession();
+      setSessionCookie(res, token);
+      res.status(201).json({ authenticated: true });
+    } catch (e) { if (e instanceof SettingsFileError) return res.status(409).json({ error: e.message }); throw e; }
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    try {
+      if (!(await verifyWithDelay(password))) return res.status(401).json({ error: 'Invalid credentials.' });
+      setSessionCookie(res, createSession());
+      res.json({ authenticated: true });
+    } catch (e) { if (e instanceof SettingsFileError) return res.status(409).json({ error: e.message }); throw e; }
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    clearSession(res, req);
+    res.status(204).end();
+  });
+
+  app.get('/api/settings', requireAdmin, async (req, res) => {
+    res.json(await publicSettings(readSession(req)));
+  });
+  app.put('/api/settings', requireAdmin, requireSameOrigin, async (req, res) => {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Invalid settings.' });
+    const patch: Record<string, string | null> = {};
+    for (const [name, value] of Object.entries(req.body)) {
+      if (value !== null && typeof value !== 'string') return res.status(400).json({ error: 'Invalid settings.' });
+      if (!SETTINGS_NAMES.has(name) || name === 'VECTOR_DRAW_PROVIDER' && value !== null && value !== 'openai' && value !== 'anthropic' || name === 'DEFAULT_TTS_PROVIDER' && value !== null && !['gemini','openai','elevenlabs','voicestudio'].includes(value as string) || name === 'DEFAULT_IMAGE_PROVIDER' && value !== null && !['gemini','openai'].includes(value as string)) return res.status(400).json({ error: 'Invalid setting.' });
+      if (typeof value === 'string' && value.length > 500) return res.status(400).json({ error: 'Setting is too long.' });
+      if (name === 'VOICESTUDIO_URL' && value !== null) { try { const url = new URL(value); if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error(); } catch { return res.status(400).json({ error: 'Invalid VoiceStudio URL.' }); } }
+      if (name.endsWith('_MODEL') && value !== null && !/^[A-Za-z0-9._:-]{1,128}$/.test(value)) return res.status(400).json({ error: 'Invalid model id.' });
+      patch[name] = value as string | null;
+    }
+    try { await setSettings(patch); }
+    catch (e) { if (e instanceof SettingsFileError) return res.status(409).json({ error: e.message }); throw e; }
+    res.json(await publicSettings(readSession(req)));
+  });
+
+  app.post('/api/settings/test/:provider', requireAdmin, requireSameOrigin, async (req, res) => {
+    const provider = req.params.provider;
+    try {
+      if (provider === 'elevenlabs') {
+        const key = typeof req.body?.key === 'string' && req.body.key.length <= 500 ? req.body.key : setting('ELEVENLABS_API_KEY');
+        if (!key) return res.status(400).json({ ok: false, message: 'Key is not configured.' });
+        const response = await fetch('https://api.elevenlabs.io/v2/voices?page_size=1', { headers: { 'xi-api-key': key }, signal: AbortSignal.timeout(15_000) });
+        return response.ok ? res.json({ ok: true, message: 'ElevenLabs voices loaded.' }) : res.status(400).json({ ok: false, message: 'The key was refused.' });
+      }
+      if (provider === 'voicestudio') { const info = await voiceStudioInfo(); return res.json({ ok: info.running, message: info.running ? 'VoiceStudio is running.' : 'VoiceStudio is not running.' }); }
+      const keyName = provider === 'openai' ? 'OPENAI_API_KEY' : provider === 'gemini' ? 'GEMINI_API_KEY' : provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : null;
+      const submitted = typeof req.body?.key === 'string' && req.body.key.length <= 500 ? req.body.key : undefined;
+      const key = submitted || (keyName ? setting(keyName) : undefined);
+      if (!keyName || !key) return res.status(400).json({ ok: false, message: 'Key is not configured.' });
+      const headers: Record<string, string> = provider === 'anthropic' ? { 'x-api-key': key, 'anthropic-version': '2023-06-01' } : { Authorization: `Bearer ${key}` };
+      const url = provider === 'openai' ? 'https://api.openai.com/v1/models' : provider === 'anthropic' ? 'https://api.anthropic.com/v1/models' : `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`;
+      if (provider === 'gemini') delete headers.Authorization;
+      const response = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
+      if (!response.ok) return res.status(400).json({ ok: false, message: 'The key was refused.' });
+      res.json({ ok: true, message: 'Key works.' });
+    } catch { res.status(400).json({ ok: false, message: 'The provider could not be reached.' }); }
   });
 
   // Token telemetry for the usage panel.
   app.get('/api/usage', async (_req, res) => {
     res.json(await usageReport());
   });
-  app.delete('/api/usage', async (_req, res) => {
+  app.get('/api/usage/history', requireAdmin, async (req, res) => {
+    const days = Number(req.query.days ?? 30);
+    if (!Number.isFinite(days) || days < 1 || days > 366) return res.status(400).json({ error: 'Invalid days.' });
+    res.json(await usageHistory(days));
+  });
+  app.delete('/api/usage', requireAdmin, requireSameOrigin, async (_req, res) => {
     await resetUsage();
     res.status(204).end();
   });
@@ -401,7 +482,7 @@ export function createApp() {
       const provider = req.body?.provider || providers[0];
       const drawKey = drawProvider() === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
       if (!providers.length) return res.status(400).json({ error: 'Add GEMINI_API_KEY or OPENAI_API_KEY to .env to create characters.' });
-      if (!process.env[drawKey]) return res.status(400).json({ error: `Add ${drawKey} to .env to create vector characters.` });
+      if (!setting(drawKey)) return res.status(400).json({ error: `Add ${drawKey} to .env to create vector characters.` });
       if (!providers.includes(provider)) return res.status(400).json({ error: 'Invalid request' });
       if (err || (ref && !IMAGE_TYPES.includes(ref.mimetype))) return res.status(400).json({ error: 'Reference must be a PNG, JPEG or WebP image up to 10 MB.' });
       if ((!description && !ref) || description.length > 400 || name.length > 40) return res.status(400).json({ error: 'Invalid request' });
@@ -519,5 +600,9 @@ export function createApp() {
 const isEntry = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isEntry) {
   if (existsSync('.env')) process.loadEnvFile('.env');
+  void initializeAdminResetState().catch((error: unknown) => {
+    if (error instanceof SettingsFileError) console.error('[settings] settings file is damaged; admin reset state was not changed');
+    else console.error('[settings] could not initialize admin reset state');
+  });
   createApp().listen(5175, '127.0.0.1', () => console.log('Kitta API on http://127.0.0.1:5175'));
 }

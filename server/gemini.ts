@@ -7,6 +7,7 @@ import { EXPRESSIONS, GESTURES } from '../shared/types';
 import type { Expression, Gesture, MouthBox, ScriptLineInput } from '../shared/types';
 import { TONES } from '../shared/character/expressions';
 import { DIRECTION_CHOICES, directionPrompt, toMatch, type Direction, type Match } from '../shared/direction';
+import { setting } from './settings';
 
 export { VOICES } from '../shared/voices';
 
@@ -18,7 +19,7 @@ export class GeminiError extends Error {
 }
 
 function client(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = setting('GEMINI_API_KEY');
   if (!apiKey) throw new GeminiError('no_key');
   return new GoogleGenAI({ apiKey });
 }
@@ -52,8 +53,8 @@ function toGeminiError(e: unknown, what: string): GeminiError {
   return new GeminiError('failed');
 }
 
-const textModel = () => process.env.GEMINI_TEXT_MODEL || 'gemini-3.8-flash';
-const imageModel = () => process.env.GEMINI_IMAGE_MODEL || 'gemini-nano-banana-2.1';
+const textModel = () => setting('GEMINI_TEXT_MODEL')!;
+const imageModel = () => setting('GEMINI_IMAGE_MODEL')!;
 
 const SAMPLE_RATE = 24000; // Gemini TTS: 24 kHz, 16-bit, mono
 
@@ -82,7 +83,7 @@ export async function tts(line: ScriptLineInput): Promise<Buffer> {
   const ai = client();
   try {
     const res = await generate(ai, 'voice', {
-      model: process.env.GEMINI_TTS_MODEL || 'gemini-3.8-flash-tts',
+      model: setting('GEMINI_TTS_MODEL')!,
       contents: ttsPrompt(line),
       config: {
         responseModalities: ['AUDIO'],

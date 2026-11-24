@@ -8,6 +8,7 @@ import { claudeToolChat } from './anthropic';
 import { openaiToolChat } from './openai';
 import type { ChatBlock, ToolChat, ToolSpec } from './tool-chat';
 import { checkSheet } from './vector-check';
+import { setting } from './settings';
 
 // The drawing loop of version 2 planning/vector-create-plan.md: the drawing model draws the parts as one vector.json
 // from the front picture and the face sheet, the server checks it and draws check pictures, and the model fixes it,
@@ -18,7 +19,7 @@ const SAMPLE = join(import.meta.dirname, '../shared/vector-avator/sample/usagi.v
 const GRID = 64;
 
 /** Which model draws by default: gpt-6.2-astra was faster, cheaper and clearer than Claude Opus 5.5 on the first test (Pearl). */
-export const drawProvider = (): 'anthropic' | 'openai' => (process.env.VECTOR_DRAW_PROVIDER === 'anthropic' ? 'anthropic' : 'openai');
+export const drawProvider = (): 'anthropic' | 'openai' => (setting('VECTOR_DRAW_PROVIDER') === 'anthropic' ? 'anthropic' : 'openai');
 
 const TOOL: ToolSpec = {
   name: 'submit_vector',

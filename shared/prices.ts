@@ -51,6 +51,42 @@ const PRICES: Record<string, { from?: string; price: Price }[]> = {
   'gemini/gemini-nano-banana-2.1': [{ price: { input: 1.5, output: 7.5, imageOutput: 30 } }],
 };
 
+export type ModelProvider = 'openai' | 'gemini' | 'anthropic' | 'elevenlabs' | 'voicestudio';
+export type ModelJob = 'text' | 'voice' | 'image' | 'mouth' | 'vector';
+
+export interface KnownModel {
+  id: string;
+  provider: ModelProvider;
+  jobs: ModelJob[];
+  price: Price | null;
+}
+
+/** The small, public model catalogue used by Settings. "Other" is always allowed by the UI. */
+export const KNOWN_MODELS: KnownModel[] = [
+  { id: 'gpt-6.2-astra', provider: 'openai', jobs: ['text', 'vector'], price: priceOfKey('openai/gpt-6.2-astra') },
+  { id: 'gpt-6.2-sol', provider: 'openai', jobs: ['text'], price: priceOfKey('openai/gpt-6.2-sol') },
+  { id: 'gpt-5-mini', provider: 'openai', jobs: ['text', 'mouth'], price: priceOfKey('openai/gpt-5-mini') },
+  { id: 'gpt-4o-mini-tts', provider: 'openai', jobs: ['voice'], price: priceOfKey('openai/gpt-4o-mini-tts') },
+  { id: 'gpt-image-2', provider: 'openai', jobs: ['image'], price: priceOfKey('openai/gpt-image-2') },
+  { id: 'gemini-3.8-flash', provider: 'gemini', jobs: ['text', 'mouth'], price: priceOfKey('gemini/gemini-3.8-flash') },
+  { id: 'gemini-3.8-flash-tts', provider: 'gemini', jobs: ['voice'], price: priceOfKey('gemini/gemini-3.8-flash-tts') },
+  { id: 'gemini-nano-banana-2.1', provider: 'gemini', jobs: ['image'], price: priceOfKey('gemini/gemini-nano-banana-2.1') },
+  { id: 'claude-opus-5-5', provider: 'anthropic', jobs: ['text', 'vector'], price: priceOfKey('anthropic/claude-opus-5-5') },
+  { id: 'claude-fable-5-2', provider: 'anthropic', jobs: ['text'], price: priceOfKey('anthropic/claude-fable-5-2') },
+  { id: 'claude-sonnet-5-5', provider: 'anthropic', jobs: ['text', 'mouth'], price: priceOfKey('anthropic/claude-sonnet-5-5') },
+  { id: 'eleven_multilingual_v2', provider: 'elevenlabs', jobs: ['voice'], price: priceOfKey('elevenlabs/eleven_multilingual_v2') },
+  { id: 'eleven_v3', provider: 'elevenlabs', jobs: ['voice'], price: priceOfKey('elevenlabs/eleven_v3') },
+  { id: 'eleven_flash_v2_5', provider: 'elevenlabs', jobs: ['voice'], price: priceOfKey('elevenlabs/eleven_flash_v2_5') },
+  { id: 'eleven_flash_v2', provider: 'elevenlabs', jobs: ['voice'], price: priceOfKey('elevenlabs/eleven_flash_v2') },
+  { id: 'tts-1', provider: 'voicestudio', jobs: ['voice'], price: null },
+];
+
+function priceOfKey(key: string): Price | null {
+  const periods = PRICES[key];
+  if (!periods) return null;
+  return [...periods].reverse().find((p) => !p.from || p.from <= PRICES_CHECKED)?.price ?? null;
+}
+
 export function priceOf(provider: UsageProvider, model: string, at: Date = new Date()): Price | null {
   const periods = PRICES[`${provider}/${model}`];
   if (!periods) return null;

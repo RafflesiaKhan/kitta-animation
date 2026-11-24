@@ -230,6 +230,7 @@ export function App() {
     <div className="app">
       <header>
         <a className="pill" href="/?projects" title="Projects is still being built: scenes, episodes and sets may change.">Projects <span className="beta">Beta</span></a>
+        <a className="pill" href="/?settings">Settings</a>
         <span className="logo" aria-hidden="true">K</span>
         <div className="brand">
           <h1>Kitta Animation</h1>

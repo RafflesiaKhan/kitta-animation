@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { AUDIO_DIR } from './audio';
 import { ensureVoiceStudio } from './launch';
+import { setting, settingSource } from './settings';
 import { renderScene } from './render';
 import { SCENES_DIR, SceneError, buildScene, loadScene, saveScene, captureScene, validSceneName } from './scene';
 import { speakLine } from './speech';
@@ -40,7 +41,7 @@ async function main() {
 
   let scene = rebuild ? null : await loadScene(name);
   if (!scene) {
-    if (!process.env.VOICESTUDIO_URL) fail(['Set VOICESTUDIO_URL in .env']);
+    if (settingSource('VOICESTUDIO_URL') === 'default' || !setting('VOICESTUDIO_URL')) fail(['Set VOICESTUDIO_URL in Settings or .env']);
     if (!(await ensureVoiceStudio())) fail(["VoiceStudio isn't running"]);
     scene = await buildScene(source, sourceDir!, (line) => speakLine('voicestudio', line));
     await saveScene(name, scene);
