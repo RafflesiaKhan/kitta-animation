@@ -9,7 +9,7 @@ import type { KnownModel } from '../shared/prices';
 export interface SettingsResponse { settings: Record<string, { configured: boolean; source: 'settings'|'env'|'default'|'unset'; masked?: string; value?: string }>; models: KnownModel[]; auth: { configured: boolean } }
 export const getSettings = () => getJson<SettingsResponse>('/api/settings');
 export const updateSettings = (patch: Record<string, string | null>) => post<SettingsResponse>('/api/settings', { ...projectJson(patch), method: 'PUT' });
-export const testSettingProvider = (provider: string) => post<{ ok: boolean; message: string }>(`/api/settings/test/${encodeURIComponent(provider)}`, {});
+export const testSettingProvider = (provider: string, key?: string) => post<{ ok: boolean; message: string }>(`/api/settings/test/${encodeURIComponent(provider)}`, { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(key ? { key } : {}) });
 export const authStatus = () => getJson<{ configured: boolean; authenticated: boolean }>('/api/auth/status');
 export const setupPassword = (password: string) => post<{ authenticated: boolean }>('/api/auth/setup', projectJson({ password }));
 export const login = (password: string) => post<{ authenticated: boolean }>('/api/auth/login', projectJson({ password }));

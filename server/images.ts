@@ -11,7 +11,9 @@ const KEYS: Record<ImageProvider, string> = { gemini: 'GEMINI_API_KEY', openai: 
 
 /** Providers with a key in the environment, in order of preference. */
 export function imageProviders(): ImageProvider[] {
-  return (Object.keys(KEYS) as ImageProvider[]).filter((p) => Boolean(setting(KEYS[p])));
+  const out = (Object.keys(KEYS) as ImageProvider[]).filter((p) => Boolean(setting(KEYS[p])));
+  const preferred = setting('DEFAULT_IMAGE_PROVIDER') as ImageProvider | undefined;
+  return preferred && out.includes(preferred) ? [preferred, ...out.filter(p => p !== preferred)] : out;
 }
 
 export function paint(provider: ImageProvider, prompt: string, refs: ImageInput[] = [], shape: ImageShape = 'square'): Promise<Buffer> {

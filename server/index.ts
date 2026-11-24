@@ -38,7 +38,7 @@ const UPLOAD_DIR = join('data', 'uploads');
 const EXPORT_DIR = join('data', 'exports');
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const EXPORT_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(mp4|webm)$/i;
-const SETTINGS_NAMES = new Set(['OPENAI_API_KEY','GEMINI_API_KEY','ANTHROPIC_API_KEY','ELEVENLABS_API_KEY','VOICESTUDIO_API_KEY','VOICESTUDIO_URL','OPENAI_TEXT_MODEL','OPENAI_IMAGE_MODEL','OPENAI_VISION_MODEL','OPENAI_TTS_MODEL','OPENAI_DRAW_MODEL','GEMINI_TEXT_MODEL','GEMINI_IMAGE_MODEL','GEMINI_TTS_MODEL','ANTHROPIC_MODEL','ELEVENLABS_MODEL','VOICESTUDIO_TTS_MODEL','VECTOR_DRAW_PROVIDER']);
+const SETTINGS_NAMES = new Set(['OPENAI_API_KEY','GEMINI_API_KEY','ANTHROPIC_API_KEY','ELEVENLABS_API_KEY','VOICESTUDIO_API_KEY','VOICESTUDIO_URL','OPENAI_TEXT_MODEL','OPENAI_IMAGE_MODEL','OPENAI_VISION_MODEL','OPENAI_TTS_MODEL','OPENAI_DRAW_MODEL','GEMINI_TEXT_MODEL','GEMINI_IMAGE_MODEL','GEMINI_TTS_MODEL','ANTHROPIC_MODEL','ELEVENLABS_MODEL','VOICESTUDIO_TTS_MODEL','VECTOR_DRAW_PROVIDER','DEFAULT_TTS_PROVIDER','DEFAULT_IMAGE_PROVIDER']);
 
 /** Sends the standard JSON error for an OpenAI failure; `failed` is the 502 message. */
 function sendOpenAIError(res: express.Response, e: OpenAIError, failed: string) {
@@ -140,10 +140,11 @@ export function createApp() {
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Invalid settings.' });
     const patch: Record<string, string | null> = {};
     for (const [name, value] of Object.entries(req.body)) {
-      if (!SETTINGS_NAMES.has(name) || name === 'VECTOR_DRAW_PROVIDER' && value !== null && value !== 'openai' && value !== 'anthropic') return res.status(400).json({ error: 'Invalid setting.' });
       if (value !== null && typeof value !== 'string') return res.status(400).json({ error: 'Invalid settings.' });
+      if (!SETTINGS_NAMES.has(name) || name === 'VECTOR_DRAW_PROVIDER' && value !== null && value !== 'openai' && value !== 'anthropic' || name === 'DEFAULT_TTS_PROVIDER' && value !== null && !['gemini','openai','elevenlabs','voicestudio'].includes(value as string) || name === 'DEFAULT_IMAGE_PROVIDER' && value !== null && !['gemini','openai'].includes(value as string)) return res.status(400).json({ error: 'Invalid setting.' });
       if (typeof value === 'string' && value.length > 500) return res.status(400).json({ error: 'Setting is too long.' });
-      if (name === 'VOICESTUDIO_URL' && value !== null) { try { const url = new URL(value); if (!['http:', 'https:'].includes(url.protocol)) throw new Error(); } catch { return res.status(400).json({ error: 'Invalid VoiceStudio URL.' }); } }
+      if (name === 'VOICESTUDIO_URL' && value !== null) { try { const url = new URL(value); if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error(); } catch { return res.status(400).json({ error: 'Invalid VoiceStudio URL.' }); } }
+      if (name.endsWith('_MODEL') && value !== null && !/^[A-Za-z0-9._:-]{1,128}$/.test(value)) return res.status(400).json({ error: 'Invalid model id.' });
       patch[name] = value as string | null;
     }
     await setSettings(patch);
@@ -157,7 +158,8 @@ export function createApp() {
       if (provider === 'voicestudio') { const info = await voiceStudioInfo(); return res.json({ ok: info.running, message: info.running ? 'VoiceStudio is running.' : 'VoiceStudio is not running.' }); }
       const keyName = provider === 'openai' ? 'OPENAI_API_KEY' : provider === 'gemini' ? 'GEMINI_API_KEY' : provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : null;
       if (!keyName || !setting(keyName)) return res.status(400).json({ ok: false, message: 'Key is not configured.' });
-      const key = setting(keyName)!;
+      const submitted = typeof req.body?.key === 'string' && req.body.key.length <= 500 ? req.body.key : undefined;
+      const key = submitted || setting(keyName)!;
       const headers: Record<string, string> = provider === 'anthropic' ? { 'x-api-key': key, 'anthropic-version': '2023-06-01' } : { Authorization: `Bearer ${key}` };
       const url = provider === 'openai' ? 'https://api.openai.com/v1/models' : provider === 'anthropic' ? 'https://api.anthropic.com/v1/models' : `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`;
       if (provider === 'gemini') delete headers.Authorization;

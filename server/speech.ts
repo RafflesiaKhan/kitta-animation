@@ -14,7 +14,8 @@ export function ttsProviders(): TtsProvider[] {
   if (setting('OPENAI_API_KEY')) out.push('openai');
   if (setting('ELEVENLABS_API_KEY')) out.push('elevenlabs');
   if (settingSource('VOICESTUDIO_URL') !== 'default' && setting('VOICESTUDIO_URL')) out.push('voicestudio');
-  return out;
+  const preferred = setting('DEFAULT_TTS_PROVIDER');
+  return preferred && out.includes(preferred as TtsProvider) ? [preferred as TtsProvider, ...out.filter(p => p !== preferred)] : out;
 }
 
 /** Overloaded or rate-limited: worth waiting for. Anything else (bad key, refusal, not running) fails at once. */

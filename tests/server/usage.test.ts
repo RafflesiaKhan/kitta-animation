@@ -7,6 +7,8 @@ import { join } from 'node:path';
 const generateContent = vi.fn();
 vi.mock('@google/genai', () => ({ GoogleGenAI: class { models = { generateContent }; } }));
 import { createApp } from '../../server/index';
+import { resetAuthStateForTests } from '../../server/auth';
+import { resetSettingsCache, setSettingsFileForTests } from '../../server/settings';
 import { autoTag } from '../../server/gemini';
 import { recordAnthropic, recordGemini, recordOpenAI, recordUsage, resetUsage, usageReport } from '../../server/usage';
 import { costOf } from '../../shared/prices';
@@ -20,13 +22,17 @@ describe('prices', () => {
 });
 
 const app = createApp();
+let settingsDir = '';
 beforeEach(async () => {
   generateContent.mockReset();
   process.env.GEMINI_API_KEY = 'k';
   vi.spyOn(console, 'log').mockImplementation(() => {});
+  settingsDir = mkdtempSync(join(tmpdir(), 'kitta-usage-settings-'));
+  setSettingsFileForTests(join(settingsDir, 'settings.json'));
+  resetAuthStateForTests();
   await resetUsage();
 });
-afterEach(() => { delete process.env.GEMINI_API_KEY; vi.mocked(console.log).mockRestore(); });
+afterEach(() => { delete process.env.GEMINI_API_KEY; vi.mocked(console.log).mockRestore(); resetSettingsCache(); rmSync(settingsDir, { recursive: true, force: true }); });
 
 describe('usage ledger', () => {
   it('maps Gemini usageMetadata, counting thinking tokens as output', () => {
@@ -102,7 +108,9 @@ describe('usage ledger', () => {
   it('serves and resets the report over the API', async () => {
     recordUsage({ provider: 'gemini', model: 'm', kind: 'image', input: 1, output: 2 });
     expect((await request(app).get('/api/usage')).body.session).toMatchObject({ calls: 1, total: 3 });
-    expect((await request(app).delete('/api/usage')).status).toBe(204);
+    const admin = request.agent(app);
+    await admin.post('/api/auth/setup').send({ password: 'usage-test-password' }).expect(201);
+    expect((await admin.delete('/api/usage')).status).toBe(204);
     expect((await request(app).get('/api/usage')).body.session.calls).toBe(0);
   });
 });

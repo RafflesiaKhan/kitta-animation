@@ -20,6 +20,9 @@
   --shadow-lg: 0 10px 28px rgba(37, 36, 34, .14);
   --font: Arimo, 'Helvetica Neue', Arial, system-ui, sans-serif;
 }
+@media (prefers-color-scheme: dark) {
+  :root { --ink: #f5efe4; --charcoal: #d9d0c3; --gray: #b9afa2; --taupe: #756b60; --sand: #514a43; --cream: #211f1c; --white: #2b2824; --accent-tint: #5a2d20; --negative-bg: #4d2528; }
+}
 * { box-sizing: border-box; }
 body { margin: 0; font: 400 15px/22px var(--font); color: var(--charcoal); background: var(--cream); -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; color: inherit; }
