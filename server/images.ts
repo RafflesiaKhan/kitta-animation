@@ -2,6 +2,7 @@ import type { ImageProvider, MouthBox } from '../shared/types';
 import * as gemini from './gemini';
 import * as openai from './openai';
 import type { ImageInput, ImageShape } from './gemini';
+import { setting } from './settings';
 
 // Routes AI-character image work to a provider. A character remembers the provider that painted it,
 // so all of its poses come from the same model.
@@ -10,7 +11,7 @@ const KEYS: Record<ImageProvider, string> = { gemini: 'GEMINI_API_KEY', openai: 
 
 /** Providers with a key in the environment, in order of preference. */
 export function imageProviders(): ImageProvider[] {
-  return (Object.keys(KEYS) as ImageProvider[]).filter((p) => Boolean(process.env[KEYS[p]]));
+  return (Object.keys(KEYS) as ImageProvider[]).filter((p) => Boolean(setting(KEYS[p])));
 }
 
 export function paint(provider: ImageProvider, prompt: string, refs: ImageInput[] = [], shape: ImageShape = 'square'): Promise<Buffer> {
@@ -22,14 +23,14 @@ export function paint(provider: ImageProvider, prompt: string, refs: ImageInput[
  * If Gemini fails (e.g. its quota is used up) and OpenAI has a key, OpenAI takes over.
  */
 export async function locateMouth(png: Buffer): Promise<MouthBox | null> {
-  if (process.env.GEMINI_API_KEY) {
+  if (setting('GEMINI_API_KEY')) {
     try {
       return await gemini.findMouth(png);
     } catch (e) {
-      if (!process.env.OPENAI_API_KEY) throw e;
+      if (!setting('OPENAI_API_KEY')) throw e;
       console.warn(`mouth lookup: Gemini failed (${(e as Error)?.message}), trying OpenAI`);
     }
   }
-  if (process.env.OPENAI_API_KEY) return openai.findMouth(png);
+  if (setting('OPENAI_API_KEY')) return openai.findMouth(png);
   return null;
 }

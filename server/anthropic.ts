@@ -3,6 +3,7 @@ import type { BetaContentBlockParam, BetaMessage, BetaMessageParam, BetaTool } f
 import type { UsageEntry } from '../shared/usage';
 import type { ChatBlock, ToolChat, ToolSpec } from './tool-chat';
 import { recordAnthropic, type UsageKind } from './usage';
+import { setting } from './settings';
 
 // Claude, the drawing model for vector characters (version 2 planning/vector-create-plan.md): one long request with
 // pictures that must answer by calling one tool. Key: ANTHROPIC_API_KEY; model: ANTHROPIC_MODEL.
@@ -13,7 +14,7 @@ export class AnthropicError extends Error {
   }
 }
 
-export const anthropicModel = () => process.env.ANTHROPIC_MODEL || 'claude-opus-5-5';
+export const anthropicModel = () => setting('ANTHROPIC_MODEL')!;
 const MAX_TOKENS = 128_000; // a whole vector.json in one tool call can be very long
 
 export const imageBlock = (png: Buffer) => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/png' as const, data: png.toString('base64') } });
@@ -26,8 +27,9 @@ export interface ToolCall { input: unknown; toolUseId: string; message: BetaMess
  * Streams (long outputs), caches the growing prefix between rounds, and lets a refusal fall back to another model.
  */
 export async function callTool(opts: { system: string; messages: BetaMessageParam[]; tool: BetaTool; kind?: UsageKind; effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'; model?: string; signal?: AbortSignal }): Promise<ToolCall> {
-  if (!process.env.ANTHROPIC_API_KEY) throw new AnthropicError('no_key');
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const apiKey = setting('ANTHROPIC_API_KEY');
+  if (!apiKey) throw new AnthropicError('no_key');
+  const client = new Anthropic({ apiKey });
   const model = opts.model ?? anthropicModel();
   let message: BetaMessage;
   try {

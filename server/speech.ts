@@ -5,14 +5,15 @@ import { OpenAIError, speak } from './openai';
 import { ElevenLabsError, speakEleven } from './elevenlabs';
 import { speechPcm, SPEECH_RATE } from './audio';
 import { withRetries } from './retry';
+import { setting, settingSource } from './settings';
 
 /** Voice providers that are set up: Gemini, OpenAI and ElevenLabs need their keys, VoiceStudio is opted into with VOICESTUDIO_URL. */
 export function ttsProviders(): TtsProvider[] {
   const out: TtsProvider[] = [];
-  if (process.env.GEMINI_API_KEY) out.push('gemini');
-  if (process.env.OPENAI_API_KEY) out.push('openai');
-  if (process.env.ELEVENLABS_API_KEY) out.push('elevenlabs');
-  if (process.env.VOICESTUDIO_URL) out.push('voicestudio');
+  if (setting('GEMINI_API_KEY')) out.push('gemini');
+  if (setting('OPENAI_API_KEY')) out.push('openai');
+  if (setting('ELEVENLABS_API_KEY')) out.push('elevenlabs');
+  if (settingSource('VOICESTUDIO_URL') !== 'default' && setting('VOICESTUDIO_URL')) out.push('voicestudio');
   return out;
 }
 

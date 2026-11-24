@@ -1,6 +1,7 @@
 import { directionKey, keywordMatch, type Direction, type Match } from '../shared/direction';
 import * as gemini from './gemini';
 import * as openai from './openai';
+import { setting } from './settings';
 
 export type DirectedBy = 'gemini' | 'openai' | 'keywords';
 
@@ -11,7 +12,7 @@ export type DirectedBy = 'gemini' | 'openai' | 'keywords';
  */
 export async function directAll(ds: Direction[]): Promise<{ matches: Map<string, Match>; by: DirectedBy }> {
   const unique = [...new Map(ds.map((d) => [directionKey(d), d])).values()];
-  const ais = ([['gemini', 'GEMINI_API_KEY', gemini.direct], ['openai', 'OPENAI_API_KEY', openai.direct]] as const).filter(([, key]) => process.env[key]);
+  const ais = ([['gemini', 'GEMINI_API_KEY', gemini.direct], ['openai', 'OPENAI_API_KEY', openai.direct]] as const).filter(([, key]) => setting(key));
   let answers: (Match | undefined)[] = [];
   let by: DirectedBy = 'keywords';
   for (const [name, , direct] of unique.length ? ais : []) {

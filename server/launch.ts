@@ -1,11 +1,12 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { voiceStudioUrl } from './openai';
+import { setting } from './settings';
 
 // VoiceStudio is a separate desktop app (it runs the voice models on this machine's GPU). When it is installed here but
 // not running, Kitta opens it in the background instead of asking the user to.
 
-const appPath = () => process.env.VOICESTUDIO_APP || '/Applications/VoiceStudio.app';
+const appPath = () => setting('VOICESTUDIO_APP')!;
 const LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
 
 /** Kitta can open VoiceStudio itself: macOS, VOICESTUDIO_URL on this machine, and the app installed. */

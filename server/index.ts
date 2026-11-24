@@ -28,6 +28,7 @@ import { drawProvider } from './vector-draw';
 import { CharacterError, createCharacter, deleteCharacter, generatePose, getCharacter, imageDataUris, imagePath, listCharacters, measureMouths, setMouthPoint } from './characters';
 import { ART_STYLES } from '../shared/character/art';
 import { isArt, isVector, type ArtPose } from '../shared/types';
+import { setting } from './settings';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UPLOAD_DIR = join('data', 'uploads');
@@ -99,8 +100,8 @@ export function createApp() {
     typeof id === 'string' && UUID_RE.test(id) ? join(AUDIO_DIR, `${id}.wav`) : null;
 
   app.get('/api/health', async (_req, res) => {
-    const vectorDraw = Boolean(process.env[drawProvider() === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY']);
-    res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(process.env.GEMINI_API_KEY), imageProviders: imageProviders(), ttsProviders: ttsProviders(), vectorDraw, vectorDrawProvider: drawProvider() });
+    const vectorDraw = Boolean(setting(drawProvider() === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'));
+    res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(setting('GEMINI_API_KEY')), imageProviders: imageProviders(), ttsProviders: ttsProviders(), vectorDraw, vectorDrawProvider: drawProvider() });
   });
 
   // Token telemetry for the usage panel.
@@ -399,7 +400,7 @@ export function createApp() {
       const provider = req.body?.provider || providers[0];
       const drawKey = drawProvider() === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
       if (!providers.length) return res.status(400).json({ error: 'Add GEMINI_API_KEY or OPENAI_API_KEY to .env to create characters.' });
-      if (!process.env[drawKey]) return res.status(400).json({ error: `Add ${drawKey} to .env to create vector characters.` });
+      if (!setting(drawKey)) return res.status(400).json({ error: `Add ${drawKey} to .env to create vector characters.` });
       if (!providers.includes(provider)) return res.status(400).json({ error: 'Invalid request' });
       if (err || (ref && !IMAGE_TYPES.includes(ref.mimetype))) return res.status(400).json({ error: 'Reference must be a PNG, JPEG or WebP image up to 10 MB.' });
       if ((!description && !ref) || description.length > 400 || name.length > 40) return res.status(400).json({ error: 'Invalid request' });

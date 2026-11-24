@@ -1,4 +1,5 @@
 import { recordUsage } from './usage';
+import { setting } from './settings';
 
 // ElevenLabs voices (https://elevenlabs.io/docs/api-reference): text to speech with a voice from the person's own
 // ElevenLabs account. Key: ELEVENLABS_API_KEY; model: ELEVENLABS_MODEL (default eleven_multilingual_v2, the API's own
@@ -13,12 +14,12 @@ export class ElevenLabsError extends Error {
 
 const API = 'https://api.elevenlabs.io';
 const SPEECH_TIMEOUT_MS = 120_000;
-export const elevenModel = () => process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2';
+export const elevenModel = () => setting('ELEVENLABS_MODEL')!;
 
 export interface ElevenVoice { id: string; label: string; kind: 'default' }
 
 async function call(path: string, init: RequestInit, timeoutMs: number): Promise<Response> {
-  const key = process.env.ELEVENLABS_API_KEY;
+  const key = setting('ELEVENLABS_API_KEY');
   if (!key) throw new ElevenLabsError('no_key');
   let res: Response;
   try {
