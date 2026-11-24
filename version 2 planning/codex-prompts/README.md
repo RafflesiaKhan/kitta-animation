@@ -23,6 +23,6 @@ Give Codex one prompt at a time, in this order. After each one, ask Claude to re
 | Order | Prompt | What it does |
 |---|---|---|
 | 7 | [step-7-wider-library.md](step-7-wider-library.md) | Props, creatures, and scene templates. |
-| 8 | [step-8-full-body-motion.md](step-8-full-body-motion.md) | Optional: a test with one CMU walk clip. Decide first whether you want walking yet. |
+| 8 | [step-8-full-body-motion.md](step-8-full-body-motion.md) | Optional: a test with one CMU walk clip. Decide first whether you want walking yet. Now the fallback for the walk in [action-library-plan.md](../action-library-plan.md). |
 
 Paste the whole file as the prompt. Each one points Codex to [shared-rules.md](shared-rules.md), so you don't need to paste that too.
