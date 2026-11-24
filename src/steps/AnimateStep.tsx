@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent, type RefObject } from 'react';
-import { EXPRESSIONS, GESTURES } from '../../shared/types';
+import { EXPRESSIONS, isVector } from '../../shared/types';
 import type { ActionMark, AnyCharacter, Expression, FrameState, Marks, Timeline } from '../../shared/types';
+import { actionsForLibrary, LEGACY_ACTION_IDS, parseActions, registerActions, type Action as LibraryAction } from '../../shared/actions';
 import { CharacterView } from '../../shared/character/CharacterView';
 import { frameAt } from '../../shared/timeline';
 import { addAction, addExpression, marksOf, moveAction, moveExpression, removeAction, removeExpression, resizeAction, resizeExpression } from '../../shared/marks';
@@ -15,32 +16,30 @@ interface Props {
   onMarks: (edit: (m: Marks) => Marks) => void; // applied to the marks as they are then, so quick edits never undo each other
 }
 
-type Action = ActionMark['gesture'];
+type ActionId = ActionMark['gesture'];
 type Kind = 'expression' | 'action';
 type Drag = { kind: Kind | `${Kind}End`; i: number; x: number; ms: number; base: Marks; width: number; moved: boolean };
 
-const ACTIONS = GESTURES.filter((g): g is Action => g !== 'none');
-const NAMES: Partial<Record<Action, string>> = { lookDown: 'look down' };
 const COLUMNS = 600; // waveform resolution
 const STILL: FrameState = { ...frameAt({ durationMs: 0, cues: [], lines: [] }, 0), blink: false, bob: 0, tilt: 0, sway: 0 };
 
-const name = (x: Expression | Action) => NAMES[x as Action] ?? x;
+const name = (x: Expression | ActionId, actions: LibraryAction[] = actionsForLibrary()) => actions.find((a) => a.name === x)?.label ?? x;
 const clock = (ms: number) => `${Math.floor(ms / 60000)}:${((ms / 1000) % 60).toFixed(1).padStart(4, '0')}`;
 const pct = (ms: number, total: number) => `${(100 * ms) / total}%`;
 const said = (text: string) => text.replace(/\[[^\]]*\]|<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(); // words only, no pause or cue tags
 
 /** A palette tile: the user's own character showing that expression, or caught early in that action. */
-export function Tile({ character, kind, value, onAdd }: { character: AnyCharacter; kind: Kind; value: Expression | Action; onAdd?: () => void }) {
-  const frame = kind === 'expression' ? { ...STILL, expression: value as Expression } : { ...STILL, gesture: value as Action, gestureProgress: 0.25 };
+export function Tile({ character, kind, value, label, disabled, reason, onAdd }: { character: AnyCharacter; kind: Kind; value: Expression | ActionId; label?: string; disabled?: boolean; reason?: string; onAdd?: () => void }) {
+  const frame = kind === 'expression' ? { ...STILL, expression: value as Expression } : { ...STILL, gesture: value as ActionId, gestureProgress: 0.25 };
   if (!onAdd) return <figure className="expression">
     <CharacterView config={character} frame={frame} width={56} height={56} />
-    <figcaption>{name(value)}</figcaption>
+    <figcaption>{label ?? name(value)}</figcaption>
   </figure>;
   return (
-    <button className="trigger" draggable aria-label={`Add ${name(value)}`} title={`Drag onto the timeline, or click to add at the playhead`}
+    <button className="trigger" disabled={disabled} draggable={!disabled} aria-label={`Add ${label ?? name(value)}`} title={reason ?? `Drag onto the timeline, or click to add at the playhead`}
       onDragStart={(e) => e.dataTransfer.setData('text/plain', `${kind}:${value}`)} onClick={onAdd}>
       <CharacterView config={character} frame={frame} width={56} height={56} />
-      <span>{name(value)}</span>
+      <span>{label ?? name(value)}</span>
     </button>
   );
 }
@@ -50,9 +49,19 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
   const [wave, setWave] = useState<number[] | null>(null);
   const [selected, setSelected] = useState<{ kind: Kind; i: number } | null>(null);
   const [note, setNote] = useState('');
+  const [library, setLibrary] = useState<LibraryAction[]>(actionsForLibrary());
   const drag = useRef<Drag | null>(null);
   const marks = timeline ? marksOf(timeline) : null;
   const total = timeline?.durationMs ?? 1;
+  useEffect(() => {
+    fetch('/api/actions').then((response) => response.ok ? response.json() : Promise.reject()).then((body: { actions?: unknown[]; errors?: string[] }) => {
+      const actions = parseActions(body.actions ?? []);
+      registerActions(actions);
+      setLibrary(actionsForLibrary());
+      if (body.errors?.length) setNote(body.errors.join(' '));
+    }).catch(() => {});
+  }, []);
+  const paletteActions = isVector(character) ? library.filter((a) => a.name !== 'none') : library.filter((a) => LEGACY_ACTION_IDS.includes(a.name as typeof LEGACY_ACTION_IDS[number]));
 
   // The playhead follows the audio clock.
   useEffect(() => {
@@ -110,7 +119,7 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
   const add = (kind: Kind, value: string, ms: number) => {
     setNote('');
     if (kind === 'expression') return onMarks((m) => addExpression(m, ms, value as Expression));
-    if (addAction(marks, ms, value as Action, timeline.durationMs)) onMarks((m) => addAction(m, ms, value as Action, timeline.durationMs) ?? m);
+    if (addAction(marks, ms, value as ActionId, timeline.durationMs)) onMarks((m) => addAction(m, ms, value as ActionId, timeline.durationMs) ?? m);
     else setNote('No room for an action there: it needs half a second free.');
   };
   const remove = (kind: Kind, i: number) => {
@@ -129,7 +138,7 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
   const drop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const [kind, value] = e.dataTransfer.getData('text/plain').split(':');
-    if ((kind === 'expression' && EXPRESSIONS.includes(value as Expression)) || (kind === 'action' && ACTIONS.includes(value as Action))) add(kind, value, msAt(e.currentTarget, e.clientX));
+    if ((kind === 'expression' && EXPRESSIONS.includes(value as Expression)) || (kind === 'action' && paletteActions.some((a) => a.name === value))) add(kind, value, msAt(e.currentTarget, e.clientX));
   };
   const lane = { onDragOver: (e: DragEvent) => e.preventDefault(), onDrop: drop, onClick: seek };
   const grab = (kind: Drag['kind'], i: number, ms: number) => (e: PointerEvent<HTMLElement>) => {
@@ -156,11 +165,14 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
         <h2>Animate</h2>
         <h3>Expressions</h3>
         <div className="triggers">
-          {EXPRESSIONS.map((x) => <Tile key={x} character={character} kind="expression" value={x} onAdd={() => add('expression', x, at())} />)}
+          {EXPRESSIONS.map((x) => <Tile key={x} character={character} kind="expression" value={x} label={x} onAdd={() => add('expression', x, at())} />)}
         </div>
         <h3>Actions</h3>
         <div className="triggers">
-          {ACTIONS.map((g) => <Tile key={g} character={character} kind="action" value={g} onAdd={() => add('action', g, at())} />)}
+          {paletteActions.map((a) => {
+            const reason = a.needs.length && !isVector(character) ? `Needs ${a.needs.join(', ')}, which this character does not have` : undefined;
+            return <Tile key={a.name} character={character} kind="action" value={a.name} label={a.label} disabled={!!reason} reason={reason} onAdd={() => !reason && add('action', a.name, at())} />;
+          })}
         </div>
         <p className="hint">Drag onto the timeline, or click to add at the playhead.</p>
       </section>
