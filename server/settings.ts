@@ -134,7 +134,9 @@ export function maskSecret(value: string | undefined): string | undefined {
 }
 
 export async function publicSettings(): Promise<PublicSettings> {
-  const names = new Set([...Object.keys(DEFAULTS), ...SECRET_NAMES, ...Object.keys((await load()).values ?? {})]);
+  // Only expose the known configuration surface. Unknown persisted values may be
+  // secrets for a future provider and must never be reflected unmasked.
+  const names = new Set([...Object.keys(DEFAULTS), ...SECRET_NAMES]);
   const settings: Record<string, PublicSetting> = {};
   for (const name of names) {
     const value = setting(name);

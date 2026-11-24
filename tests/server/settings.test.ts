@@ -76,11 +76,12 @@ describe('settings store', () => {
 
   it('writes atomically with mode 600 and never exposes raw secrets in public metadata', async () => {
     const secret = 'sk-test-secret-value';
-    await writeSettings({ values: { OPENAI_API_KEY: secret, OPENAI_TEXT_MODEL: 'safe-model' } });
+    await writeSettings({ values: { OPENAI_API_KEY: secret, CUSTOM_API_KEY: 'custom-secret', OPENAI_TEXT_MODEL: 'safe-model' } });
     expect(statSync(join(dir, 'settings.json')).mode & 0o777).toBe(0o600);
     expect(readFileSync(join(dir, 'settings.json'), 'utf8')).toContain(secret); // server storage is allowed to contain the key
     const publicData = await publicSettings();
     expect(JSON.stringify(publicData)).not.toContain(secret);
+    expect(JSON.stringify(publicData)).not.toContain('custom-secret');
     expect(publicData.settings.OPENAI_API_KEY).toMatchObject({ configured: true, masked: 'sk-…alue' });
     expect(maskSecret(secret)).toBe('sk-…alue');
   });
