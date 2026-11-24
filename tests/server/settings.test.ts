@@ -1,13 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { chmodSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import request from 'supertest';
+import { generateImage } from '../../server/openai';
 import { imageProviders } from '../../server/images';
 import { createApp } from '../../server/index';
 import { drawProvider } from '../../server/vector-draw';
 import { ttsProviders } from '../../server/speech';
-import { maskSecret, publicSettings, readSettings, removeSetting, resetSettingsCache, setSettings, setSettingsFileForTests, setting, writeSettings } from '../../server/settings';
+import { maskSecret, publicSettings, readSettings, removeSetting, resetSettingsCache, setSettings, setSettingsFileForTests, setting, settingSource, writeSettings } from '../../server/settings';
 
 const envNames = ['OPENAI_API_KEY', 'GEMINI_API_KEY', 'ANTHROPIC_API_KEY', 'ELEVENLABS_API_KEY', 'VOICESTUDIO_API_KEY', 'OPENAI_IMAGE_MODEL', 'VECTOR_DRAW_PROVIDER', 'VOICESTUDIO_URL'];
 const saved: Record<string, string | undefined> = {};
@@ -42,6 +43,37 @@ describe('settings store', () => {
     expect(setting('OPENAI_API_KEY')).toBe('env-key');
   });
 
+  it('loads an existing settings file before the first provider lookup and uses its key/model without reload', async () => {
+    writeFileSync(join(dir, 'settings.json'), JSON.stringify({ values: { OPENAI_API_KEY: 'disk-key', OPENAI_IMAGE_MODEL: 'disk-model' } }));
+    resetSettingsCache();
+    process.env.OPENAI_API_KEY = 'env-key';
+    process.env.OPENAI_IMAGE_MODEL = 'env-model';
+    expect(setting('OPENAI_API_KEY')).toBe('disk-key');
+    expect(setting('OPENAI_IMAGE_MODEL')).toBe('disk-model');
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () => new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('image').toString('base64') }] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    await generateImage('stored prompt');
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('https://api.openai.com/v1/images/generations');
+    expect(init!).toMatchObject({ headers: expect.objectContaining({ Authorization: 'Bearer disk-key' }) });
+    expect(JSON.parse(init!.body as string)).toMatchObject({ model: 'disk-model', prompt: 'stored prompt' });
+    vi.unstubAllGlobals();
+  });
+
+  it('falls through empty stored and environment values', async () => {
+    process.env.OPENAI_IMAGE_MODEL = 'env-model';
+    await writeSettings({ values: { OPENAI_IMAGE_MODEL: '' } });
+    expect(setting('OPENAI_IMAGE_MODEL')).toBe('env-model');
+    expect(settingSource('OPENAI_IMAGE_MODEL')).toBe('env');
+    await writeSettings({ values: { OPENAI_IMAGE_MODEL: '' } });
+    delete process.env.OPENAI_IMAGE_MODEL;
+    expect(setting('OPENAI_IMAGE_MODEL')).toBe('gpt-image-2');
+    expect(settingSource('OPENAI_IMAGE_MODEL')).toBe('default');
+    process.env.OPENAI_API_KEY = '';
+    expect(setting('OPENAI_API_KEY')).toBeUndefined();
+    expect(settingSource('OPENAI_API_KEY')).toBe('unset');
+  });
+
   it('writes atomically with mode 600 and never exposes raw secrets in public metadata', async () => {
     const secret = 'sk-test-secret-value';
     await writeSettings({ values: { OPENAI_API_KEY: secret, OPENAI_TEXT_MODEL: 'safe-model' } });
@@ -66,6 +98,18 @@ describe('settings store', () => {
     expect(body).toMatchObject({ gemini: true, imageProviders: ['gemini', 'openai'] });
     expect(JSON.stringify(body)).not.toContain('stored-gemini');
     expect(JSON.stringify(body)).not.toContain('stored-openai');
+  });
+
+  it('uses the stored key and model in one provider call without module reload', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('image').toString('base64') }] }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    await setSettings({ OPENAI_API_KEY: 'stored-openai', OPENAI_IMAGE_MODEL: 'stored-image-model' });
+    await generateImage('a test image');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://api.openai.com/v1/images/generations');
+    expect(init?.headers).toMatchObject({ Authorization: 'Bearer stored-openai' });
+    expect(JSON.parse(String(init?.body))).toMatchObject({ model: 'stored-image-model' });
   });
 });
 

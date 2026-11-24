@@ -99,7 +99,7 @@ export async function writeSettings(next: SettingsFile): Promise<void> {
 
 export function settingSource(name: string): PublicSetting['source'] {
   const stored = loadSync().values?.[name];
-  if (stored !== undefined) return 'settings';
+  if (stored !== undefined && stored !== '') return 'settings';
   if (process.env[name] !== undefined && process.env[name] !== '') return 'env';
   if (DEFAULTS[name] !== undefined) return 'default';
   return 'unset';
@@ -108,7 +108,9 @@ export function settingSource(name: string): PublicSetting['source'] {
 /** Settings → environment → built-in defaults. Stored values are loaded before the first lookup. */
 export function setting(name: string): string | undefined {
   const stored = loadSync().values?.[name];
-  return stored ?? process.env[name] ?? DEFAULTS[name];
+  if (stored !== undefined && stored !== '') return stored;
+  const env = process.env[name];
+  return env !== undefined && env !== '' ? env : DEFAULTS[name];
 }
 
 export async function setSettings(patch: SettingsPatch): Promise<void> {
