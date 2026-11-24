@@ -15,7 +15,9 @@ function cookieValue(req: Request): string | undefined {
   if (!header) return undefined;
   for (const part of header.split(';')) {
     const [name, ...value] = part.trim().split('=');
-    if (name === SESSION_COOKIE) return decodeURIComponent(value.join('='));
+    if (name === SESSION_COOKIE) {
+      try { return decodeURIComponent(value.join('=')); } catch { return undefined; }
+    }
   }
   return undefined;
 }
@@ -29,9 +31,10 @@ async function consumeAdminReset(): Promise<void> {
   if (resetConsumed || process.env.KITTA_ADMIN_RESET !== '1') return;
   resetConsumed = true;
   const current = await readSettings();
+  if (current.adminResetConsumed) return;
   if (!current.adminPassword) return;
   const { adminPassword: _removed, ...withoutPassword } = current;
-  await writeSettings(withoutPassword);
+  await writeSettings({ ...withoutPassword, adminResetConsumed: true });
 }
 
 export async function hasAdminPassword(): Promise<boolean> {
@@ -44,6 +47,19 @@ export async function createAdminPassword(password: string): Promise<void> {
   const hash = await scrypt(password, salt, 64) as Buffer;
   const current = await readSettings();
   await writeSettings({ ...current, adminPassword: { salt: salt.toString('base64'), hash: hash.toString('base64') } });
+}
+
+let setupLock: Promise<void> = Promise.resolve();
+
+/** Creates the first password atomically with respect to concurrent requests in this process. */
+export async function createAdminPasswordIfAbsent(password: string): Promise<boolean> {
+  const operation = setupLock.then(async () => {
+    if (await hasAdminPassword()) return false;
+    await createAdminPassword(password);
+    return true;
+  });
+  setupLock = operation.then(() => undefined, () => undefined);
+  return operation;
 }
 
 export async function verifyAdminPassword(password: string): Promise<boolean> {
@@ -85,6 +101,18 @@ export function clearSession(res: Response, req?: Request): void {
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   if (readSession(req)) return next();
   res.status(401).json({ error: 'Authentication required.' });
+}
+
+/** Reject cross-origin state changes while allowing the local Vite/API pair. */
+export function requireSameOrigin(req: Request, res: Response, next: NextFunction): void {
+  const origin = req.get('origin');
+  if (!origin) return next();
+  try {
+    const url = new URL(origin);
+    const local = (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1') && (url.port === '' || url.port === '5173' || url.port === '5175');
+    if (local) return next();
+  } catch { /* invalid origins are rejected below */ }
+  res.status(403).json({ error: 'Invalid request origin.' });
 }
 
 export async function verifyWithDelay(password: string): Promise<boolean> {

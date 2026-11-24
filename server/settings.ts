@@ -10,6 +10,7 @@ export interface AdminPasswordRecord {
 export interface SettingsFile {
   values?: Record<string, string>;
   adminPassword?: AdminPasswordRecord;
+  adminResetConsumed?: boolean;
 }
 
 export type SettingsPatch = Partial<Record<string, string | null>>;
@@ -61,7 +62,7 @@ async function load(): Promise<SettingsFile> {
   if (cache) return cache;
   try {
     const parsed = JSON.parse(await readFile(settingsFile, 'utf8')) as SettingsFile;
-    cache = { values: parsed.values && typeof parsed.values === 'object' ? parsed.values : {}, adminPassword: parsed.adminPassword };
+    cache = { values: parsed.values && typeof parsed.values === 'object' ? parsed.values : {}, adminPassword: parsed.adminPassword, adminResetConsumed: parsed.adminResetConsumed === true };
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
     cache = { values: {} };
@@ -73,7 +74,7 @@ function loadSync(): SettingsFile {
   if (cache) return cache;
   try {
     const parsed = JSON.parse(readFileSync(settingsFile, 'utf8')) as SettingsFile;
-    cache = { values: parsed.values && typeof parsed.values === 'object' ? parsed.values : {}, adminPassword: parsed.adminPassword };
+    cache = { values: parsed.values && typeof parsed.values === 'object' ? parsed.values : {}, adminPassword: parsed.adminPassword, adminResetConsumed: parsed.adminResetConsumed === true };
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
     cache = { values: {} };

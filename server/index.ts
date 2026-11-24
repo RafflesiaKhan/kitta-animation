@@ -29,7 +29,7 @@ import { CharacterError, createCharacter, deleteCharacter, generatePose, getChar
 import { ART_STYLES } from '../shared/character/art';
 import { isArt, isVector, type ArtPose } from '../shared/types';
 import { setting } from './settings';
-import { clearSession, createAdminPassword, createSession, hasAdminPassword, readSession, requireAdmin, setSessionCookie, verifyWithDelay } from './auth';
+import { clearSession, createAdminPasswordIfAbsent, createSession, hasAdminPassword, readSession, requireAdmin, requireSameOrigin, setSessionCookie, verifyWithDelay } from './auth';
 import { publicSettings, setSettings } from './settings';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -113,8 +113,7 @@ export function createApp() {
   app.post('/api/auth/setup', async (req, res) => {
     const password = req.body?.password;
     if (typeof password !== 'string' || password.length < 8 || password.length > 200) return res.status(400).json({ error: 'Invalid password.' });
-    if (await hasAdminPassword()) return res.status(409).json({ error: 'Admin password is already configured.' });
-    await createAdminPassword(password);
+    if (!await createAdminPasswordIfAbsent(password)) return res.status(409).json({ error: 'Admin password is already configured.' });
     const token = createSession();
     setSessionCookie(res, token);
     res.status(201).json({ authenticated: true });
@@ -135,7 +134,7 @@ export function createApp() {
   app.get('/api/settings', requireAdmin, async (_req, res) => {
     res.json(await publicSettings());
   });
-  app.put('/api/settings', requireAdmin, async (req, res) => {
+  app.put('/api/settings', requireAdmin, requireSameOrigin, async (req, res) => {
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Invalid settings.' });
     const patch: Record<string, string | null> = {};
     for (const [name, value] of Object.entries(req.body)) {
@@ -150,7 +149,7 @@ export function createApp() {
   app.get('/api/usage', async (_req, res) => {
     res.json(await usageReport());
   });
-  app.delete('/api/usage', requireAdmin, async (_req, res) => {
+  app.delete('/api/usage', requireAdmin, requireSameOrigin, async (_req, res) => {
     await resetUsage();
     res.status(204).end();
   });

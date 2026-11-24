@@ -66,6 +66,16 @@ describe('admin authentication', () => {
     await request(app).post('/api/auth/setup').send({ password: 'new-password' }).expect(201);
     const second = await request(app).post('/api/auth/setup').send({ password: 'third-password' }).expect(409);
     expect(JSON.stringify(second.body)).not.toContain('new-password');
+    expect(readFileSync(join(dir, 'settings.json'), 'utf8')).toContain('adminResetConsumed');
+  });
+
+  it('rejects cross-origin protected mutations and malformed cookies', async () => {
+    const app = createApp();
+    const agent = request.agent(app);
+    await agent.post('/api/auth/setup').send({ password: 'correct-password' }).expect(201);
+    await agent.put('/api/settings').set('Origin', 'https://evil.example').send({ OPENAI_API_KEY: 'secret' }).expect(403);
+    await agent.delete('/api/usage').set('Origin', 'https://evil.example').expect(403);
+    await request(app).get('/api/settings').set('Cookie', 'kitta_admin_session=%').expect(401);
   });
 });
 
