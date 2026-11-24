@@ -1,7 +1,8 @@
-import { EXPRESSIONS, GESTURES } from '../shared/types';
+import { EXPRESSIONS } from '../shared/types';
 import type { AnyCharacter, ArtCharacter, ExportFormat, ScriptLineInput, Timeline, VectorCharacter } from '../shared/types';
 import { LANGUAGES, PITCH_RANGE, SPEAKERS, SPEED_RANGE } from '../shared/voices';
 import { MAX_AUDIO_MS } from './audio';
+import { actionFor } from '../shared/actions';
 
 const SHAPES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'X'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -19,7 +20,7 @@ function validMarks(marks: unknown, durationMs: number): boolean {
   const exOk = ex.length > 0 && ex[0]?.startMs === 0 && ex.every((e, i) => isObj(e) && num(e.startMs) && EXPRESSIONS.includes(e.expression as never) &&
     (i === 0 || ((ex[i - 1].endMs as number | undefined) ?? (ex[i - 1].startMs as number)) <= e.startMs && (ex[i - 1].startMs as number) < e.startMs) &&
     (e.endMs === undefined || (i > 0 && num(e.endMs) && e.endMs > e.startMs && e.endMs <= durationMs)));
-  const acOk = ac.every((a, i) => isObj(a) && num(a.startMs) && num(a.endMs) && a.gesture !== 'none' && GESTURES.includes(a.gesture as never) &&
+  const acOk = ac.every((a, i) => isObj(a) && num(a.startMs) && num(a.endMs) && a.gesture !== 'none' && !!actionFor(String(a.gesture)) &&
     a.startMs >= (i === 0 ? 0 : (ac[i - 1].endMs as number)) && a.endMs > a.startMs && a.endMs <= durationMs);
   return exOk && acOk;
 }
@@ -37,7 +38,7 @@ export function validateExport(body: unknown): { character: AnyCharacter; timeli
   if (!Array.isArray(cues) || !Array.isArray(lines)) return null;
   const sorted = (a: { startMs: number }[]) => a.every((x, i) => i === 0 || a[i - 1].startMs <= x.startMs);
   const cuesOk = cues.every((c) => isObj(c) && num(c.startMs) && num(c.endMs) && SHAPES.includes(c.shape as string));
-  const linesOk = lines.every((l) => isObj(l) && num(l.startMs) && num(l.endMs) && EXPRESSIONS.includes(l.expression as never) && GESTURES.includes(l.gesture as never));
+  const linesOk = lines.every((l) => isObj(l) && num(l.startMs) && num(l.endMs) && EXPRESSIONS.includes(l.expression as never) && !!actionFor(String(l.gesture)));
   if (!cuesOk || !linesOk || !sorted(cues as never) || !sorted(lines as never)) return null;
   if (timeline.marks !== undefined && !validMarks(timeline.marks, timeline.durationMs)) return null;
   return {
@@ -54,7 +55,7 @@ const inRange = (v: unknown, r: number) => v === undefined || (num(v) && Math.ab
 /** One script line for speech: its text, voice and tags, plus the optional voice controls within their ranges. */
 export function validScriptLine(l: unknown): l is ScriptLineInput {
   return isObj(l) && typeof l.text === 'string' && l.text.length <= 500 && typeof l.voice === 'string' && l.voice.length > 0 && l.voice.length <= 100 &&
-    EXPRESSIONS.includes(l.expression as never) && GESTURES.includes(l.gesture as never) &&
+    EXPRESSIONS.includes(l.expression as never) && !!actionFor(String(l.gesture)) &&
     (l.note === undefined || (typeof l.note === 'string' && l.note.length <= 200)) &&
     (l.language === undefined || LANGUAGES.some((x) => x.id === l.language)) &&
     (l.style === undefined || l.style === 'normal' || l.style === 'whisper') &&

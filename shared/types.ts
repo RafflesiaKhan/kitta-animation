@@ -1,5 +1,5 @@
 export type Expression = 'neutral' | 'happy' | 'sad' | 'surprised' | 'angry' | 'excited' | 'thinking' | 'confused' | 'worried' | 'wink' | 'sleepy';
-export type Gesture = 'none' | 'wave' | 'nod' | 'lookDown' | 'celebrate' | 'shrug' | 'think' | 'point' | 'explain';
+export type Gesture = string;
 export type MouthShape = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'X';
 export const EXPRESSIONS: Expression[] = ['neutral', 'happy', 'sad', 'surprised', 'angry', 'excited', 'thinking', 'confused', 'worried', 'wink', 'sleepy'];
 export const GESTURES: Gesture[] = ['none', 'wave', 'nod', 'lookDown', 'celebrate', 'shrug', 'think', 'point', 'explain'];
@@ -18,7 +18,7 @@ export interface Timeline { durationMs: number; cues: MouthCue[]; lines: Line[];
 // sway = gentle side-to-side drift (px), browLift = brow raise on phrase openers (0..1), beat = hand beat gesture
 // (0..1), talk = 1 while speaking. The character scales them by its expression's energy.
 export interface FrameState {
-  expression: Expression; mouth: MouthShape; gesture: Gesture; gestureProgress: number; blink: boolean; bob: number;
+  expression: Expression; mouth: MouthShape; gesture: Gesture; gestureProgress: number; gestureDurationMs?: number; blink: boolean; bob: number;
   fromExpression?: Expression; blend?: number; glance?: number;
   nod?: number; tilt?: number; sway?: number; browLift?: number; beat?: number; talk?: number;
 }
@@ -55,7 +55,7 @@ export interface ArtCharacter { kind: 'art'; id: string; name: string; prompt: s
  * A vector-avator character: one layered vector drawing (vector.json, stored next to meta.json) moved by a skeleton.
  * Unlike an art character it is drawn live (Canvas 2D) from the frame state, so it has no per-pose pictures.
  */
-export interface VectorCharacter { kind: 'vector'; id: string; name: string }
+export interface VectorCharacter { kind: 'vector'; id: string; name: string; capabilities?: string[] }
 /** Whatever the user picked in the Character step: a customised SVG starter, an AI-created character or a vector one. */
 export type AnyCharacter = CharacterConfig | ArtCharacter | VectorCharacter;
 export const isArt = (c: AnyCharacter): c is ArtCharacter => (c as ArtCharacter).kind === 'art';

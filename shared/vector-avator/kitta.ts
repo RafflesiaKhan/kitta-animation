@@ -4,6 +4,7 @@ import type { EyeState, FaceState, Expression as VExpression, MouthShape as VMou
 import { DEFAULT_FACE } from './core/face';
 import { composePose } from './core/compose';
 import { parseMotion, samplePose, type Motion, type MotionJson } from './core/motion';
+import { actionFor } from '../actions';
 import { blendPose, type Pose } from './core/pose';
 import { smoothstep } from './core/math';
 import type { Expression, FrameState, Gesture, MouthShape } from '../types';
@@ -63,13 +64,17 @@ export function faceFor(frame: FrameState): FaceState {
 export function poseFor(frame: FrameState, clockMs: number): Pose {
   const seconds = clockMs / 1000;
   const idle = samplePose(MOTIONS.idle, seconds);
+  const action = actionFor(frame.gesture);
   const name = GESTURE_MOTION[frame.gesture];
-  if (!name) return idle;
-  const motion = MOTIONS[name];
+  const motion = action?.motion ?? (name ? MOTIONS[name] : undefined);
+  if (!motion || frame.gesture === 'lookDown' || frame.gesture === 'none') return idle;
   const p = clamp01(frame.gestureProgress);
-  const k = smoothstep(clamp01(Math.min(p / EDGE, (1 - p) / EDGE)));
+  const edge = action?.play === 'hold' ? 0.16 : EDGE;
+  const k = smoothstep(clamp01(Math.min(p / edge, (1 - p) / edge)));
   if (k <= 0) return idle;
-  const gesture = samplePose(motion, p * motion.duration);
+  const motionTime = action?.play === 'loop' ? p * ((frame.gestureDurationMs ?? motion.duration * 1000) / 1000) :
+    action?.play === 'hold' ? Math.min(1, p / 0.2) * motion.duration : p * motion.duration;
+  const gesture = samplePose(action?.play === 'loop' ? motion : { ...motion, loop: false }, motionTime);
   const mixed = blendPose(idle, gesture, k);
   const hands = (k >= 0.5 ? gesture : idle).hands;
   return { ...mixed, ...(hands ? { hands } : {}), ...(gesture.squash !== undefined ? { squash: 1 + (gesture.squash - 1) * k } : {}) };

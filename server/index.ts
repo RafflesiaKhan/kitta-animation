@@ -21,6 +21,7 @@ import { runRhubarb, rhubarbAvailable } from './rhubarb';
 import { renderVideo } from './render';
 import { loadScene, MissingSceneCharacterError } from './scene';
 import { projectRoutes } from './projects';
+import { actionRoutes } from './actions';
 import { validateExport, validScriptLine } from './validate';
 import { deleteVectorCharacter, ensureSample, listVectorCharacters, readVectorMeta, vectorPath } from './vector';
 import { cancelVectorJob, discardVectorJob, getVectorJob, listVectorJobs, resumeVectorJob, startVectorJob, vectorJobFile, VectorJobError } from './vector-create';
@@ -81,6 +82,7 @@ export function createApp() {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
   app.use('/api/projects', projectRoutes());
+  app.get('/api/actions', actionRoutes());
   const upload = multer({ dest: UPLOAD_DIR, limits: { fileSize: 100 * 1024 * 1024 } });
   const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 

@@ -42,11 +42,24 @@ function parseDoc(raw: unknown): { doc: VectorDoc; lv: LoadedVector } {
   }
 }
 
+/** What the drawing has, for actions that need it. A missing or damaged vector.json means none, not a missing character. */
+async function capabilitiesOf(id: string): Promise<string[]> {
+  let skeleton: Record<string, unknown> = {};
+  try {
+    const raw = JSON.parse(await readFile(join(dirOf(id), 'vector.json'), 'utf8')) as { skeleton?: Record<string, unknown> } | null;
+    if (raw?.skeleton && typeof raw.skeleton === 'object') skeleton = raw.skeleton;
+  } catch { /* unreadable drawing: no capabilities */ }
+  return [
+    ...(Object.hasOwn(skeleton, 'hip_R') && Object.hasOwn(skeleton, 'ankle_R') ? ['legs'] : []),
+    ...(existsSync(join(dirOf(id), 'body30.json')) ? ['body30'] : []),
+  ];
+}
+
 export async function readVectorMeta(id: string): Promise<VectorCharacter> {
   try {
     const meta = JSON.parse(await readFile(join(dirOf(id), 'meta.json'), 'utf8')) as VectorCharacter;
     if (meta.kind !== 'vector') throw new CharacterError('not_found');
-    return meta;
+    return { ...meta, capabilities: await capabilitiesOf(id) };
   } catch (e) {
     if (e instanceof CharacterError) throw e;
     throw new CharacterError('not_found');
