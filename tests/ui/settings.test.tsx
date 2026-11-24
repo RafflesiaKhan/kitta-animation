@@ -47,7 +47,7 @@ it('shows built-in defaults and removes a saved model when Not set is chosen', a
   vi.mocked(api.updateSettings).mockResolvedValue(response);
   render(<Settings />);
   expect(await screen.findByText('Default')).toBeTruthy();
-  fireEvent.change(screen.getByLabelText('OpenAI directions / text'), { target: { value: '' } });
+  fireEvent.change(screen.getByLabelText('OpenAI model for directions and text'), { target: { value: '' } });
   await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith({ OPENAI_TEXT_MODEL: null }));
 });
 
