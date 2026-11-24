@@ -24,7 +24,14 @@ export class OpenAIError extends Error {
 }
 
 const API = 'https://api.openai.com/v1';
-export const voiceStudioUrl = () => setting('VOICESTUDIO_URL')!.replace(/\/+$/, '');
+export const voiceStudioUrl = () => {
+  const raw = setting('VOICESTUDIO_URL') || 'http://localhost:3900';
+  try {
+    const url = new URL(raw);
+    if (url.username || url.password || url.search || url.hash) return 'http://localhost:3900';
+    return raw.replace(/\/+$/, '');
+  } catch { return 'http://localhost:3900'; }
+};
 const SPEECH_TIMEOUT_MS = 120_000; // a local CPU-only VoiceStudio can be slow
 const IMAGE_TIMEOUT_MS = 180_000; // gpt-image models can take a minute or more per picture
 const MOUTH_TIMEOUT_MS = 30_000;

@@ -157,9 +157,9 @@ export function createApp() {
       if (provider === 'elevenlabs') { await listElevenVoices(); return res.json({ ok: true, message: 'ElevenLabs voices loaded.' }); }
       if (provider === 'voicestudio') { const info = await voiceStudioInfo(); return res.json({ ok: info.running, message: info.running ? 'VoiceStudio is running.' : 'VoiceStudio is not running.' }); }
       const keyName = provider === 'openai' ? 'OPENAI_API_KEY' : provider === 'gemini' ? 'GEMINI_API_KEY' : provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : null;
-      if (!keyName || !setting(keyName)) return res.status(400).json({ ok: false, message: 'Key is not configured.' });
       const submitted = typeof req.body?.key === 'string' && req.body.key.length <= 500 ? req.body.key : undefined;
-      const key = submitted || setting(keyName)!;
+      const key = submitted || (keyName ? setting(keyName) : undefined);
+      if (!keyName || !key) return res.status(400).json({ ok: false, message: 'Key is not configured.' });
       const headers: Record<string, string> = provider === 'anthropic' ? { 'x-api-key': key, 'anthropic-version': '2023-06-01' } : { Authorization: `Bearer ${key}` };
       const url = provider === 'openai' ? 'https://api.openai.com/v1/models' : provider === 'anthropic' ? 'https://api.anthropic.com/v1/models' : `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`;
       if (provider === 'gemini') delete headers.Authorization;
