@@ -29,6 +29,8 @@ import { CharacterError, createCharacter, deleteCharacter, generatePose, getChar
 import { ART_STYLES } from '../shared/character/art';
 import { isArt, isVector, type ArtPose } from '../shared/types';
 import { setting } from './settings';
+import { clearSession, createAdminPassword, createSession, hasAdminPassword, readSession, requireAdmin, setSessionCookie, verifyWithDelay } from './auth';
+import { publicSettings, setSettings } from './settings';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UPLOAD_DIR = join('data', 'uploads');
@@ -104,11 +106,51 @@ export function createApp() {
     res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(setting('GEMINI_API_KEY')), imageProviders: imageProviders(), ttsProviders: ttsProviders(), vectorDraw, vectorDrawProvider: drawProvider() });
   });
 
+  app.get('/api/auth/status', async (req, res) => {
+    res.json({ configured: await hasAdminPassword(), authenticated: readSession(req) });
+  });
+
+  app.post('/api/auth/setup', async (req, res) => {
+    const password = req.body?.password;
+    if (typeof password !== 'string' || password.length < 8 || password.length > 200) return res.status(400).json({ error: 'Invalid password.' });
+    if (await hasAdminPassword()) return res.status(409).json({ error: 'Admin password is already configured.' });
+    await createAdminPassword(password);
+    const token = createSession();
+    setSessionCookie(res, token);
+    res.status(201).json({ authenticated: true });
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    if (!(await verifyWithDelay(password))) return res.status(401).json({ error: 'Invalid credentials.' });
+    setSessionCookie(res, createSession());
+    res.json({ authenticated: true });
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    clearSession(res, req);
+    res.status(204).end();
+  });
+
+  app.get('/api/settings', requireAdmin, async (_req, res) => {
+    res.json(await publicSettings());
+  });
+  app.put('/api/settings', requireAdmin, async (req, res) => {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Invalid settings.' });
+    const patch: Record<string, string | null> = {};
+    for (const [name, value] of Object.entries(req.body)) {
+      if (value !== null && typeof value !== 'string') return res.status(400).json({ error: 'Invalid settings.' });
+      patch[name] = value as string | null;
+    }
+    await setSettings(patch);
+    res.json(await publicSettings());
+  });
+
   // Token telemetry for the usage panel.
   app.get('/api/usage', async (_req, res) => {
     res.json(await usageReport());
   });
-  app.delete('/api/usage', async (_req, res) => {
+  app.delete('/api/usage', requireAdmin, async (_req, res) => {
     await resetUsage();
     res.status(204).end();
   });
