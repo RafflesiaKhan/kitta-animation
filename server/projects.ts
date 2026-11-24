@@ -6,7 +6,7 @@ import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
 import type { Episode, EpisodeScene, EpisodeSceneInput, MediaAsset, Project, ProjectCharacterInput, ProjectScene } from '../shared/projects';
 import type { Scene } from '../shared/scene';
-import { EXPRESSIONS, GESTURES, isArt, type CharacterConfig } from '../shared/types';
+import { EXPRESSIONS, isArt, type CharacterConfig } from '../shared/types';
 import { OPTIONS, STARTERS } from '../shared/character/starters';
 import { TTS_PROVIDERS } from '../shared/voices';
 import { addAction } from '../shared/marks';
@@ -15,6 +15,7 @@ import { AUDIO_DIR } from './audio';
 import { renderScene } from './render';
 import { hydrateScene, loadScene, captureScene, snapshotScene, MissingSceneCharacterError } from './scene';
 import { CharacterError, getCharacter } from './characters';
+import { actionFor } from '../shared/actions';
 
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const mediaTypes: Record<string, MediaAsset['kind']> = {
@@ -107,7 +108,7 @@ function episodeSceneInput(body: unknown): EpisodeSceneInput | undefined {
   if (!object(body)) return;
   const { characterId, backgroundAssetId, x, scale, groundY } = body;
   const expression = EXPRESSIONS.find(value => value === body.expression);
-  const gesture = GESTURES.find(value => value === body.gesture);
+  const gesture = typeof body.gesture === 'string' && actionFor(body.gesture) ? body.gesture : undefined;
   if (!idString(characterId) || !idString(backgroundAssetId) || !expression || !gesture
     || !inRange(x, 0, 1) || !inRange(scale, .1, 2) || !inRange(groundY, 0, 1)) return;
   return { characterId, backgroundAssetId, expression, gesture, x, scale, groundY };
