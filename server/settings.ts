@@ -16,10 +16,13 @@ export interface SettingsFile {
 
 export type SettingsPatch = Partial<Record<string, string | null>>;
 
+export class SettingsFileError extends Error {
+  constructor() { super('Settings file is damaged; fix or remove data/settings.json before saving settings.'); }
+}
+
 export interface PublicSetting {
   configured: boolean;
   source: 'settings' | 'env' | 'default' | 'unset';
-  masked?: string;
   value?: string;
 }
 
@@ -56,14 +59,27 @@ const SECRET_NAMES = new Set([
 
 let settingsFile = join('data', 'settings.json');
 let cache: SettingsFile | null = null;
+let broken = false;
+let warnedBroken = false;
 
 export function setSettingsFileForTests(file: string): void {
   settingsFile = file;
   cache = null;
+  broken = false;
+  warnedBroken = false;
 }
 
 export function resetSettingsCache(): void {
   cache = null;
+}
+
+function damaged(): SettingsFile {
+  broken = true;
+  if (!warnedBroken) {
+    warnedBroken = true;
+    console.error('[settings] data/settings.json is damaged; fix or remove it before saving settings');
+  }
+  return { values: {} };
 }
 
 async function load(): Promise<SettingsFile> {
@@ -72,7 +88,7 @@ async function load(): Promise<SettingsFile> {
     const parsed = JSON.parse(await readFile(settingsFile, 'utf8')) as SettingsFile;
     cache = { values: parsed.values && typeof parsed.values === 'object' ? parsed.values : {}, adminPassword: parsed.adminPassword, adminResetConsumed: parsed.adminResetConsumed === true };
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') return cache = damaged();
     cache = { values: {} };
   }
   return cache;
@@ -84,7 +100,7 @@ function loadSync(): SettingsFile {
     const parsed = JSON.parse(readFileSync(settingsFile, 'utf8')) as SettingsFile;
     cache = { values: parsed.values && typeof parsed.values === 'object' ? parsed.values : {}, adminPassword: parsed.adminPassword, adminResetConsumed: parsed.adminResetConsumed === true };
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') return cache = damaged();
     cache = { values: {} };
   }
   return cache;
@@ -95,6 +111,7 @@ export async function readSettings(): Promise<SettingsFile> {
 }
 
 export async function writeSettings(next: SettingsFile): Promise<void> {
+  if (broken) throw new SettingsFileError();
   const dir = dirname(settingsFile);
   await mkdir(dir, { recursive: true });
   const temp = `${settingsFile}.${process.pid}.${Date.now()}.tmp`;
@@ -123,6 +140,7 @@ export function setting(name: string): string | undefined {
 }
 
 export async function setSettings(patch: SettingsPatch): Promise<void> {
+  if (broken) throw new SettingsFileError();
   const current = await load();
   const values = { ...(current.values ?? {}) };
   for (const [name, value] of Object.entries(patch)) {
@@ -150,7 +168,7 @@ export async function publicSettings(authenticated = false): Promise<PublicSetti
   for (const name of names) {
     const value = setting(name);
     const source = settingSource(name);
-    settings[name] = { configured: Boolean(value), source, ...(SECRET_NAMES.has(name) ? { masked: maskSecret(value) } : value ? { value } : {}) };
+    settings[name] = { configured: Boolean(value), source, ...(!SECRET_NAMES.has(name) && value ? { value } : {}) };
   }
   const model = (name: string, fallbackProvider: ModelProvider): { provider: ModelProvider; model: string } => {
     const value = setting(name) ?? '';

@@ -41,7 +41,6 @@ export function UsagePanel({ refreshKey }: { refreshKey: unknown }) {
             Token counts as reported by each provider. Cost uses the providers' published standard prices (checked {PRICES_CHECKED}) at the time of each call; your bill is the final word.
             OpenAI speech and VoiceStudio don't report tokens, so those count as calls only; ElevenLabs bills by characters, shown as its input. ≈ marks calls recorded before costs were tracked, priced without cache or image rates.
           </p>
-          <button className="mini" onClick={async () => { if (confirm('Reset all usage numbers?')) { await api.resetUsage(); load(); } }}>Reset</button>
         </div>
       )}
     </div>

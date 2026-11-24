@@ -8,12 +8,14 @@ afterEach(() => { cleanup(); vi.resetAllMocks(); });
 
 const response = {
   settings: {
-    OPENAI_API_KEY: { configured: true, source: 'settings' as const, masked: 'sk-…a1b2' },
+    OPENAI_API_KEY: { configured: true, source: 'settings' as const },
     OPENAI_TEXT_MODEL: { configured: true, source: 'default' as const, value: 'gpt-5-mini' },
     VECTOR_DRAW_PROVIDER: { configured: true, source: 'default' as const, value: 'openai' },
   },
-  models: [{ id: 'gpt-5-mini', provider: 'openai' as const, jobs: ['text' as const], price: { input: 0.25, output: 2 } }],
-  auth: { configured: true },
+  models: { text: { provider: 'openai', model: 'gpt-5-mini' }, voice: { provider: 'openai', model: 'gpt-4o-mini-tts' }, image: { provider: 'openai', model: 'gpt-image-2' }, mouth: { provider: 'openai', model: 'gpt-5-mini' }, vector: { provider: 'openai', model: 'gpt-6.2-astra' } },
+  defaults: { voice: 'gemini', image: 'gemini', vector: 'openai' },
+  catalog: [{ id: 'gpt-5-mini', provider: 'openai' as const, jobs: ['text' as const], price: { input: 0.25, output: 2 } }],
+  auth: { configured: true, authenticated: true },
 };
 
 it('asks for an admin password on first run', async () => {
@@ -32,7 +34,7 @@ it('shows masked settings values and never renders the raw key', async () => {
   vi.mocked(api.authStatus).mockResolvedValue({ configured: true, authenticated: true });
   vi.mocked(api.getSettings).mockResolvedValue(response);
   render(<Settings />);
-  expect(await screen.findByPlaceholderText('sk-…a1b2')).toBeTruthy();
+  expect(await screen.findByText('Saved in Kitta')).toBeTruthy();
   expect(screen.queryByText(/sk-live/)).toBeNull();
-  expect(screen.getByText('From Settings')).toBeTruthy();
+  expect(screen.getAllByText('Saved in Kitta').length).toBeGreaterThan(0);
 });

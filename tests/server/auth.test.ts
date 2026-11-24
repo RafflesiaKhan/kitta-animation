@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import request from 'supertest';
 import { createApp } from '../../server/index';
-import { resetAuthStateForTests } from '../../server/auth';
+import { initializeAdminResetState, resetAuthStateForTests } from '../../server/auth';
 import { resetUsage } from '../../server/usage';
 import { resetSettingsCache, setSettingsFileForTests } from '../../server/settings';
 
@@ -69,6 +69,20 @@ describe('admin authentication', () => {
     const second = await request(app).post('/api/auth/setup').send({ password: 'third-password' }).expect(409);
     expect(JSON.stringify(second.body)).not.toContain('new-password');
     expect(readFileSync(join(dir, 'settings.json'), 'utf8')).toContain('adminResetConsumed');
+  });
+
+  it('clears a consumed reset marker when the reset variable is later unset', async () => {
+    const app = createApp();
+    await request(app).post('/api/auth/setup').send({ password: 'correct-password' }).expect(201);
+    process.env.KITTA_ADMIN_RESET = '1';
+    await request(app).get('/api/auth/status').expect(200);
+    expect(JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8')).adminResetConsumed).toBe(true);
+    delete process.env.KITTA_ADMIN_RESET;
+    resetAuthStateForTests();
+    await initializeAdminResetState();
+    expect(JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8')).adminResetConsumed).toBe(false);
+    process.env.KITTA_ADMIN_RESET = '1';
+    expect((await request(app).get('/api/auth/status')).body.configured).toBe(false);
   });
 
   it('rejects cross-origin protected mutations and malformed cookies', async () => {

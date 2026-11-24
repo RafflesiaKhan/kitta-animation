@@ -13,7 +13,7 @@ import { ElevenLabsError, listElevenVoices } from './elevenlabs';
 import { directAll } from './director';
 import { canLaunchVoiceStudio, ensureVoiceStudio } from './launch';
 import { marksFromDirections, prepareLine } from '../shared/direction';
-import { resetUsage, usageReport } from './usage';
+import { resetUsage, usageHistory, usageReport } from './usage';
 import { TTS_PROVIDERS, TTS_PROVIDER_NAMES, type TtsProvider } from '../shared/voices';
 import { imageProviders } from './images';
 import type { Line, ScriptLineInput } from '../shared/types';
@@ -29,9 +29,8 @@ import { CharacterError, createCharacter, deleteCharacter, generatePose, getChar
 import { ART_STYLES } from '../shared/character/art';
 import { isArt, isVector, type ArtPose } from '../shared/types';
 import { setting } from './settings';
-import { clearSession, createAdminPasswordIfAbsent, createSession, hasAdminPassword, readSession, requireAdmin, requireSameOrigin, setSessionCookie, verifyWithDelay } from './auth';
-import { publicSettings, setSettings } from './settings';
-import { KNOWN_MODELS } from '../shared/prices';
+import { clearSession, createAdminPasswordIfAbsent, createSession, hasAdminPassword, initializeAdminResetState, readSession, requireAdmin, requireSameOrigin, setSessionCookie, verifyWithDelay } from './auth';
+import { publicSettings, setSettings, SettingsFileError } from './settings';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UPLOAD_DIR = join('data', 'uploads');
@@ -133,8 +132,8 @@ export function createApp() {
     res.status(204).end();
   });
 
-  app.get('/api/settings', requireAdmin, async (_req, res) => {
-    res.json({ ...(await publicSettings()), models: KNOWN_MODELS, auth: { configured: await hasAdminPassword() } });
+  app.get('/api/settings', requireAdmin, async (req, res) => {
+    res.json(await publicSettings(readSession(req)));
   });
   app.put('/api/settings', requireAdmin, requireSameOrigin, async (req, res) => {
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Invalid settings.' });
@@ -147,8 +146,9 @@ export function createApp() {
       if (name.endsWith('_MODEL') && value !== null && !/^[A-Za-z0-9._:-]{1,128}$/.test(value)) return res.status(400).json({ error: 'Invalid model id.' });
       patch[name] = value as string | null;
     }
-    await setSettings(patch);
-    res.json({ ...(await publicSettings()), models: KNOWN_MODELS, auth: { configured: await hasAdminPassword() } });
+    try { await setSettings(patch); }
+    catch (e) { if (e instanceof SettingsFileError) return res.status(409).json({ error: e.message }); throw e; }
+    res.json(await publicSettings(readSession(req)));
   });
 
   app.post('/api/settings/test/:provider', requireAdmin, requireSameOrigin, async (req, res) => {
@@ -177,6 +177,11 @@ export function createApp() {
   // Token telemetry for the usage panel.
   app.get('/api/usage', async (_req, res) => {
     res.json(await usageReport());
+  });
+  app.get('/api/usage/history', requireAdmin, async (req, res) => {
+    const days = Number(req.query.days ?? 30);
+    if (!Number.isFinite(days) || days < 1 || days > 366) return res.status(400).json({ error: 'Invalid days.' });
+    res.json(await usageHistory(days));
   });
   app.delete('/api/usage', requireAdmin, requireSameOrigin, async (_req, res) => {
     await resetUsage();
@@ -588,5 +593,9 @@ export function createApp() {
 const isEntry = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isEntry) {
   if (existsSync('.env')) process.loadEnvFile('.env');
+  void initializeAdminResetState().catch((error: unknown) => {
+    if (error instanceof SettingsFileError) console.error('[settings] settings file is damaged; admin reset state was not changed');
+    else console.error('[settings] could not initialize admin reset state');
+  });
   createApp().listen(5175, '127.0.0.1', () => console.log('Kitta API on http://127.0.0.1:5175'));
 }

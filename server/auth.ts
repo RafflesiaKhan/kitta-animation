@@ -10,6 +10,12 @@ const WRONG_PASSWORD_DELAY_MS = 100;
 const sessions = new Map<string, number>();
 let resetConsumed = false;
 
+export async function initializeAdminResetState(): Promise<void> {
+  if (process.env.KITTA_ADMIN_RESET === '1') return;
+  const current = await readSettings();
+  if (current.adminResetConsumed) await writeSettings({ ...current, adminResetConsumed: false });
+}
+
 function cookieValue(req: Request): string | undefined {
   const header = req.get('cookie');
   if (!header) return undefined;
@@ -43,6 +49,7 @@ async function consumeAdminReset(): Promise<void> {
 }
 
 export async function hasAdminPassword(): Promise<boolean> {
+  await initializeAdminResetState();
   await consumeAdminReset();
   return Boolean((await readSettings()).adminPassword);
 }
@@ -68,6 +75,7 @@ export async function createAdminPasswordIfAbsent(password: string): Promise<boo
 }
 
 export async function verifyAdminPassword(password: string): Promise<boolean> {
+  await initializeAdminResetState();
   await consumeAdminReset();
   const record = (await readSettings()).adminPassword;
   if (!record) return false;

@@ -8,7 +8,7 @@ import { imageProviders } from '../../server/images';
 import { createApp } from '../../server/index';
 import { drawProvider } from '../../server/vector-draw';
 import { ttsProviders } from '../../server/speech';
-import { maskSecret, publicSettings, readSettings, removeSetting, resetSettingsCache, setSettings, setSettingsFileForTests, setting, settingSource, writeSettings } from '../../server/settings';
+import { publicSettings, readSettings, removeSetting, resetSettingsCache, setSettings, setSettingsFileForTests, setting, settingSource, writeSettings } from '../../server/settings';
 
 const envNames = ['OPENAI_API_KEY', 'GEMINI_API_KEY', 'ANTHROPIC_API_KEY', 'ELEVENLABS_API_KEY', 'VOICESTUDIO_API_KEY', 'OPENAI_IMAGE_MODEL', 'VECTOR_DRAW_PROVIDER', 'VOICESTUDIO_URL'];
 const saved: Record<string, string | undefined> = {};
@@ -82,8 +82,8 @@ describe('settings store', () => {
     const publicData = await publicSettings();
     expect(JSON.stringify(publicData)).not.toContain(secret);
     expect(JSON.stringify(publicData)).not.toContain('custom-secret');
-    expect(publicData.settings.OPENAI_API_KEY).toMatchObject({ configured: true, masked: 'sk-…alue' });
-    expect(maskSecret(secret)).toBe('sk-…alue');
+    expect(publicData.settings.OPENAI_API_KEY).toMatchObject({ configured: true, source: 'settings' });
+    expect(JSON.stringify(publicData.settings.OPENAI_API_KEY)).not.toContain('sk-');
   });
 
   it('loads stored settings before the first synchronous provider lookup', async () => {
@@ -111,6 +111,22 @@ describe('settings store', () => {
     expect(url).toBe('https://api.openai.com/v1/images/generations');
     expect(init?.headers).toMatchObject({ Authorization: 'Bearer stored-openai' });
     expect(JSON.parse(String(init?.body))).toMatchObject({ model: 'stored-image-model' });
+  });
+
+  it('falls back safely when the settings file is damaged and refuses to overwrite it', async () => {
+    const file = join(dir, 'settings.json');
+    writeFileSync(file, '{ this is not json');
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    resetSettingsCache();
+    process.env.OPENAI_IMAGE_MODEL = 'env-model';
+    expect(setting('OPENAI_IMAGE_MODEL')).toBe('env-model');
+    expect(await readSettings()).toEqual({ values: {} });
+    expect(await publicSettings()).toMatchObject({ settings: { OPENAI_IMAGE_MODEL: { source: 'env', value: 'env-model' } } });
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(() => setting('OPENAI_IMAGE_MODEL')).not.toThrow();
+    await expect(setSettings({ OPENAI_IMAGE_MODEL: 'new-model' })).rejects.toThrow(/damaged/);
+    expect(readFileSync(file, 'utf8')).toBe('{ this is not json');
+    error.mockRestore();
   });
 });
 

@@ -201,6 +201,12 @@ input[type=checkbox] { width: 20px; height: 20px; margin: 0; accent-color: var(-
 .settings-row .hint { padding-bottom: 10px; }
 .settings-row .mini { margin: 0 4px 6px 0; }
 .settings-back { margin-top: 16px; }
+.usage-history { margin-top: 28px; padding-top: 8px; border-top: 1px solid var(--sand); overflow: auto; }
+.usage-switch { display: flex; gap: 6px; margin-bottom: 10px; }
+.usage-switch .selected { background: var(--accent); color: var(--white); }
+.usage-chart { display: block; width: 100%; min-width: 640px; height: 210px; color: var(--gray); overflow: visible; }
+.usage-history table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.usage-history th, .usage-history td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--sand); }
 @media (max-width: 700px) { .settings-row { grid-template-columns: 1fr; } .settings-row .hint { padding: 0; } }
 
 /* ---------- per-line voice controls ---------- */

@@ -5,8 +5,9 @@ import type { VectorJob } from '../shared/vector-job';
 import type { Scene } from '../shared/scene';
 import type { AnyCharacter, ArtCharacter, VectorCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, Marks, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
 import type { KnownModel } from '../shared/prices';
+import type { UsageHistory } from '../shared/usage';
 
-export interface SettingsResponse { settings: Record<string, { configured: boolean; source: 'settings'|'env'|'default'|'unset'; masked?: string; value?: string }>; models: KnownModel[]; auth: { configured: boolean } }
+export interface SettingsResponse { settings: Record<string, { configured: boolean; source: 'settings'|'env'|'default'|'unset'; value?: string }>; models: Record<string, { provider: string; model: string }>; defaults: { voice: string; image: string; vector: string }; catalog: KnownModel[]; auth: { configured: boolean; authenticated: boolean } }
 export const getSettings = () => getJson<SettingsResponse>('/api/settings');
 export const updateSettings = (patch: Record<string, string | null>) => post<SettingsResponse>('/api/settings', { ...projectJson(patch), method: 'PUT' });
 export const testSettingProvider = (provider: string, key?: string) => post<{ ok: boolean; message: string }>(`/api/settings/test/${encodeURIComponent(provider)}`, { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(key ? { key } : {}) });
@@ -14,6 +15,7 @@ export const authStatus = () => getJson<{ configured: boolean; authenticated: bo
 export const setupPassword = (password: string) => post<{ authenticated: boolean }>('/api/auth/setup', projectJson({ password }));
 export const login = (password: string) => post<{ authenticated: boolean }>('/api/auth/login', projectJson({ password }));
 export const logout = () => post<void>('/api/auth/logout', {});
+export const usageHistory = (days = 30) => getJson<UsageHistory>(`/api/usage/history?days=${days}`);
 
 async function post<T>(url: string, init: RequestInit): Promise<T> {
   let res: Response;
