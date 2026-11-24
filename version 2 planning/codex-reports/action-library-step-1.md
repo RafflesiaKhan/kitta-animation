@@ -6,8 +6,8 @@
 - `3b3ce6d` — `feat: serve and validate action library`
 - `78e47d3` — `feat: load action library in Animate palette`
 - `920aeef` — `fix: validate scenes against action library`
-
-The review fixes are currently uncommitted and will be committed with this report update.
+- `22114a1` — `fix: preserve legacy action timing and capabilities`
+- Claude review follow-up: a missing or damaged `vector.json` gives a character no capabilities instead of hiding it from the list (`server/vector.ts`, `tests/server/vector-capabilities.test.ts`).
 
 Branch: `feat/action-library`, based on `origin/main`, in the isolated worktree
 `/Users/rafflesiakhan/Documents/ChatGPT/html-animated-vedio/slide/kitta-animation-action-library`.
