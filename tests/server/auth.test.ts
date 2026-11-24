@@ -75,6 +75,7 @@ describe('admin authentication', () => {
     await agent.post('/api/auth/setup').send({ password: 'correct-password' }).expect(201);
     await agent.put('/api/settings').set('Origin', 'https://evil.example').send({ OPENAI_API_KEY: 'secret' }).expect(403);
     await agent.delete('/api/usage').set('Origin', 'https://evil.example').expect(403);
+    await request(app).post('/api/auth/setup').set('Origin', 'https://evil.example').send({ password: 'evil-password' }).expect(403);
     await request(app).get('/api/settings').set('Cookie', 'kitta_admin_session=%').expect(401);
   });
 });

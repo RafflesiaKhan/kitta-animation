@@ -110,7 +110,7 @@ export function createApp() {
     res.json({ configured: await hasAdminPassword(), authenticated: readSession(req) });
   });
 
-  app.post('/api/auth/setup', async (req, res) => {
+  app.post('/api/auth/setup', requireSameOrigin, async (req, res) => {
     const password = req.body?.password;
     if (typeof password !== 'string' || password.length < 8 || password.length > 200) return res.status(400).json({ error: 'Invalid password.' });
     if (!await createAdminPasswordIfAbsent(password)) return res.status(409).json({ error: 'Admin password is already configured.' });
