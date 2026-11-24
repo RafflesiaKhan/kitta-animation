@@ -96,3 +96,4 @@ Each lands as its own commit, with tests and a check in the browser.
 - Proportions of people (the teacher came out about 3.5 heads tall instead of 2 to 2.5) and a style setting per project.
 - Improve after creation, and resuming a drawing from its last round instead of round 1.
 - Step 5 of the vector plan: vector characters in Projects.
+- **Action library and + New action** (planned in [action-library-plan.md](action-library-plan.md)): make each action once as a clip for the shared vector skeleton, written by Claude or OpenAI and checked on a real character, then reuse it on every character; adds walking, two-person Animate and a camera lane.
