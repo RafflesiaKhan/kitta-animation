@@ -1,7 +1,7 @@
 import { promisify } from 'node:util';
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
-import { readSettings, writeSettings } from './settings';
+import { isSettingsFileDamaged, readSettings, SettingsFileError, writeSettings } from './settings';
 
 const scrypt = promisify(scryptCallback);
 const SESSION_COOKIE = 'kitta_admin_session';
@@ -50,6 +50,7 @@ async function consumeAdminReset(): Promise<void> {
 
 export async function hasAdminPassword(): Promise<boolean> {
   await initializeAdminResetState();
+  if (isSettingsFileDamaged()) throw new SettingsFileError();
   await consumeAdminReset();
   return Boolean((await readSettings()).adminPassword);
 }
@@ -76,6 +77,7 @@ export async function createAdminPasswordIfAbsent(password: string): Promise<boo
 
 export async function verifyAdminPassword(password: string): Promise<boolean> {
   await initializeAdminResetState();
+  if (isSettingsFileDamaged()) throw new SettingsFileError();
   await consumeAdminReset();
   const record = (await readSettings()).adminPassword;
   if (!record) return false;

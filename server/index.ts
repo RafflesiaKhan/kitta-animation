@@ -108,23 +108,28 @@ export function createApp() {
   });
 
   app.get('/api/auth/status', async (req, res) => {
-    res.json({ configured: await hasAdminPassword(), authenticated: readSession(req) });
+    try { res.json({ configured: await hasAdminPassword(), authenticated: readSession(req) }); }
+    catch (e) { if (e instanceof SettingsFileError) return res.status(409).json({ error: e.message }); throw e; }
   });
 
   app.post('/api/auth/setup', requireSameOrigin, async (req, res) => {
     const password = req.body?.password;
     if (typeof password !== 'string' || password.length < 8 || password.length > 200) return res.status(400).json({ error: 'Invalid password.' });
-    if (!await createAdminPasswordIfAbsent(password)) return res.status(409).json({ error: 'Admin password is already configured.' });
-    const token = createSession();
-    setSessionCookie(res, token);
-    res.status(201).json({ authenticated: true });
+    try {
+      if (!await createAdminPasswordIfAbsent(password)) return res.status(409).json({ error: 'Admin password is already configured.' });
+      const token = createSession();
+      setSessionCookie(res, token);
+      res.status(201).json({ authenticated: true });
+    } catch (e) { if (e instanceof SettingsFileError) return res.status(409).json({ error: e.message }); throw e; }
   });
 
   app.post('/api/auth/login', async (req, res) => {
     const password = typeof req.body?.password === 'string' ? req.body.password : '';
-    if (!(await verifyWithDelay(password))) return res.status(401).json({ error: 'Invalid credentials.' });
-    setSessionCookie(res, createSession());
-    res.json({ authenticated: true });
+    try {
+      if (!(await verifyWithDelay(password))) return res.status(401).json({ error: 'Invalid credentials.' });
+      setSessionCookie(res, createSession());
+      res.json({ authenticated: true });
+    } catch (e) { if (e instanceof SettingsFileError) return res.status(409).json({ error: e.message }); throw e; }
   });
 
   app.post('/api/auth/logout', (req, res) => {

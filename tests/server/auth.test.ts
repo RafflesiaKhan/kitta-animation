@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import request from 'supertest';
@@ -83,6 +83,17 @@ describe('admin authentication', () => {
     expect(JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8')).adminResetConsumed).toBe(false);
     process.env.KITTA_ADMIN_RESET = '1';
     expect((await request(app).get('/api/auth/status')).body.configured).toBe(false);
+  });
+
+  it('reports a damaged settings file from status and first-run setup', async () => {
+    writeFileSync(join(dir, 'settings.json'), '{ damaged');
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const app = createApp();
+    const message = 'Settings file is damaged; fix or remove data/settings.json before saving settings.';
+    expect(await request(app).get('/api/auth/status')).toEqual(expect.objectContaining({ status: 409, body: { error: message } }));
+    expect(await request(app).post('/api/auth/setup').send({ password: 'correct-password' })).toEqual(expect.objectContaining({ status: 409, body: { error: message } }));
+    expect(log).toHaveBeenCalledTimes(1);
+    log.mockRestore();
   });
 
   it('rejects cross-origin protected mutations and malformed cookies', async () => {

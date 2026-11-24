@@ -32,13 +32,13 @@ Branch: `feat/settings-page` in `/Users/rafflesiakhan/Documents/ChatGPT/html-ani
 | Provider Test buttons | OpenAI, Gemini, Anthropic, ElevenLabs, and VoiceStudio test routes are bounded and non-generative; unsaved draft keys are tested without persistence. | Pass by code/tests; no real API call made |
 | Settings UI | `/?settings` has setup/login, Keys, Models, Defaults, Usage, Admin, status/source labels, Test/Save/Remove, and header navigation. | Pass in UI component tests and browser check |
 | Usage history | Authenticated 30-day history groups by day/provider/model/use, marks estimates, renders the SVG cost/tokens chart, and keeps reset in Settings. | Pass; focused and full tests; browser check |
-| Existing flow | Full existing suite remains green. | Pass; 60 files / 511 tests |
+| Existing flow | Full existing suite remains green. | Pass; 60 files / 515 tests |
 
 ## Tests
 
-- `npx vitest run`: 60 files, 511 tests passed.
+- `npx vitest run`: 60 files, 515 tests passed.
 - `npx tsc --noEmit -p .`: passed.
-- Focused Settings/auth/usage/UI checks: 30 tests passed in the final review run.
+- Focused Settings/auth/usage/UI checks: 24 tests passed in the final review run.
 
 ## Decisions I made
 
@@ -53,6 +53,7 @@ Branch: `feat/settings-page` in `/Users/rafflesiakhan/Documents/ChatGPT/html-ani
 - Damaged settings JSON now logs one sanitized message, falls back to env/defaults, and refuses writes until fixed or removed.
 - `KITTA_ADMIN_RESET` now clears its consumed marker when the variable is absent, allowing a later one-time reset without resetting on every restart while it remains set.
 - Added `OPENAI_DRAW_MODEL`, `OPENAI_VISION_MODEL`, and `VOICESTUDIO_TTS_MODEL`; `Other…` opens a custom field without saving an empty model.
+- Follow-up fixes save `null` for model “Not set”, report damaged settings clearly, label built-in defaults, use friendly usage names, and give chart dates an explicit theme colour.
 - The implementer follow-up for small Task 1 reviewer fixes stalled; those narrow fixes were applied by the coordinator and separately reviewed. No action-library files were touched.
 
 ## Not done or not verified
@@ -60,7 +61,7 @@ Branch: `feat/settings-page` in `/Users/rafflesiakhan/Documents/ChatGPT/html-ani
 - No paid or real provider call was made. Provider Test routes were covered with mocks/local tests only.
 - Browser acceptance used a separate local review server from this worktree on `5177`/`5179`; the existing action-library servers on `5173`/`5175` were not stopped. The browser visibly showed first-run setup, the authenticated Settings page, status-only key rows, model prices and `Other…` options, the Usage and cost section, the Cost/Tokens switch, and the Settings link next to Projects BETA. The temporary review-origin allowlist was uncommitted and removed afterward. A full-theme comparison, restart persistence, and live provider Test call were not performed.
 - The managed Codex Security diff scan could not resolve this separately attached worktree. A source-level final security review plus mocked tests found no Critical/High/Important findings; browser-level CSRF, TLS/reverse-proxy, and live-provider checks remain unverified.
-- README, `.env.example`, usage history/chart, spending limits, keychain storage, and Director remain out of scope.
+- README, `.env.example`, spending limits, keychain storage, and Director remain out of scope.
 
 ## Review findings left open
 

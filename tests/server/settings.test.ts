@@ -43,6 +43,14 @@ describe('settings store', () => {
     expect(setting('OPENAI_API_KEY')).toBe('env-key');
   });
 
+  it('removes a saved model when the patch is null so env/default precedence resumes', async () => {
+    process.env.OPENAI_TEXT_MODEL = 'env-text-model';
+    await setSettings({ OPENAI_TEXT_MODEL: 'saved-text-model' });
+    await setSettings({ OPENAI_TEXT_MODEL: null });
+    expect(setting('OPENAI_TEXT_MODEL')).toBe('env-text-model');
+    expect(settingSource('OPENAI_TEXT_MODEL')).toBe('env');
+  });
+
   it('loads an existing settings file before the first provider lookup and uses its key/model without reload', async () => {
     writeFileSync(join(dir, 'settings.json'), JSON.stringify({ values: { OPENAI_API_KEY: 'disk-key', OPENAI_IMAGE_MODEL: 'disk-model' } }));
     resetSettingsCache();
@@ -121,7 +129,7 @@ describe('settings store', () => {
     process.env.OPENAI_IMAGE_MODEL = 'env-model';
     expect(setting('OPENAI_IMAGE_MODEL')).toBe('env-model');
     expect(await readSettings()).toEqual({ values: {} });
-    expect(await publicSettings()).toMatchObject({ settings: { OPENAI_IMAGE_MODEL: { source: 'env', value: 'env-model' } } });
+    await expect(publicSettings()).rejects.toThrow('Settings file is damaged; fix or remove data/settings.json');
     expect(error).toHaveBeenCalledTimes(1);
     expect(() => setting('OPENAI_IMAGE_MODEL')).not.toThrow();
     await expect(setSettings({ OPENAI_IMAGE_MODEL: 'new-model' })).rejects.toThrow(/damaged/);

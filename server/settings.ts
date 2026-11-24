@@ -73,6 +73,10 @@ export function resetSettingsCache(): void {
   cache = null;
 }
 
+export function isSettingsFileDamaged(): boolean {
+  return broken;
+}
+
 function damaged(): SettingsFile {
   broken = true;
   if (!warnedBroken) {
@@ -154,13 +158,8 @@ export async function removeSetting(name: string): Promise<void> {
   await setSettings({ [name]: null });
 }
 
-export function maskSecret(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  if (value.length <= 6) return '••••';
-  return `${value.slice(0, Math.min(3, value.length - 4))}…${value.slice(-4)}`;
-}
-
 export async function publicSettings(authenticated = false): Promise<PublicSettings> {
+  if (broken) throw new SettingsFileError();
   // Only expose the known configuration surface. Unknown persisted values may be
   // secrets for a future provider and must never be reflected unmasked.
   const names = new Set([...Object.keys(DEFAULTS), ...SECRET_NAMES]);
