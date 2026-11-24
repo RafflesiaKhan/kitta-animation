@@ -190,6 +190,15 @@ input[type=checkbox] { width: 20px; height: 20px; margin: 0; accent-color: var(-
 .usage-panel table { width: 100%; border-collapse: collapse; }
 .usage-panel th, .usage-panel td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--sand); }
 .usage-panel th { font-weight: 600; color: var(--gray); font-size: 12px; background: var(--cream); }
+.settings-page { max-width: 900px; margin: 0 auto; }
+.settings-page section { margin-top: 28px; padding-top: 8px; border-top: 1px solid var(--sand); }
+.settings-title { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.settings-row { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 10px 14px; align-items: end; padding: 12px 0; border-bottom: 1px solid var(--sand); }
+.settings-row .field { margin: 0; }
+.settings-row .hint { padding-bottom: 10px; }
+.settings-row .mini { margin: 0 4px 6px 0; }
+.settings-back { margin-top: 16px; }
+@media (max-width: 700px) { .settings-row { grid-template-columns: 1fr; } .settings-row .hint { padding: 0; } }
 
 /* ---------- per-line voice controls ---------- */
 .voice-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; background: var(--cream); border-top: 1px solid var(--sand); border-radius: 0 0 12px 12px; }

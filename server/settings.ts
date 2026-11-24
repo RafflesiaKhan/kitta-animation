@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { KNOWN_MODELS, type ModelJob, type ModelProvider } from '../shared/prices';
 
 export interface AdminPasswordRecord {
   salt: string;
@@ -19,10 +20,15 @@ export interface PublicSetting {
   configured: boolean;
   source: 'settings' | 'env' | 'default' | 'unset';
   masked?: string;
+  value?: string;
 }
 
 export interface PublicSettings {
   settings: Record<string, PublicSetting>;
+  models: Record<ModelJob, { provider: ModelProvider; model: string }>;
+  defaults: { voice: string; image: string; vector: string };
+  catalog: typeof KNOWN_MODELS;
+  auth: { configured: boolean; authenticated: boolean };
 }
 
 const DEFAULTS: Record<string, string> = {
@@ -40,6 +46,8 @@ const DEFAULTS: Record<string, string> = {
   VOICESTUDIO_URL: 'http://localhost:3900',
   VOICESTUDIO_APP: '/Applications/VoiceStudio.app',
   VECTOR_DRAW_PROVIDER: 'openai',
+  DEFAULT_TTS_PROVIDER: 'gemini',
+  DEFAULT_IMAGE_PROVIDER: 'gemini',
 };
 
 const SECRET_NAMES = new Set([
@@ -134,7 +142,7 @@ export function maskSecret(value: string | undefined): string | undefined {
   return `${value.slice(0, Math.min(3, value.length - 4))}…${value.slice(-4)}`;
 }
 
-export async function publicSettings(): Promise<PublicSettings> {
+export async function publicSettings(authenticated = false): Promise<PublicSettings> {
   // Only expose the known configuration surface. Unknown persisted values may be
   // secrets for a future provider and must never be reflected unmasked.
   const names = new Set([...Object.keys(DEFAULTS), ...SECRET_NAMES]);
@@ -142,8 +150,29 @@ export async function publicSettings(): Promise<PublicSettings> {
   for (const name of names) {
     const value = setting(name);
     const source = settingSource(name);
-    settings[name] = { configured: Boolean(value), source, ...(SECRET_NAMES.has(name) ? { masked: maskSecret(value) } : {}) };
+    settings[name] = { configured: Boolean(value), source, ...(SECRET_NAMES.has(name) ? { masked: maskSecret(value) } : value ? { value } : {}) };
   }
-  return { settings };
+  const model = (name: string, fallbackProvider: ModelProvider): { provider: ModelProvider; model: string } => {
+    const value = setting(name) ?? '';
+    const entry = KNOWN_MODELS.find((item) => item.id === value);
+    return { provider: entry?.provider ?? fallbackProvider, model: value };
+  };
+  return {
+    settings,
+    models: {
+      text: model('OPENAI_TEXT_MODEL', 'openai'),
+      voice: model('OPENAI_TTS_MODEL', 'openai'),
+      image: model('OPENAI_IMAGE_MODEL', 'openai'),
+      mouth: model('OPENAI_VISION_MODEL', 'openai'),
+      vector: model('OPENAI_DRAW_MODEL', 'openai'),
+    },
+    defaults: {
+      voice: setting('DEFAULT_TTS_PROVIDER') ?? 'gemini',
+      image: setting('DEFAULT_IMAGE_PROVIDER') ?? 'gemini',
+      vector: setting('VECTOR_DRAW_PROVIDER') ?? 'openai',
+    },
+    catalog: KNOWN_MODELS,
+    auth: { configured: Boolean((await readSettings()).adminPassword), authenticated },
+  };
 }
 

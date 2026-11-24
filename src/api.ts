@@ -4,6 +4,16 @@ import type { UsageReport } from '../shared/usage';
 import type { VectorJob } from '../shared/vector-job';
 import type { Scene } from '../shared/scene';
 import type { AnyCharacter, ArtCharacter, VectorCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, Marks, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
+import type { KnownModel } from '../shared/prices';
+
+export interface SettingsResponse { settings: Record<string, { configured: boolean; source: 'settings'|'env'|'default'|'unset'; masked?: string; value?: string }>; models: KnownModel[]; auth: { configured: boolean } }
+export const getSettings = () => getJson<SettingsResponse>('/api/settings');
+export const updateSettings = (patch: Record<string, string | null>) => post<SettingsResponse>('/api/settings', { ...projectJson(patch), method: 'PUT' });
+export const testSettingProvider = (provider: string) => post<{ ok: boolean; message: string }>(`/api/settings/test/${encodeURIComponent(provider)}`, {});
+export const authStatus = () => getJson<{ configured: boolean; authenticated: boolean }>('/api/auth/status');
+export const setupPassword = (password: string) => post<{ authenticated: boolean }>('/api/auth/setup', projectJson({ password }));
+export const login = (password: string) => post<{ authenticated: boolean }>('/api/auth/login', projectJson({ password }));
+export const logout = () => post<void>('/api/auth/logout', {});
 
 async function post<T>(url: string, init: RequestInit): Promise<T> {
   let res: Response;

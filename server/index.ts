@@ -31,12 +31,14 @@ import { isArt, isVector, type ArtPose } from '../shared/types';
 import { setting } from './settings';
 import { clearSession, createAdminPasswordIfAbsent, createSession, hasAdminPassword, readSession, requireAdmin, requireSameOrigin, setSessionCookie, verifyWithDelay } from './auth';
 import { publicSettings, setSettings } from './settings';
+import { KNOWN_MODELS } from '../shared/prices';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UPLOAD_DIR = join('data', 'uploads');
 const EXPORT_DIR = join('data', 'exports');
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const EXPORT_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(mp4|webm)$/i;
+const SETTINGS_NAMES = new Set(['OPENAI_API_KEY','GEMINI_API_KEY','ANTHROPIC_API_KEY','ELEVENLABS_API_KEY','VOICESTUDIO_API_KEY','VOICESTUDIO_URL','OPENAI_TEXT_MODEL','OPENAI_IMAGE_MODEL','OPENAI_VISION_MODEL','OPENAI_TTS_MODEL','OPENAI_DRAW_MODEL','GEMINI_TEXT_MODEL','GEMINI_IMAGE_MODEL','GEMINI_TTS_MODEL','ANTHROPIC_MODEL','ELEVENLABS_MODEL','VOICESTUDIO_TTS_MODEL','VECTOR_DRAW_PROVIDER']);
 
 /** Sends the standard JSON error for an OpenAI failure; `failed` is the 502 message. */
 function sendOpenAIError(res: express.Response, e: OpenAIError, failed: string) {
@@ -132,17 +134,37 @@ export function createApp() {
   });
 
   app.get('/api/settings', requireAdmin, async (_req, res) => {
-    res.json(await publicSettings());
+    res.json({ ...(await publicSettings()), models: KNOWN_MODELS, auth: { configured: await hasAdminPassword() } });
   });
   app.put('/api/settings', requireAdmin, requireSameOrigin, async (req, res) => {
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Invalid settings.' });
     const patch: Record<string, string | null> = {};
     for (const [name, value] of Object.entries(req.body)) {
+      if (!SETTINGS_NAMES.has(name) || name === 'VECTOR_DRAW_PROVIDER' && value !== null && value !== 'openai' && value !== 'anthropic') return res.status(400).json({ error: 'Invalid setting.' });
       if (value !== null && typeof value !== 'string') return res.status(400).json({ error: 'Invalid settings.' });
+      if (typeof value === 'string' && value.length > 500) return res.status(400).json({ error: 'Setting is too long.' });
+      if (name === 'VOICESTUDIO_URL' && value !== null) { try { const url = new URL(value); if (!['http:', 'https:'].includes(url.protocol)) throw new Error(); } catch { return res.status(400).json({ error: 'Invalid VoiceStudio URL.' }); } }
       patch[name] = value as string | null;
     }
     await setSettings(patch);
-    res.json(await publicSettings());
+    res.json({ ...(await publicSettings()), models: KNOWN_MODELS, auth: { configured: await hasAdminPassword() } });
+  });
+
+  app.post('/api/settings/test/:provider', requireAdmin, requireSameOrigin, async (req, res) => {
+    const provider = req.params.provider;
+    try {
+      if (provider === 'elevenlabs') { await listElevenVoices(); return res.json({ ok: true, message: 'ElevenLabs voices loaded.' }); }
+      if (provider === 'voicestudio') { const info = await voiceStudioInfo(); return res.json({ ok: info.running, message: info.running ? 'VoiceStudio is running.' : 'VoiceStudio is not running.' }); }
+      const keyName = provider === 'openai' ? 'OPENAI_API_KEY' : provider === 'gemini' ? 'GEMINI_API_KEY' : provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : null;
+      if (!keyName || !setting(keyName)) return res.status(400).json({ ok: false, message: 'Key is not configured.' });
+      const key = setting(keyName)!;
+      const headers: Record<string, string> = provider === 'anthropic' ? { 'x-api-key': key, 'anthropic-version': '2023-06-01' } : { Authorization: `Bearer ${key}` };
+      const url = provider === 'openai' ? 'https://api.openai.com/v1/models' : provider === 'anthropic' ? 'https://api.anthropic.com/v1/models' : `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`;
+      if (provider === 'gemini') delete headers.Authorization;
+      const response = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
+      if (!response.ok) return res.status(400).json({ ok: false, message: 'The key was refused.' });
+      res.json({ ok: true, message: 'Key works.' });
+    } catch { res.status(400).json({ ok: false, message: 'The provider could not be reached.' }); }
   });
 
   // Token telemetry for the usage panel.
