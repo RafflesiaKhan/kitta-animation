@@ -154,7 +154,12 @@ export function createApp() {
   app.post('/api/settings/test/:provider', requireAdmin, requireSameOrigin, async (req, res) => {
     const provider = req.params.provider;
     try {
-      if (provider === 'elevenlabs') { await listElevenVoices(); return res.json({ ok: true, message: 'ElevenLabs voices loaded.' }); }
+      if (provider === 'elevenlabs') {
+        const key = typeof req.body?.key === 'string' && req.body.key.length <= 500 ? req.body.key : setting('ELEVENLABS_API_KEY');
+        if (!key) return res.status(400).json({ ok: false, message: 'Key is not configured.' });
+        const response = await fetch('https://api.elevenlabs.io/v2/voices?page_size=1', { headers: { 'xi-api-key': key }, signal: AbortSignal.timeout(15_000) });
+        return response.ok ? res.json({ ok: true, message: 'ElevenLabs voices loaded.' }) : res.status(400).json({ ok: false, message: 'The key was refused.' });
+      }
       if (provider === 'voicestudio') { const info = await voiceStudioInfo(); return res.json({ ok: info.running, message: info.running ? 'VoiceStudio is running.' : 'VoiceStudio is not running.' }); }
       const keyName = provider === 'openai' ? 'OPENAI_API_KEY' : provider === 'gemini' ? 'GEMINI_API_KEY' : provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : null;
       const submitted = typeof req.body?.key === 'string' && req.body.key.length <= 500 ? req.body.key : undefined;
