@@ -33,10 +33,12 @@ async function consumeAdminReset(): Promise<void> {
   const current = await readSettings();
   if (current.adminResetConsumed) return;
   if (!current.adminPassword) {
+    sessions.clear();
     await writeSettings({ ...current, adminResetConsumed: true });
     return;
   }
   const { adminPassword: _removed, ...withoutPassword } = current;
+  sessions.clear();
   await writeSettings({ ...withoutPassword, adminResetConsumed: true });
 }
 

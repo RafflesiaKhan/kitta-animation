@@ -60,9 +60,11 @@ describe('admin authentication', () => {
   it('consumes the local reset flag once and does not include credentials in responses', async () => {
     const app = createApp();
     await request(app).post('/api/auth/setup').send({ password: 'correct-password' }).expect(201);
+    const oldSession = request.agent(app);
+    await oldSession.post('/api/auth/login').send({ password: 'correct-password' }).expect(200);
     process.env.KITTA_ADMIN_RESET = '1';
-    resetAuthStateForTests();
     expect((await request(app).get('/api/auth/status')).body).toEqual({ configured: false, authenticated: false });
+    await oldSession.get('/api/settings').expect(401);
     await request(app).post('/api/auth/setup').send({ password: 'new-password' }).expect(201);
     const second = await request(app).post('/api/auth/setup').send({ password: 'third-password' }).expect(409);
     expect(JSON.stringify(second.body)).not.toContain('new-password');
