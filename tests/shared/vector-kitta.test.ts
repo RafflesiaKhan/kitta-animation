@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EXPRESSION_MAP, GESTURE_MOTION, MOUTH_MAP, MOTIONS, faceFor, poseFor } from '../../shared/vector-avator/kitta';
 import { EXPRESSIONS, type FrameState, type MouthShape } from '../../shared/types';
+import { parseAction, registerActions } from '../../shared/actions';
 
 const frame = (o: Partial<FrameState> = {}): FrameState => ({
   expression: 'neutral', mouth: 'X', gesture: 'none', gestureProgress: 0, blink: false, bob: 0, ...o,
@@ -49,5 +50,18 @@ describe('Kitta → vector-avator mapping', () => {
     const a = JSON.stringify(poseFor(frame(), 0));
     const b = JSON.stringify(poseFor(frame(), 1900));
     expect(a).not.toBe(b);
+  });
+
+  it('supports once, loop and hold action playback over a block', () => {
+    const make = (name: string, play: 'once' | 'loop' | 'hold') => parseAction({ name, label: name, duration: 1, play, keys: [
+      { t: 0, bones: { head: [0, 0, 0] } }, { t: 1, bones: { head: [90, 0, 0] } },
+    ] });
+    registerActions([make('test-once', 'once'), make('test-loop', 'loop'), make('test-hold', 'hold')]);
+    const once = poseFor(frame({ gesture: 'test-once', gestureProgress: .5 }), 0);
+    const loop = poseFor(frame({ gesture: 'test-loop', gestureProgress: .75, gestureDurationMs: 4000 }), 0);
+    const hold = poseFor(frame({ gesture: 'test-hold', gestureProgress: .5 }), 0);
+    expect(once.bones.head).not.toEqual(loop.bones.head);
+    expect(hold.bones.head).not.toEqual(once.bones.head);
+    expect(hold.bones.head).not.toEqual(loop.bones.head);
   });
 });

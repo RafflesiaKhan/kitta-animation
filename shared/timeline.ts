@@ -74,6 +74,7 @@ export function frameAt(t: Timeline, ms: number, idleOffsetMs = 0): FrameState {
     mouth: cue ? cue.shape : 'X',
     gesture: action ? action.gesture : 'none',
     gestureProgress: action ? (ms - action.startMs) / (action.endMs - action.startMs) : 0,
+    gestureDurationMs: action ? action.endMs - action.startMs : undefined,
     blink: blinkAt(speech, ms, idleOffsetMs),
     bob: 2 * Math.sin((2 * Math.PI * idle) / BOB_PERIOD_MS),
     talk,
