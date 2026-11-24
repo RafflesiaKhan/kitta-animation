@@ -54,4 +54,3 @@ export function registerActions(actions: Action[]): void { for (const action of 
 export function actionFor(id: string): Action | undefined { return registry.get(id); }
 export function actionsForLibrary(): Action[] { return [...registry.values()]; }
 export function parseActions(values: unknown[]): Action[] { return values.map(parseAction); }
-
