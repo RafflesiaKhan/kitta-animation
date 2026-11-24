@@ -31,26 +31,32 @@ export function parseAction(value: unknown): Action {
   if (json.tags !== undefined && (!Array.isArray(json.tags) || json.tags.some((x) => typeof x !== 'string'))) throw new Error(`action ${json.name}: tags must be strings`);
   if (json.needs !== undefined && (!Array.isArray(json.needs) || json.needs.some((x) => typeof x !== 'string'))) throw new Error(`action ${json.name}: needs must be strings`);
   const motion = parseMotion(json as MotionJson);
-  return { name: json.name, label: json.label, duration: json.duration, play: json.play ?? (json.loop === false ? 'once' : 'loop'),
+  return { name: json.name, label: json.label, duration: json.duration, play: json.play ?? 'once',
     tags: json.tags ?? [], needs: json.needs ?? [], source: json.source, motion, json: json as ActionJson };
 }
 
 const noneMotion: MotionJson = { name: 'none', label: 'None', duration: 1, loop: true, keys: [{ t: 0 }] };
 const builtins: Action[] = [
-  legacy('wave', 'wave', mbWaveJson as unknown as MotionJson),
-  legacy('nod', 'nod', nodJson as MotionJson),
-  legacy('lookDown', 'look down', { ...noneMotion, name: 'lookDown' }),
-  legacy('celebrate', 'celebrate', spreadJson as MotionJson),
-  legacy('shrug', 'shrug', spreadJson as MotionJson),
-  legacy('think', 'think', thinkJson as MotionJson),
-  legacy('point', 'point', pointJson as MotionJson),
-  legacy('explain', 'explain', explainJson as MotionJson),
+  legacy('wave', 'wave', mbWaveJson as unknown as MotionJson, { play: 'once' }),
+  legacy('nod', 'nod', nodJson as MotionJson, { play: 'once' }),
+  legacy('lookDown', 'look down', { ...noneMotion, name: 'lookDown' }, { play: 'once' }),
+  legacy('celebrate', 'celebrate', spreadJson as MotionJson, { play: 'once' }),
+  legacy('shrug', 'shrug', spreadJson as MotionJson, { play: 'once' }),
+  legacy('think', 'think', thinkJson as MotionJson, { play: 'once' }),
+  legacy('point', 'point', pointJson as MotionJson, { play: 'once' }),
+  legacy('explain', 'explain', explainJson as MotionJson, { play: 'once' }),
 ];
 
 export const LEGACY_ACTION_IDS = ['wave', 'nod', 'lookDown', 'celebrate', 'shrug', 'think', 'point', 'explain'] as const;
 export const NONE_ACTION = parseAction(noneMotion);
-const registry = new Map<string, Action>([['none', NONE_ACTION], ...builtins.map((a) => [a.name, a] as const)]);
+const builtinEntries = [['none', NONE_ACTION], ...builtins.map((a) => [a.name, a] as const)] as const;
+const registry = new Map<string, Action>(builtinEntries);
 export function registerActions(actions: Action[]): void { for (const action of actions) registry.set(action.name, action); }
+export function replaceActions(actions: Action[]): void {
+  registry.clear();
+  for (const [id, action] of builtinEntries) registry.set(id, action);
+  registerActions(actions);
+}
 export function actionFor(id: string): Action | undefined { return registry.get(id); }
 export function actionsForLibrary(): Action[] { return [...registry.values()]; }
 export function parseActions(values: unknown[]): Action[] { return values.map(parseAction); }

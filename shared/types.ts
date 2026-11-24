@@ -55,7 +55,7 @@ export interface ArtCharacter { kind: 'art'; id: string; name: string; prompt: s
  * A vector-avator character: one layered vector drawing (vector.json, stored next to meta.json) moved by a skeleton.
  * Unlike an art character it is drawn live (Canvas 2D) from the frame state, so it has no per-pose pictures.
  */
-export interface VectorCharacter { kind: 'vector'; id: string; name: string }
+export interface VectorCharacter { kind: 'vector'; id: string; name: string; capabilities?: string[] }
 /** Whatever the user picked in the Character step: a customised SVG starter, an AI-created character or a vector one. */
 export type AnyCharacter = CharacterConfig | ArtCharacter | VectorCharacter;
 export const isArt = (c: AnyCharacter): c is ArtCharacter => (c as ArtCharacter).kind === 'art';

@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { actionsForLibrary, parseAction, registerActions, type Action, type ActionJson } from '../shared/actions';
+import { actionsForLibrary, parseAction, replaceActions, type Action, type ActionJson } from '../shared/actions';
 
 const publicAction = (a: Action): ActionJson => ({ ...a.json, name: a.name, label: a.label, duration: a.duration, play: a.play, tags: a.tags, needs: a.needs });
 let lastActionErrors: string[] = [];
@@ -12,7 +12,7 @@ export function loadActionLibrary(root = resolve('data/motions')): Action[] {
     try { loaded.push(parseAction(JSON.parse(readFileSync(join(root, file), 'utf8')))); }
     catch (error) { const message = `Action ${file} was refused: ${error instanceof Error ? error.message : String(error)}`; lastActionErrors.push(message); console.warn(message); }
   }
-  registerActions(loaded);
+  replaceActions(loaded);
   return actionsForLibrary();
 }
 

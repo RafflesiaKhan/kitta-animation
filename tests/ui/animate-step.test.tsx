@@ -5,6 +5,8 @@ import { AnimateStep } from '../../src/steps/AnimateStep';
 import { STARTERS } from '../../shared/character/starters';
 import type { Marks, Timeline } from '../../shared/types';
 import { marksOf } from '../../shared/marks';
+import { parseAction, replaceActions } from '../../shared/actions';
+import type { VectorCharacter } from '../../shared/types';
 
 const { name: _n, ...kit } = STARTERS.kit;
 const timeline: Timeline = {
@@ -32,6 +34,19 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline')))); // waveform falls back to a flat bar
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+it('greys out an action when the vector character lacks a required capability', () => {
+  replaceActions([parseAction({ name: 'body-turn', label: 'Body turn', duration: 1, play: 'once', needs: ['body30'], keys: [{ t: 0, bones: { head: [0, 0, 0] } }] })]);
+  const vector: VectorCharacter = { kind: 'vector', id: 'vector-1', name: 'Plain vector', capabilities: ['legs'] };
+  setup(timeline);
+  cleanup();
+  const audioRef = createRef<HTMLAudioElement>() as { current: HTMLAudioElement }; audioRef.current = audio;
+  render(<AnimateStep character={vector} timeline={timeline} audioUrl={null} audioRef={audioRef} onMarks={vi.fn()} />);
+  const button = screen.getByRole('button', { name: 'Add Body turn' });
+  expect((button as HTMLButtonElement).disabled).toBe(true);
+  expect(button.getAttribute('title')).toBe('Needs body30, which this character does not have');
+  replaceActions([]);
+});
 
 it('starts from the lines: script, expression blocks and action clips', () => {
   setup();

@@ -46,7 +46,13 @@ export async function readVectorMeta(id: string): Promise<VectorCharacter> {
   try {
     const meta = JSON.parse(await readFile(join(dirOf(id), 'meta.json'), 'utf8')) as VectorCharacter;
     if (meta.kind !== 'vector') throw new CharacterError('not_found');
-    return meta;
+    const raw = JSON.parse(await readFile(join(dirOf(id), 'vector.json'), 'utf8')) as { skeleton?: Record<string, unknown> };
+    const skeleton = raw.skeleton ?? {};
+    const capabilities = [
+      ...(Object.hasOwn(skeleton, 'hip_R') && Object.hasOwn(skeleton, 'ankle_R') ? ['legs'] : []),
+      ...(existsSync(join(dirOf(id), 'body30.json')) ? ['body30'] : []),
+    ];
+    return { ...meta, capabilities };
   } catch (e) {
     if (e instanceof CharacterError) throw e;
     throw new CharacterError('not_found');

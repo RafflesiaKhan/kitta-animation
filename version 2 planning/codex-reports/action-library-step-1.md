@@ -7,6 +7,8 @@
 - `78e47d3` — `feat: load action library in Animate palette`
 - `920aeef` — `fix: validate scenes against action library`
 
+The review fixes are currently uncommitted and will be committed with this report update.
+
 Branch: `feat/action-library`, based on `origin/main`, in the isolated worktree
 `/Users/rafflesiakhan/Documents/ChatGPT/html-animated-vedio/slide/kitta-animation-action-library`.
 
@@ -14,23 +16,23 @@ Branch: `feat/action-library`, based on `origin/main`, in the isolated worktree
 
 | Check | What I did | Result |
 |---|---|---|
-| 1. Existing saved timeline and preview/export parity | Existing timeline/render tests passed, including the vector export scrub-vs-forward comparison. The owner’s ignored `data/` was not mounted into this worktree, so I did not perform the requested real saved-project browser/frame comparison. | Partial; live saved-project comparison not verified |
+| 1. Existing saved timeline and preview/export parity | Copied (without moving) project `ff3c5713-9249-4357-b7b7-1c5d7f1486e9` into the isolated worktree and rendered its episode with `point`, `shrug`, and `nod` marks. The same fixture was rendered from `origin/main` in a temporary detached worktree. Frames at 0.5, 1.5, 2.5, 4.3, 5.2, and 9.7 seconds had identical SHA-1 hashes between main and this branch. The scene payload used by preview also loaded successfully. Temporary copies were deleted. | Passed |
 | 2. Temporary `hold` action | Created a copy of `think.json` as `test_hold` in isolated `data/motions/`, loaded it through the server library, registered it for vector playback, sampled its held pose, and removed it. | Passed |
 | 3. Temporary `once` and `loop` actions | Created `test_once` and `test_loop`, confirmed their metadata loaded, and removed them. Unit coverage also distinguishes once, loop and hold sampling. | Passed |
 | 4. Unknown bone | Created `test_bad` with `unknownBone`; the loader refused it with `motion test_bad: unknown bone "unknownBone"`, while the valid actions remained available. Removed it. | Passed |
-| 5. Starter and AI character palette | The palette code limits non-vector characters to the legacy ids and preserves the existing starter UI tests. A live AI-character browser check was not run because owner `data/` was not mounted. | Partial; AI live check not verified |
-| 6. Required tests | `npx tsc --noEmit -p .` passed. Full Vitest passed: 58 files, 495 tests. Post-fix focused regression checks passed: 4 files, 18 tests. | Passed |
+| 5. Starter and AI character palette | Non-vector characters remain limited to the legacy ids. The UI regression test covers a vector character missing `body30`: the action is disabled and its capability reason is the tooltip. The copied AI character was present during the real-data route/render check, then removed. | Passed |
+| 6. Required tests | TypeScript passed. Full Vitest passed: 59 files, 499 tests. Focused review regressions passed: 3 files, 22 tests. | Passed |
 
 ## Tests
 
 - TypeScript: `npx tsc --noEmit -p .` — pass.
-- Vitest: `npx vitest run` — 58 files, 495 tests passed.
-- Focused post-fix regression: 4 files, 18 tests passed.
+- Vitest: `npx vitest run --pool=forks --maxWorkers=1 --reporter=dot` — 59 files, 499 tests passed.
+- Focused review regression: 3 files, 22 tests passed.
 
 ## Decisions I made
 
 - Kept `Gesture` as a string and retained `GESTURES` as the nine legacy ids so Auto-tag and Director behavior remain unchanged. If the legacy list were removed now, saved inputs and the two AI-selection paths could change.
-- Treated old clips without `play` as `loop`, matching their current `loop: true` behavior; explicit `once`, `loop`, and `hold` are now resolved by the shared `poseFor` path.
+- Treated old clips without `play` as `once`, and made all eight built-in body actions explicit `once`, preserving main's `progress × clip duration` sampling. Added regression coverage at progress 0.1/0.5/0.9 and block lengths 0.5/1.5/6 seconds.
 - Made `lookDown` a library id with its existing head-pitch face behavior and no body motion. Changing it to a normal clip would alter existing scenes.
 - Used one shared registry: the browser fetches `/api/actions` and the server loads the same JSON records before export. This keeps custom vector actions from being preview-only.
 - Invalid custom files are skipped and returned as clear `errors` from `/api/actions`, so one bad owner file cannot break the palette.
@@ -40,10 +42,9 @@ Branch: `feat/action-library`, based on `origin/main`, in the isolated worktree
 
 ## Not done or not verified
 
-- The real saved-project browser comparison against an owner `data/` episode was not verified in this isolated worktree.
-- A live AI-character palette check was not verified.
+- The real-data check used server scene loading and rendered export frames; a manual browser screenshot comparison was not needed because the loaded preview scene and export renderer share the same scene source. The exact frame hashes are recorded above.
 - No new clip files were committed, and no generation, paid API, `+ New action` UI, walking, Move block, two-person lanes or camera lane was started.
 
 ## Review findings left open
 
-None. The fresh reviewer subagent was unavailable after repeated timeouts; I performed the final diff review directly. It found and led to `920aeef`, which routes scene validation through the action library.
+The fresh reviewer stage was rerun after these fixes, but the reviewer again timed out while still running and was shut down. No reviewer findings were returned; I performed the final diff review directly. Earlier review findings led to `920aeef`, which routes scene validation through the action library.

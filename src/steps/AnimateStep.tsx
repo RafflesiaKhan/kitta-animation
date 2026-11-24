@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent, type RefObject } from 'react';
 import { EXPRESSIONS, isVector } from '../../shared/types';
 import type { ActionMark, AnyCharacter, Expression, FrameState, Marks, Timeline } from '../../shared/types';
-import { actionsForLibrary, LEGACY_ACTION_IDS, parseActions, registerActions, type Action as LibraryAction } from '../../shared/actions';
+import { actionsForLibrary, LEGACY_ACTION_IDS, parseActions, replaceActions, type Action as LibraryAction } from '../../shared/actions';
 import { CharacterView } from '../../shared/character/CharacterView';
 import { frameAt } from '../../shared/timeline';
 import { addAction, addExpression, marksOf, moveAction, moveExpression, removeAction, removeExpression, resizeAction, resizeExpression } from '../../shared/marks';
@@ -56,7 +56,7 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
   useEffect(() => {
     fetch('/api/actions').then((response) => response.ok ? response.json() : Promise.reject()).then((body: { actions?: unknown[]; errors?: string[] }) => {
       const actions = parseActions(body.actions ?? []);
-      registerActions(actions);
+      replaceActions(actions);
       setLibrary(actionsForLibrary());
       if (body.errors?.length) setNote(body.errors.join(' '));
     }).catch(() => {});
@@ -170,7 +170,9 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
         <h3>Actions</h3>
         <div className="triggers">
           {paletteActions.map((a) => {
-            const reason = a.needs.length && !isVector(character) ? `Needs ${a.needs.join(', ')}, which this character does not have` : undefined;
+            const capabilities = isVector(character) ? new Set(character.capabilities ?? []) : new Set<string>();
+            const missing = a.needs.filter((need) => !capabilities.has(need));
+            const reason = missing.length ? `Needs ${missing.join(', ')}, which this character does not have` : undefined;
             return <Tile key={a.name} character={character} kind="action" value={a.name} label={a.label} disabled={!!reason} reason={reason} onAdd={() => !reason && add('action', a.name, at())} />;
           })}
         </div>

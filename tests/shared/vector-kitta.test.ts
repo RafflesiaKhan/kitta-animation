@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { EXPRESSION_MAP, GESTURE_MOTION, MOUTH_MAP, MOTIONS, faceFor, poseFor } from '../../shared/vector-avator/kitta';
 import { EXPRESSIONS, type FrameState, type MouthShape } from '../../shared/types';
 import { parseAction, registerActions } from '../../shared/actions';
+import { blendPose } from '../../shared/vector-avator/core/pose';
+import { samplePose } from '../../shared/vector-avator/core/motion';
+import { smoothstep } from '../../shared/vector-avator/core/math';
 
 const frame = (o: Partial<FrameState> = {}): FrameState => ({
   expression: 'neutral', mouth: 'X', gesture: 'none', gestureProgress: 0, blink: false, bob: 0, ...o,
@@ -63,5 +66,21 @@ describe('Kitta → vector-avator mapping', () => {
     expect(once.bones.head).not.toEqual(loop.bones.head);
     expect(hold.bones.head).not.toEqual(once.bones.head);
     expect(hold.bones.head).not.toEqual(loop.bones.head);
+  });
+
+  it('keeps every legacy action equal to main at several progress and block lengths', () => {
+    const legacy = Object.keys(GESTURE_MOTION) as (keyof typeof GESTURE_MOTION)[];
+    for (const gesture of legacy) for (const blockMs of [500, 1500, 6000]) for (const progress of [.1, .5, .9]) {
+      const frameAtProgress = frame({ gesture, gestureProgress: progress, gestureDurationMs: blockMs });
+      const actual = poseFor(frameAtProgress, 0);
+      const name = GESTURE_MOTION[gesture];
+      if (!name) continue; // lookDown is a head-only action and has no body clip on main.
+      const motion = MOTIONS[name];
+      const k = smoothstep(Math.max(0, Math.min(1, Math.min(progress / .15, (1 - progress) / .15))));
+      const expectedGesture = samplePose(motion, progress * motion.duration);
+      const expected = blendPose(samplePose(MOTIONS.idle, 0), expectedGesture, k);
+      for (const bone of Object.keys(expected.bones)) actual.bones[bone].forEach((value, i) => expect(value).toBeCloseTo(expected.bones[bone][i], 12));
+      actual.hips.forEach((value, i) => expect(value).toBeCloseTo(expected.hips[i], 12));
+    }
   });
 });
