@@ -5,11 +5,13 @@ import { STARTERS } from '../../shared/character/starters';
 import * as api from '../api';
 import { Icon } from '../Icon';
 
-interface Props { character: AnyCharacter; timeline: Timeline | null; audioId: string | null; composition?: StudioComposition }
+interface Props { character: AnyCharacter; timeline: Timeline | null; audioId: string | null; composition?: StudioComposition; aspect?: ExportFormat['aspect']; onAspect?: (aspect: ExportFormat['aspect']) => void }
 
-export function ExportStep({ character, timeline, audioId, composition: supplied }: Props) {
+export function ExportStep({ character, timeline, audioId, composition: supplied, aspect: controlledAspect, onAspect }: Props) {
   const composition = supplied ?? { background: { kind: 'transparent' } as const, placement: { x: .5, bottom: 0, scale: 1, flip: false } };
-  const [aspect, setAspect] = useState<ExportFormat['aspect']>('16:9');
+  const [localAspect, setLocalAspect] = useState<ExportFormat['aspect']>('16:9');
+  const aspect = controlledAspect ?? localAspect;
+  const setAspect = onAspect ?? setLocalAspect;
   const [transparent, setTransparent] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [url, setUrl] = useState<string | null>(null);
@@ -23,8 +25,9 @@ export function ExportStep({ character, timeline, audioId, composition: supplied
     setUrl(null);
     setProgress(0);
     try {
+      const effectiveTransparent = composition.background.kind === 'transparent' && transparent;
       const legacy = composition.background.kind === 'transparent' && composition.placement.x === .5 && composition.placement.bottom === 0 && composition.placement.scale === 1 && !composition.placement.flip;
-      setUrl(await api.exportVideo({ character, timeline, audioId, format: { aspect, transparent }, ...(legacy ? {} : { composition }) }, setProgress));
+      setUrl(await api.exportVideo({ character, timeline, audioId, format: { aspect, transparent: effectiveTransparent }, ...(legacy ? {} : { composition }) }, setProgress));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

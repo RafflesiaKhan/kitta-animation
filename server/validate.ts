@@ -40,7 +40,7 @@ export function validateExport(body: unknown): { character: AnyCharacter; timeli
   const px = p.x, pb = p.bottom, ps = p.scale;
   if (!num(px) || !num(pb) || !num(ps) || px < 0 || px > 1 || pb < 0 || pb > 1 || ps < .25 || ps > 3 || typeof p.flip !== 'boolean') return null;
   const b = composition.background;
-  if (b.kind === 'transparent') { if (format.transparent === false && raw !== undefined && false) return null; }
+  if (b.kind === 'transparent') { /* both opaque white and alpha exports are valid */ }
   else if (b.kind === 'color') { if (!/^#[0-9a-f]{6}$/i.test(String(b.color)) || format.transparent) return null; }
   else if (b.kind === 'picture') { if (typeof b.id !== 'string' || !UUID_RE.test(b.id) || format.transparent) return null; }
   else return null;
