@@ -32,7 +32,7 @@ import { isArt, isVector, type ArtPose } from '../shared/types';
 import { setting } from './settings';
 import { clearSession, createAdminPasswordIfAbsent, createSession, hasAdminPassword, initializeAdminResetState, readSession, requireAdmin, requireSameOrigin, setSessionCookie, verifyWithDelay } from './auth';
 import { publicSettings, setSettings, SettingsFileError } from './settings';
-import { BACKGROUNDS_DIR, BackgroundError, deleteBackground, listBackgrounds, readBackground, saveBackground, validBackgroundName } from './backgrounds';
+import { BACKGROUNDS_DIR, BackgroundError, deleteBackground, listBackgrounds, readBackground, saveBackground, validBackgroundName, MAX_BACKGROUND_BYTES } from './backgrounds';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UPLOAD_DIR = join('data', 'uploads');
@@ -90,7 +90,7 @@ export function createApp(options: { backgroundsDir?: string } = {}) {
   app.get('/api/actions', actionRoutes());
   const upload = multer({ dest: UPLOAD_DIR, limits: { fileSize: 100 * 1024 * 1024 } });
   const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
-  const backgroundUpload = multer({ storage: multer.memoryStorage(), preservePath: true, limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
+  const backgroundUpload = multer({ storage: multer.memoryStorage(), preservePath: true, limits: { fileSize: MAX_BACKGROUND_BYTES, files: 1 } });
   const backgroundsDir = options.backgroundsDir ?? BACKGROUNDS_DIR;
 
   /** Standard replies for character-library failures; false when e is something else. */

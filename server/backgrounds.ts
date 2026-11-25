@@ -8,7 +8,7 @@ import { prepareSet } from './sets';
 export const BACKGROUNDS_DIR = join('data', 'backgrounds');
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/svg+xml']);
-const MAX_BYTES = 16 * 1024 * 1024;
+export const MAX_BACKGROUND_BYTES = 16 * 1024 * 1024;
 
 export class BackgroundError extends Error {
   constructor(public code: 'invalid' | 'not_found' | 'unsafe' | 'corrupt') { super(code); }
@@ -42,7 +42,7 @@ function validRecord(value: unknown): value is BackgroundRecord {
   return typeof item.id === 'string' && UUID_RE.test(item.id)
     && typeof item.name === 'string' && validBackgroundName(item.name)
     && typeof item.mime === 'string' && ALLOWED_MIME.has(item.mime)
-    && typeof item.size === 'number' && Number.isInteger(item.size) && item.size >= 0 && item.size <= MAX_BYTES
+    && typeof item.size === 'number' && Number.isInteger(item.size) && item.size >= 0 && item.size <= MAX_BACKGROUND_BYTES
     && typeof item.added === 'string' && !Number.isNaN(Date.parse(item.added));
 }
 
@@ -71,7 +71,7 @@ async function writeMetadata(root: string, records: BackgroundRecord[]): Promise
 }
 
 export async function saveBackground(mime: string, bytes: Buffer, name: string, root = BACKGROUNDS_DIR): Promise<BackgroundRecord> {
-  if (!ALLOWED_MIME.has(mime) || bytes.length > MAX_BYTES || !validBackgroundName(name)) throw new BackgroundError('invalid');
+  if (!ALLOWED_MIME.has(mime) || bytes.length > MAX_BACKGROUND_BYTES || !validBackgroundName(name)) throw new BackgroundError('invalid');
   const png = await prepareSet(mime, bytes).catch(() => { throw new BackgroundError('unsafe'); });
   const id = randomUUID();
   await mkdir(root, { recursive: true });
