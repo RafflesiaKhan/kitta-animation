@@ -1,12 +1,12 @@
 // @vitest-environment node
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../../server/index';
-import { BackgroundError, saveBackground } from '../../server/backgrounds';
+import { BackgroundError, deleteBackground, listBackgrounds, saveBackground } from '../../server/backgrounds';
 
 const png = await readFile('tests/fixtures/magenta-robot.png');
 const jpeg = execFileSync('ffmpeg', ['-v', 'error', '-i', 'pipe:0', '-frames:v', '1', '-f', 'mjpeg', 'pipe:1'], { input: png });
@@ -77,6 +77,36 @@ describe('studio backgrounds', () => {
       await app.get('/api/backgrounds/' + two.id).expect(200);
       expect((await app.get('/api/backgrounds')).body.backgrounds.map((item: { id: string }) => item.id)).toEqual([two.id]);
       expect(await readdir(root)).toEqual(['meta.json', two.id + '.png'].sort());
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('serializes concurrent metadata mutations without losing records', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'kitta-backgrounds-concurrent-'));
+    try {
+      const saved = await Promise.all(Array.from({ length: 12 }, (_, index) => saveBackground('image/png', png, `background-${index}.png`, root)));
+      expect(await listBackgrounds(root)).toHaveLength(saved.length);
+      expect(await readdir(root)).toHaveLength(saved.length + 1);
+      await Promise.all(saved.map((record) => deleteBackground(record.id, root)));
+      expect(await listBackgrounds(root)).toEqual([]);
+      expect(await readdir(root)).toEqual([]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 30000);
+
+  it('reports malformed metadata and never overwrites it', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'kitta-backgrounds-corrupt-'));
+    const corrupt = '{"not":"a background list"}';
+    try {
+      await writeFile(join(root, 'meta.json'), corrupt);
+      await expect(listBackgrounds(root)).rejects.toMatchObject({ code: 'corrupt' });
+      await expect(saveBackground('image/png', png, 'new.png', root)).rejects.toMatchObject({ code: 'corrupt' });
+      expect(await readFile(join(root, 'meta.json'), 'utf8')).toBe(corrupt);
+      const response = await request(createApp({ backgroundsDir: root })).get('/api/backgrounds');
+      expect(response.status).toBe(500);
+      expect(response.body.error).toBe('Background metadata is unreadable.');
     } finally {
       await rm(root, { recursive: true, force: true });
     }

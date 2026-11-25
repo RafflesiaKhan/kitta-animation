@@ -113,7 +113,8 @@ export function createApp(options: { backgroundsDir?: string } = {}) {
   });
 
   app.get('/api/backgrounds', async (_req, res) => {
-    res.json({ backgrounds: await listBackgrounds(backgroundsDir) });
+    try { res.json({ backgrounds: await listBackgrounds(backgroundsDir) }); }
+    catch (error) { if (error instanceof BackgroundError && error.code === 'corrupt') return res.status(500).json({ error: 'Background metadata is unreadable.' }); throw error; }
   });
 
   app.post('/api/backgrounds', (req, res) => {
@@ -124,7 +125,7 @@ export function createApp(options: { backgroundsDir?: string } = {}) {
         const background = await saveBackground(file.mimetype, file.buffer, file.originalname, backgroundsDir);
         res.status(201).json({ background });
       } catch (error) {
-        if (error instanceof BackgroundError) return res.status(400).json({ error: 'Invalid background upload.' });
+        if (error instanceof BackgroundError) return res.status(error.code === 'corrupt' ? 500 : 400).json({ error: error.code === 'corrupt' ? 'Background metadata is unreadable.' : 'Invalid background upload.' });
         res.status(500).json({ error: 'Background upload failed.' });
       }
     });
@@ -135,7 +136,7 @@ export function createApp(options: { backgroundsDir?: string } = {}) {
       const { png } = await readBackground(req.params.id, backgroundsDir);
       res.type('image/png').send(png);
     } catch (error) {
-      if (error instanceof BackgroundError) return res.status(404).json({ error: 'Background not found' });
+      if (error instanceof BackgroundError) return res.status(error.code === 'not_found' ? 404 : 500).json({ error: error.code === 'not_found' ? 'Background not found' : 'Background metadata is unreadable.' });
       res.status(500).json({ error: 'Background could not be read.' });
     }
   });
@@ -143,7 +144,7 @@ export function createApp(options: { backgroundsDir?: string } = {}) {
   app.delete('/api/backgrounds/:id', async (req, res) => {
     try { await deleteBackground(req.params.id, backgroundsDir); res.status(204).end(); }
     catch (error) {
-      if (error instanceof BackgroundError) return res.status(404).json({ error: 'Background not found' });
+      if (error instanceof BackgroundError) return res.status(error.code === 'not_found' ? 404 : 500).json({ error: error.code === 'not_found' ? 'Background not found' : 'Background metadata is unreadable.' });
       res.status(500).json({ error: 'Background could not be deleted.' });
     }
   });
