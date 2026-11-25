@@ -34,4 +34,9 @@ describe('validateExport marks', () => {
   ])('rejects %s', (_label, m) => {
     expect(validateExport(withMarks(m))).toBeNull();
   });
+  it('accepts transparent MOV and rejects a container on opaque output', () => {
+    const timeline = { durationMs: 1000, cues: [], lines: [] };
+    expect(validateExport({ character, timeline, format: { aspect: '16:9', transparent: true, container: 'mov' } })?.format.container).toBe('mov');
+    expect(validateExport({ character, timeline, format: { aspect: '16:9', transparent: false, container: 'webm' } })).toBeNull();
+  });
 });

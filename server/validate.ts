@@ -32,7 +32,7 @@ export function validateExport(body: unknown): { character: AnyCharacter; timeli
   const { character, timeline, format } = body;
   const art = isObj(character) && (character.kind === 'art' || character.kind === 'vector');
   if (!isObj(character) || (art ? typeof character.id !== 'string' || !UUID_RE.test(character.id) : !CHARACTER_KEYS.every((k) => typeof character[k] === 'string'))) return null;
-  if (!isObj(format) || (format.aspect !== '16:9' && format.aspect !== '9:16') || typeof format.transparent !== 'boolean' || (format.container !== undefined && format.container !== 'webm' && format.container !== 'mov') || (format.container === 'mov' && !format.transparent)) return null;
+  if (!isObj(format) || (format.aspect !== '16:9' && format.aspect !== '9:16') || typeof format.transparent !== 'boolean' || (format.container !== undefined && format.container !== 'webm' && format.container !== 'mov') || (format.container !== undefined && !format.transparent) || (format.container === 'mov' && !format.transparent)) return null;
   const raw = body.composition;
   const composition = raw === undefined ? DEFAULT_COMPOSITION : raw;
   if (!isObj(composition) || !isObj(composition.placement) || !isObj(composition.background)) return null;

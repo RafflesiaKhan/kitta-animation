@@ -50,7 +50,7 @@ export function ExportStep({ character, timeline, audioId, composition: supplied
         </button>
       </div>
       <label className="check-card">
-        <input type="checkbox" disabled={composition.background.kind !== 'transparent'} checked={transparent && composition.background.kind === 'transparent'} onChange={(e) => setTransparent(e.target.checked)} /> Transparent background (WebM)
+        <input type="checkbox" disabled={composition.background.kind !== 'transparent'} checked={transparent && composition.background.kind === 'transparent'} onChange={(e) => setTransparent(e.target.checked)} /> Transparent background
       </label>
       {transparent && composition.background.kind === 'transparent' && <div className="formats" role="group" aria-label="Transparent container">
         <button className={`format${container === 'webm' ? ' active' : ''}`} onClick={() => setContainer('webm')}><span><strong>WebM</strong><span className="hint"> Browsers, CapCut, DaVinci Resolve</span></span></button>

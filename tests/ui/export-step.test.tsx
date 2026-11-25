@@ -24,7 +24,7 @@ it('shows progress then a download link', async () => {
     return new Promise((r) => { finish = r; });
   });
   render(<ExportStep character={character} timeline={timeline} audioId="abc" />);
-  fireEvent.click(screen.getByLabelText('Transparent background (WebM)'));
+  fireEvent.click(screen.getByLabelText('Transparent background'));
   fireEvent.click(screen.getByRole('button', { name: 'Vertical 9:16' }));
   fireEvent.click(button());
   expect(api.exportVideo).toHaveBeenCalledWith({ character, timeline, audioId: 'abc', format: { aspect: '9:16', transparent: true } }, expect.any(Function));
