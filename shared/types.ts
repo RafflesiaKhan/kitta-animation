@@ -30,7 +30,7 @@ export interface ScriptLineInput {
   language?: string; style?: 'normal' | 'whisper'; pitch?: number; speed?: number; variability?: 'steady' | 'varied';
   speaker?: string; // VoiceStudio's engine default voice: who it sounds like (shared/voices.ts SPEAKERS), else DEFAULT_SPEAKER
 }
-export type ExportFormat = { aspect: '16:9' | '9:16'; transparent: boolean };
+export type ExportFormat = { aspect: '16:9' | '9:16'; transparent: boolean; container?: 'webm' | 'mov' };
 export type StudioBackground =
   | { kind: 'transparent' }
   | { kind: 'color'; color: string }

@@ -13,11 +13,13 @@ export function ExportStep({ character, timeline, audioId, composition: supplied
   const aspect = controlledAspect ?? localAspect;
   const setAspect = onAspect ?? setLocalAspect;
   const [transparent, setTransparent] = useState(false);
+  const [container, setContainer] = useState<NonNullable<ExportFormat['container']>>('webm');
   const [progress, setProgress] = useState<number | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const exporting = progress !== null;
-  const ready = timeline !== null && audioId !== null && !(composition.background.kind === 'picture' && !composition.background.id);
+  const missingPicture = composition.background.kind === 'picture' && !composition.background.id;
+  const ready = timeline !== null && audioId !== null && !missingPicture;
   const effectiveTransparent = composition.background.kind === 'transparent' && transparent;
 
   const start = async () => {
@@ -27,7 +29,7 @@ export function ExportStep({ character, timeline, audioId, composition: supplied
     setProgress(0);
     try {
       const legacy = composition.background.kind === 'transparent' && composition.placement.x === .5 && composition.placement.bottom === 0 && composition.placement.scale === 1 && !composition.placement.flip;
-      setUrl(await api.exportVideo({ character, timeline, audioId, format: { aspect, transparent: effectiveTransparent }, ...(legacy ? {} : { composition }) }, setProgress));
+      setUrl(await api.exportVideo({ character, timeline, audioId, format: { aspect, transparent: effectiveTransparent, ...(effectiveTransparent && container !== 'webm' ? { container } : {}) }, ...(legacy && container === 'webm' ? {} : { composition }) }, setProgress));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -50,17 +52,20 @@ export function ExportStep({ character, timeline, audioId, composition: supplied
       <label className="check-card">
         <input type="checkbox" disabled={composition.background.kind !== 'transparent'} checked={transparent && composition.background.kind === 'transparent'} onChange={(e) => setTransparent(e.target.checked)} /> Transparent background (WebM)
       </label>
+      {transparent && composition.background.kind === 'transparent' && <div className="formats" role="group" aria-label="Transparent container">
+        <button className={`format${container === 'webm' ? ' active' : ''}`} onClick={() => setContainer('webm')}><span><strong>WebM</strong><span className="hint"> Browsers, CapCut, DaVinci Resolve</span></span></button>
+        <button className={`format${container === 'mov' ? ' active' : ''}`} onClick={() => setContainer('mov')}><span><strong>MOV, ProRes 4444</strong><span className="hint"> Premiere, Final Cut, After Effects</span></span></button>
+      </div>}
       {composition.background.kind !== 'transparent' && <p className="hint">Transparent export is unavailable while a colour or picture is selected.</p>}
       <dl className="facts">
         <div><dt>Character</dt><dd>{isArt(character) || isVector(character) ? character.name : STARTERS[character.starter].name}</dd></div>
         <div><dt>Length</dt><dd>{timeline ? `${Math.round(timeline.durationMs / 1000)} s` : 'No voiceover yet'}</dd></div>
         <div><dt>Size</dt><dd>{aspect === '16:9' ? '1920 × 1080' : '1080 × 1920'}</dd></div>
-        <div><dt>File</dt><dd>{effectiveTransparent ? 'WebM' : 'MP4'}</dd></div>
+        <div><dt>File</dt><dd>{effectiveTransparent ? (container === 'mov' ? 'MOV' : 'WebM') : 'MP4'}</dd></div>
       </dl>
       <p>
         <button className="btn" disabled={!ready || exporting} onClick={start}>Export video</button>
-        {!ready && <span className="hint"> Add a voiceover first</span>}
-        {ready && composition.background.kind === 'picture' && !composition.background.id && <span className="hint"> Upload a picture first</span>}
+        {!ready && (missingPicture ? <span className="hint"> Upload a picture first</span> : <span className="hint"> Add a voiceover first</span>)}
       </p>
       {exporting && (
         <div className="progress-card">

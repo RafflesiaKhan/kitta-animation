@@ -45,7 +45,9 @@ async function encodeFrames(
   [w, h]: [number, number], format: ExportFormat, audioPath: string | undefined, outPath: string, total: number,
   keyAt: (i: number) => string, svgAt: (i: number) => string, onProgress?: (frame: number, total: number) => void,
 ): Promise<void> {
-  const codec = format.transparent
+  const codec = format.transparent && format.container === 'mov'
+    ? ['-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le', '-c:a', 'pcm_s16le']
+    : format.transparent
     ? ['-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-c:a', 'libopus']
     : ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart'];
   const ff = spawn('ffmpeg', [
