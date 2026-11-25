@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import type { AnyCharacter, ExportFormat, Timeline } from '../../shared/types';
+import type { AnyCharacter, ExportFormat, StudioComposition, Timeline } from '../../shared/types';
 import { isArt, isVector } from '../../shared/types';
 import { STARTERS } from '../../shared/character/starters';
 import * as api from '../api';
 import { Icon } from '../Icon';
 
-interface Props { character: AnyCharacter; timeline: Timeline | null; audioId: string | null }
+interface Props { character: AnyCharacter; timeline: Timeline | null; audioId: string | null; composition?: StudioComposition }
 
-export function ExportStep({ character, timeline, audioId }: Props) {
+export function ExportStep({ character, timeline, audioId, composition: supplied }: Props) {
+  const composition = supplied ?? { background: { kind: 'transparent' } as const, placement: { x: .5, bottom: 0, scale: 1, flip: false } };
   const [aspect, setAspect] = useState<ExportFormat['aspect']>('16:9');
   const [transparent, setTransparent] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
@@ -22,7 +23,8 @@ export function ExportStep({ character, timeline, audioId }: Props) {
     setUrl(null);
     setProgress(0);
     try {
-      setUrl(await api.exportVideo({ character, timeline, audioId, format: { aspect, transparent } }, setProgress));
+      const legacy = composition.background.kind === 'transparent' && composition.placement.x === .5 && composition.placement.bottom === 0 && composition.placement.scale === 1 && !composition.placement.flip;
+      setUrl(await api.exportVideo({ character, timeline, audioId, format: { aspect, transparent }, ...(legacy ? {} : { composition }) }, setProgress));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -43,8 +45,9 @@ export function ExportStep({ character, timeline, audioId }: Props) {
         </button>
       </div>
       <label className="check-card">
-        <input type="checkbox" checked={transparent} onChange={(e) => setTransparent(e.target.checked)} /> Transparent background (WebM)
+        <input type="checkbox" disabled={composition.background.kind !== 'transparent'} checked={transparent && composition.background.kind === 'transparent'} onChange={(e) => setTransparent(e.target.checked)} /> Transparent background (WebM)
       </label>
+      {composition.background.kind !== 'transparent' && <p className="hint">Transparent export is unavailable while a colour or picture is selected.</p>}
       <dl className="facts">
         <div><dt>Character</dt><dd>{isArt(character) || isVector(character) ? character.name : STARTERS[character.starter].name}</dd></div>
         <div><dt>Length</dt><dd>{timeline ? `${Math.round(timeline.durationMs / 1000)} s` : 'No voiceover yet'}</dd></div>

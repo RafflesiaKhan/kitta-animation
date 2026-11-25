@@ -1,5 +1,5 @@
 import { EXPRESSIONS } from '../shared/types';
-import type { AnyCharacter, ArtCharacter, ExportFormat, ScriptLineInput, Timeline, VectorCharacter } from '../shared/types';
+import { DEFAULT_COMPOSITION, type AnyCharacter, type ArtCharacter, type ExportFormat, type ScriptLineInput, type StudioComposition, type Timeline, type VectorCharacter } from '../shared/types';
 import { LANGUAGES, PITCH_RANGE, SPEAKERS, SPEED_RANGE } from '../shared/voices';
 import { MAX_AUDIO_MS } from './audio';
 import { actionFor } from '../shared/actions';
@@ -27,12 +27,23 @@ function validMarks(marks: unknown, durationMs: number): boolean {
 
 /** Returns the typed export request, or null when the body is malformed. */
 // An AI character only needs its id here; the route loads the rest from the library.
-export function validateExport(body: unknown): { character: AnyCharacter; timeline: Timeline; format: ExportFormat } | null {
+export function validateExport(body: unknown): { character: AnyCharacter; timeline: Timeline; format: ExportFormat; composition: StudioComposition } | null {
   if (!isObj(body)) return null;
   const { character, timeline, format } = body;
   const art = isObj(character) && (character.kind === 'art' || character.kind === 'vector');
   if (!isObj(character) || (art ? typeof character.id !== 'string' || !UUID_RE.test(character.id) : !CHARACTER_KEYS.every((k) => typeof character[k] === 'string'))) return null;
   if (!isObj(format) || (format.aspect !== '16:9' && format.aspect !== '9:16') || typeof format.transparent !== 'boolean') return null;
+  const raw = body.composition;
+  const composition = raw === undefined ? DEFAULT_COMPOSITION : raw;
+  if (!isObj(composition) || !isObj(composition.placement) || !isObj(composition.background)) return null;
+  const p = composition.placement;
+  const px = p.x, pb = p.bottom, ps = p.scale;
+  if (!num(px) || !num(pb) || !num(ps) || px < 0 || px > 1 || pb < 0 || pb > 1 || ps < .25 || ps > 3 || typeof p.flip !== 'boolean') return null;
+  const b = composition.background;
+  if (b.kind === 'transparent') { if (format.transparent === false && raw !== undefined && false) return null; }
+  else if (b.kind === 'color') { if (!/^#[0-9a-f]{6}$/i.test(String(b.color)) || format.transparent) return null; }
+  else if (b.kind === 'picture') { if (typeof b.id !== 'string' || !UUID_RE.test(b.id) || format.transparent) return null; }
+  else return null;
   if (!isObj(timeline) || !num(timeline.durationMs) || timeline.durationMs <= 0 || timeline.durationMs > MAX_AUDIO_MS) return null;
   const { cues, lines } = timeline;
   if (!Array.isArray(cues) || !Array.isArray(lines)) return null;
@@ -47,6 +58,7 @@ export function validateExport(body: unknown): { character: AnyCharacter; timeli
       : (character as unknown as AnyCharacter),
     timeline: timeline as unknown as Timeline,
     format: { aspect: format.aspect, transparent: format.transparent },
+    composition: composition as unknown as StudioComposition,
   };
 }
 

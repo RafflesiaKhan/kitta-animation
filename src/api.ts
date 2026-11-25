@@ -41,6 +41,10 @@ export function uploadBackground(file: File): Promise<BackgroundRecord> {
   form.append('file', file);
   return post<{ background: BackgroundRecord }>('/api/backgrounds', { body: form }).then((body) => body.background);
 }
+export async function deleteBackground(id: string): Promise<void> {
+  const res = await fetch(`/api/backgrounds/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!res.ok && res.status !== 404) throw new Error('Delete failed.');
+}
 
 export async function lipsync(audioId: string, dialog?: string): Promise<MouthCue[]> {
   const { cues } = await post<{ cues: MouthCue[] }>('/api/lipsync', {
@@ -171,7 +175,7 @@ export async function deleteCharacter(id: string): Promise<void> {
   if (!res.ok && res.status !== 404) throw new Error('Delete failed.');
 }
 
-export interface ExportBody { character: AnyCharacter; timeline: Timeline; audioId: string; format: ExportFormat }
+export interface ExportBody { character: AnyCharacter; timeline: Timeline; audioId: string; format: ExportFormat; composition?: import('../shared/types').StudioComposition }
 
 /** Starts an export and resolves with the download URL, reporting 0..1 progress from the NDJSON stream. */
 export async function exportVideo(body: ExportBody, onProgress: (p: number) => void): Promise<string> {

@@ -578,6 +578,11 @@ export function createApp(options: { backgroundsDir?: string } = {}) {
     if (!p || !existsSync(p)) return res.status(404).json({ error: 'Audio not found' });
     const input = validateExport(req.body);
     if (!input) return res.status(400).json({ error: 'Invalid request' });
+    let background: string | undefined;
+    if (input.composition.background.kind === 'picture') {
+      try { background = 'data:image/png;base64,' + (await readBackground(input.composition.background.id, backgroundsDir)).png.toString('base64'); }
+      catch { return res.status(400).json({ error: 'Background not found' }); }
+    }
     // An AI character is always drawn from the library on disk, never from images named by the client.
     let images: Record<string, string> | undefined;
     if (isVector(input.character)) {
@@ -604,6 +609,8 @@ export function createApp(options: { backgroundsDir?: string } = {}) {
       await renderVideo({
         ...input,
         images,
+        composition: input.composition,
+        background,
         audioPath: p,
         outPath: join(EXPORT_DIR, file),
         onProgress: (frame, total) => {

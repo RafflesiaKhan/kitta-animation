@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type PointerEvent, type RefObject } from 'react';
 import { isArt, isVector } from '../shared/types';
-import type { AnyCharacter, FrameState, Timeline } from '../shared/types';
-import { CharacterView } from '../shared/character/CharacterView';
+import type { AnyCharacter, FrameState, StudioComposition, Timeline } from '../shared/types';
+import { StudioFrame } from '../shared/StudioFrame';
 import { frameAt } from '../shared/timeline';
 import type { FrameSource } from '../shared/vector-avator/stage';
 
@@ -13,17 +13,27 @@ export interface PreviewProps {
   audioUrl: string | null;
   status?: string;
   audioRef?: RefObject<HTMLAudioElement>; // pass one to read or move the clock from outside (the Animate timeline)
+  composition?: StudioComposition;
+  onComposition?: (composition: StudioComposition) => void;
 }
 
 // The <audio> element is the master clock: every animation frame reads its
 // currentTime, so the drawing can never drift from the sound. With no audio the
 // character idles (blink/bob) on performance.now().
-export function Preview({ character, timeline, audioUrl, status, audioRef: shared }: PreviewProps) {
+export function Preview({ character, timeline, audioUrl, status, audioRef: shared, composition = { background: { kind: 'transparent' }, placement: { x: .5, bottom: 0, scale: 1, flip: false } }, onComposition }: PreviewProps) {
   const own = useRef<HTMLAudioElement>(null);
   const audioRef = shared ?? own;
   const [frame, setFrame] = useState<FrameState>(() => frameAt(IDLE, 0));
   // Vector characters also need the clock and the frames before it (their springs replay them after a scrub).
   const [clock, setClock] = useState<{ ms: number; source: FrameSource }>(() => ({ ms: 0, source: (ms) => frameAt(IDLE, ms) }));
+  const stageRef = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+  const place = (e: globalThis.PointerEvent) => {
+    const r = stageRef.current?.getBoundingClientRect();
+    if (!r || !onComposition) return;
+    onComposition({ ...composition, placement: { ...composition.placement, x: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), bottom: Math.max(0, Math.min(1, (r.bottom - e.clientY) / r.height)) } });
+  };
+  useEffect(() => { const move = (e: globalThis.PointerEvent) => { if (dragging.current) place(e); }; const up = () => { dragging.current = false; }; window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); }; });
 
   useEffect(() => {
     let raf = 0;
@@ -56,8 +66,9 @@ export function Preview({ character, timeline, audioUrl, status, audioRef: share
   return (
     <div className="preview">
       <div className="preview-head"><span>Preview</span>{timeline && <span className="ready">Lip sync ready</span>}</div>
-      <div className="stage" data-testid="stage" data-starter={isArt(character) ? `art:${character.id}` : isVector(character) ? `vector:${character.id}` : character.starter}>
-        <CharacterView config={character} frame={frame} width={420} height={420} clockMs={clock.ms} frameSource={clock.source} />
+      <div ref={stageRef} className="stage" data-testid="stage" data-starter={isArt(character) ? `art:${character.id}` : isVector(character) ? `vector:${character.id}` : character.starter} onPointerDown={(e: PointerEvent<HTMLDivElement>) => { dragging.current = true; place(e.nativeEvent); }}>
+        <StudioFrame character={character} frame={frame} width={composition.background.kind === 'transparent' ? 16 : 16} height={9} placement={composition.placement} background={composition.background}
+          picture={composition.background.kind === 'picture' ? `/api/backgrounds/${composition.background.id}` : undefined} clockMs={clock.ms} frameSource={clock.source} />
         {status && <div className="status">{status}</div>}
       </div>
       {audioUrl && <audio ref={audioRef} src={audioUrl} controls />}

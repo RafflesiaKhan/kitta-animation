@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent, type RefObject } from 'react';
 import { EXPRESSIONS, isVector } from '../../shared/types';
-import type { ActionMark, AnyCharacter, Expression, FrameState, Marks, Timeline } from '../../shared/types';
+import { DEFAULT_COMPOSITION, type ActionMark, type AnyCharacter, type BackgroundRecord, type Expression, type FrameState, type Marks, type StudioComposition, type Timeline } from '../../shared/types';
 import { actionsForLibrary, LEGACY_ACTION_IDS, parseActions, replaceActions, type Action as LibraryAction } from '../../shared/actions';
 import { CharacterView } from '../../shared/character/CharacterView';
 import { frameAt } from '../../shared/timeline';
 import { addAction, addExpression, marksOf, moveAction, moveExpression, removeAction, removeExpression, resizeAction, resizeExpression } from '../../shared/marks';
 import { Icon } from '../Icon';
 import { peaks } from '../waveform';
+import * as api from '../api';
 
 interface Props {
   character: AnyCharacter;
@@ -14,6 +15,8 @@ interface Props {
   audioUrl: string | null;
   audioRef: RefObject<HTMLAudioElement>; // the preview's audio: the one clock, read for the playhead and set to seek
   onMarks: (edit: (m: Marks) => Marks) => void; // applied to the marks as they are then, so quick edits never undo each other
+  composition?: StudioComposition;
+  onComposition?: (composition: StudioComposition) => void;
 }
 
 type ActionId = ActionMark['gesture'];
@@ -44,15 +47,19 @@ export function Tile({ character, kind, value, label, disabled, reason, onAdd }:
   );
 }
 
-export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }: Props) {
+export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks, composition = DEFAULT_COMPOSITION, onComposition = () => {} }: Props) {
   const [now, setNow] = useState(0);
   const [wave, setWave] = useState<number[] | null>(null);
   const [selected, setSelected] = useState<{ kind: Kind; i: number } | null>(null);
   const [note, setNote] = useState('');
   const [library, setLibrary] = useState<LibraryAction[]>(actionsForLibrary());
+  const [backgrounds, setBackgrounds] = useState<BackgroundRecord[]>([]);
   const drag = useRef<Drag | null>(null);
   const marks = timeline ? marksOf(timeline) : null;
   const total = timeline?.durationMs ?? 1;
+  useEffect(() => {
+    Promise.resolve(api.listBackgrounds?.() ?? []).then(setBackgrounds, () => {});
+  }, []);
   useEffect(() => {
     fetch('/api/actions').then((response) => response.ok ? response.json() : Promise.reject()).then((body: { actions?: unknown[]; errors?: string[] }) => {
       const actions = parseActions(body.actions ?? []);
@@ -62,6 +69,25 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
     }).catch(() => {});
   }, []);
   const paletteActions = isVector(character) ? library.filter((a) => a.name !== 'none') : library.filter((a) => LEGACY_ACTION_IDS.includes(a.name as typeof LEGACY_ACTION_IDS[number]));
+
+  const backgroundPanel = <section className="panel background-panel">
+    <p className="eyebrow">Studio</p><h2>Background</h2>
+    <div className="tabs" role="group" aria-label="Background choice">
+      {(['transparent', 'color', 'picture'] as const).map((kind) => <button key={kind} className={`tab${composition.background.kind === kind ? ' active' : ''}`} onClick={() => {
+        if (kind === 'transparent') onComposition({ ...composition, background: { kind } });
+        else if (kind === 'color') onComposition({ ...composition, background: { kind, color: '#ffffff' } });
+        else onComposition({ ...composition, background: backgrounds[0] ? { kind, id: backgrounds[0].id } : { kind: 'transparent' } });
+      }}>{kind === 'transparent' ? 'Transparent' : kind === 'color' ? 'Colour' : 'Picture'}</button>)}
+    </div>
+    {composition.background.kind === 'color' && <div className="field"><label htmlFor="background-colour">Colour</label><input id="background-colour" type="color" value={composition.background.color} onChange={(e) => onComposition({ ...composition, background: { kind: 'color', color: e.target.value } })} /></div>}
+    {composition.background.kind === 'picture' && <>
+      <div className="background-list">{backgrounds.map((b) => <button key={b.id} className={`mini${composition.background.kind === 'picture' && composition.background.id === b.id ? ' selected' : ''}`} onClick={() => onComposition({ ...composition, background: { kind: 'picture', id: b.id } })}>{b.name}</button>)}</div>
+      <label className="btn upload">Upload picture<input type="file" accept="image/png,image/jpeg,image/svg+xml" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; try { const b = await api.uploadBackground(file); setBackgrounds((old) => [b, ...old]); onComposition({ ...composition, background: { kind: 'picture', id: b.id } }); } catch {} e.currentTarget.value = ''; }} /></label>
+      {composition.background.id && <button className="mini" onClick={async () => { const id = composition.background.kind === 'picture' ? composition.background.id : ''; await api.deleteBackground(id).catch(() => {}); setBackgrounds((old) => old.filter((b) => b.id !== id)); onComposition({ ...composition, background: { kind: 'transparent' } }); }}>Remove</button>}
+    </>}
+    {composition.background.kind !== 'transparent' && <p className="hint">A colour or picture exports as an opaque MP4.</p>}
+    <div className="placement-controls"><label className="field">Size <input type="range" min="0.25" max="3" step="0.05" value={composition.placement.scale} onChange={(e) => onComposition({ ...composition, placement: { ...composition.placement, scale: Number(e.target.value) } })} /></label><button className="mini" onClick={() => onComposition({ ...composition, placement: { ...composition.placement, flip: !composition.placement.flip } })}>Flip</button></div>
+  </section>;
 
   // The playhead follows the audio clock.
   useEffect(() => {
@@ -108,11 +134,11 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
 
   if (!timeline || !marks) {
     return (
-      <section className="panel">
+      <>{backgroundPanel}<section className="panel">
         <p className="eyebrow">Step 3</p>
         <h2>Animate</h2>
         <p className="hint">Add a voiceover first. Then drag expressions and actions onto its timeline here.</p>
-      </section>
+      </section></>
     );
   }
 
@@ -160,6 +186,7 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks }
 
   return (
     <>
+      {backgroundPanel}
       <section className="panel palette">
         <p className="eyebrow">Step 3</p>
         <h2>Animate</h2>
