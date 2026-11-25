@@ -25,7 +25,7 @@ export function StudioFrame({ character, frame, width, height, placement, backgr
     ? createElement('rect', { 'data-part': 'background', width, height, fill: background.color })
     : background.kind === 'picture' && picture
       ? createElement('image', { 'data-part': 'background', width, height, href: picture, preserveAspectRatio: 'xMidYMid slice' })
-      : createElement('rect', { 'data-part': 'background', width, height, fill: 'transparent' });
+      : createElement('rect', { 'data-part': 'background', width, height, fill: background.kind === 'picture' ? '#fbe6e7' : 'transparent', 'data-background-missing': background.kind === 'picture' ? 'true' : undefined });
   const child = createElement(CharacterView, {
     config: character, frame, width: size, height: size, resolve, picture: characterPicture, clockMs, frameSource,
   });

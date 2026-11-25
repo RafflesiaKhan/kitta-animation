@@ -54,6 +54,7 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks, 
   const [note, setNote] = useState('');
   const [library, setLibrary] = useState<LibraryAction[]>(actionsForLibrary());
   const [backgrounds, setBackgrounds] = useState<BackgroundRecord[]>([]);
+  const color = useRef('#ffffff');
   const drag = useRef<Drag | null>(null);
   const marks = timeline ? marksOf(timeline) : null;
   const total = timeline?.durationMs ?? 1;
@@ -75,11 +76,11 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks, 
     <div className="tabs" role="group" aria-label="Background choice">
       {(['transparent', 'color', 'picture'] as const).map((kind) => <button key={kind} className={`tab${composition.background.kind === kind ? ' active' : ''}`} onClick={() => {
         if (kind === 'transparent') onComposition({ ...composition, background: { kind } });
-        else if (kind === 'color') onComposition({ ...composition, background: { kind, color: '#ffffff' } });
+        else if (kind === 'color') onComposition({ ...composition, background: { kind, color: color.current } });
         else onComposition({ ...composition, background: { kind, id: backgrounds[0]?.id ?? '' } });
       }}>{kind === 'transparent' ? 'Transparent' : kind === 'color' ? 'Colour' : 'Picture'}</button>)}
     </div>
-    {composition.background.kind === 'color' && <div className="field"><label htmlFor="background-colour">Colour</label><input id="background-colour" type="color" value={composition.background.color} onChange={(e) => onComposition({ ...composition, background: { kind: 'color', color: e.target.value } })} /></div>}
+    {composition.background.kind === 'color' && <div className="field"><label htmlFor="background-colour">Colour</label><input id="background-colour" type="color" value={composition.background.color} onChange={(e) => { color.current = e.target.value; onComposition({ ...composition, background: { kind: 'color', color: e.target.value } }); }} /></div>}
     {composition.background.kind === 'picture' && <>
       {!backgrounds.length && <p className="hint">Upload a PNG, JPEG or SVG to use a picture background.</p>}
       <div className="background-list">{backgrounds.map((b) => <button key={b.id} className={`mini${composition.background.kind === 'picture' && composition.background.id === b.id ? ' selected' : ''}`} onClick={() => onComposition({ ...composition, background: { kind: 'picture', id: b.id } })}>{b.name}</button>)}</div>

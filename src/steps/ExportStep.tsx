@@ -17,7 +17,7 @@ export function ExportStep({ character, timeline, audioId, composition: supplied
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const exporting = progress !== null;
-  const ready = timeline !== null && audioId !== null;
+  const ready = timeline !== null && audioId !== null && !(composition.background.kind === 'picture' && !composition.background.id);
   const effectiveTransparent = composition.background.kind === 'transparent' && transparent;
 
   const start = async () => {
@@ -60,6 +60,7 @@ export function ExportStep({ character, timeline, audioId, composition: supplied
       <p>
         <button className="btn" disabled={!ready || exporting} onClick={start}>Export video</button>
         {!ready && <span className="hint"> Add a voiceover first</span>}
+        {ready && composition.background.kind === 'picture' && !composition.background.id && <span className="hint"> Upload a picture first</span>}
       </p>
       {exporting && (
         <div className="progress-card">
