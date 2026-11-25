@@ -157,6 +157,12 @@ input[type=file]::file-selector-button:hover { background: var(--accent-tint); }
 /* White, because a video that isn't transparent exports on white. */
 .stage { position: relative; aspect-ratio: 16 / 9; background: var(--white); border-radius: var(--r-md); display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .stage > svg { height: 100%; width: auto; }
+.background-panel { min-width: 0; }
+.background-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+.background-list .selected { background: var(--accent); color: var(--white); border-color: var(--accent); }
+.placement-controls { display: flex; align-items: end; gap: 12px; margin-top: 14px; }
+.placement-controls .field { flex: 1; margin: 0; }
+.placement-controls input[type=range] { width: 100%; accent-color: var(--accent); }
 .status { position: absolute; bottom: 16px; padding: 4px 14px; border-radius: var(--r-pill); background: var(--ink); color: var(--cream); font-size: 14px; line-height: 20px; font-weight: 600; }
 .preview audio { display: block; width: 100%; margin-top: 12px; color-scheme: dark; }
 

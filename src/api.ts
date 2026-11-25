@@ -3,7 +3,7 @@ import type { TtsProvider, VoiceStudioInfo } from '../shared/voices';
 import type { UsageReport } from '../shared/usage';
 import type { VectorJob } from '../shared/vector-job';
 import type { Scene } from '../shared/scene';
-import type { AnyCharacter, ArtCharacter, VectorCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, Marks, MouthCue, ScriptLineInput, Timeline } from '../shared/types';
+import type { AnyCharacter, ArtCharacter, VectorCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, Marks, MouthCue, ScriptLineInput, Timeline, BackgroundRecord } from '../shared/types';
 import type { KnownModel } from '../shared/prices';
 import type { UsageHistory } from '../shared/usage';
 
@@ -33,6 +33,17 @@ export function uploadAudio(file: File): Promise<{ audioId: string; durationMs: 
   const form = new FormData();
   form.append('file', file);
   return post('/api/audio', { body: form });
+}
+
+export const listBackgrounds = () => getJson<{ backgrounds: BackgroundRecord[] }>('/api/backgrounds').then((body) => body.backgrounds);
+export function uploadBackground(file: File): Promise<BackgroundRecord> {
+  const form = new FormData();
+  form.append('file', file);
+  return post<{ background: BackgroundRecord }>('/api/backgrounds', { body: form }).then((body) => body.background);
+}
+export async function deleteBackground(id: string): Promise<void> {
+  const res = await fetch(`/api/backgrounds/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!res.ok && res.status !== 404) throw new Error('Delete failed.');
 }
 
 export async function lipsync(audioId: string, dialog?: string): Promise<MouthCue[]> {
@@ -164,7 +175,7 @@ export async function deleteCharacter(id: string): Promise<void> {
   if (!res.ok && res.status !== 404) throw new Error('Delete failed.');
 }
 
-export interface ExportBody { character: AnyCharacter; timeline: Timeline; audioId: string; format: ExportFormat }
+export interface ExportBody { character: AnyCharacter; timeline: Timeline; audioId: string; format: ExportFormat; composition?: import('../shared/types').StudioComposition }
 
 /** Starts an export and resolves with the download URL, reporting 0..1 progress from the NDJSON stream. */
 export async function exportVideo(body: ExportBody, onProgress: (p: number) => void): Promise<string> {

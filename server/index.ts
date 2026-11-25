@@ -32,12 +32,13 @@ import { isArt, isVector, type ArtPose } from '../shared/types';
 import { setting } from './settings';
 import { clearSession, createAdminPasswordIfAbsent, createSession, hasAdminPassword, initializeAdminResetState, readSession, requireAdmin, requireSameOrigin, setSessionCookie, verifyWithDelay } from './auth';
 import { publicSettings, setSettings, SettingsFileError } from './settings';
+import { BACKGROUNDS_DIR, BackgroundError, deleteBackground, listBackgrounds, readBackground, saveBackground, validBackgroundName, MAX_BACKGROUND_BYTES } from './backgrounds';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UPLOAD_DIR = join('data', 'uploads');
 const EXPORT_DIR = join('data', 'exports');
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
-const EXPORT_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(mp4|webm)$/i;
+const EXPORT_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(mp4|webm|mov)$/i;
 const SETTINGS_NAMES = new Set(['OPENAI_API_KEY','GEMINI_API_KEY','ANTHROPIC_API_KEY','ELEVENLABS_API_KEY','VOICESTUDIO_API_KEY','VOICESTUDIO_URL','OPENAI_TEXT_MODEL','OPENAI_IMAGE_MODEL','OPENAI_VISION_MODEL','OPENAI_TTS_MODEL','OPENAI_DRAW_MODEL','GEMINI_TEXT_MODEL','GEMINI_IMAGE_MODEL','GEMINI_TTS_MODEL','ANTHROPIC_MODEL','ELEVENLABS_MODEL','VOICESTUDIO_TTS_MODEL','VECTOR_DRAW_PROVIDER','DEFAULT_TTS_PROVIDER','DEFAULT_IMAGE_PROVIDER']);
 
 /** Sends the standard JSON error for an OpenAI failure; `failed` is the 502 message. */
@@ -82,13 +83,15 @@ function sendGeminiError(res: express.Response, e: unknown, failed: string): boo
   return true;
 }
 
-export function createApp() {
+export function createApp(options: { backgroundsDir?: string } = {}) {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
   app.use('/api/projects', projectRoutes());
   app.get('/api/actions', actionRoutes());
   const upload = multer({ dest: UPLOAD_DIR, limits: { fileSize: 100 * 1024 * 1024 } });
   const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
+  const backgroundUpload = multer({ storage: multer.memoryStorage(), preservePath: true, limits: { fileSize: MAX_BACKGROUND_BYTES, files: 1 } });
+  const backgroundsDir = options.backgroundsDir ?? BACKGROUNDS_DIR;
 
   /** Standard replies for character-library failures; false when e is something else. */
   const sendCharacterError = (res: express.Response, e: unknown, failed: string) => {
@@ -107,6 +110,43 @@ export function createApp() {
   app.get('/api/health', async (_req, res) => {
     const vectorDraw = Boolean(setting(drawProvider() === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'));
     res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(setting('GEMINI_API_KEY')), imageProviders: imageProviders(), ttsProviders: ttsProviders(), vectorDraw, vectorDrawProvider: drawProvider() });
+  });
+
+  app.get('/api/backgrounds', async (_req, res) => {
+    try { res.json({ backgrounds: await listBackgrounds(backgroundsDir) }); }
+    catch (error) { if (error instanceof BackgroundError && error.code === 'corrupt') return res.status(500).json({ error: 'Background metadata is unreadable.' }); throw error; }
+  });
+
+  app.post('/api/backgrounds', (req, res) => {
+    backgroundUpload.single('file')(req, res, async (err) => {
+      const file = req.file;
+      if (err || !file || !validBackgroundName(file.originalname)) return res.status(400).json({ error: 'Invalid background upload.' });
+      try {
+        const background = await saveBackground(file.mimetype, file.buffer, file.originalname, backgroundsDir);
+        res.status(201).json({ background });
+      } catch (error) {
+        if (error instanceof BackgroundError) return res.status(error.code === 'corrupt' ? 500 : 400).json({ error: error.code === 'corrupt' ? 'Background metadata is unreadable.' : 'Invalid background upload.' });
+        res.status(500).json({ error: 'Background upload failed.' });
+      }
+    });
+  });
+
+  app.get('/api/backgrounds/:id', async (req, res) => {
+    try {
+      const { png } = await readBackground(req.params.id, backgroundsDir);
+      res.type('image/png').send(png);
+    } catch (error) {
+      if (error instanceof BackgroundError) return res.status(error.code === 'not_found' ? 404 : 500).json({ error: error.code === 'not_found' ? 'Background not found' : 'Background metadata is unreadable.' });
+      res.status(500).json({ error: 'Background could not be read.' });
+    }
+  });
+
+  app.delete('/api/backgrounds/:id', async (req, res) => {
+    try { await deleteBackground(req.params.id, backgroundsDir); res.status(204).end(); }
+    catch (error) {
+      if (error instanceof BackgroundError) return res.status(error.code === 'not_found' ? 404 : 500).json({ error: error.code === 'not_found' ? 'Background not found' : 'Background metadata is unreadable.' });
+      res.status(500).json({ error: 'Background could not be deleted.' });
+    }
   });
 
   app.get('/api/auth/status', async (req, res) => {
@@ -538,6 +578,11 @@ export function createApp() {
     if (!p || !existsSync(p)) return res.status(404).json({ error: 'Audio not found' });
     const input = validateExport(req.body);
     if (!input) return res.status(400).json({ error: 'Invalid request' });
+    let background: string | undefined;
+    if (input.composition.background.kind === 'picture') {
+      try { background = 'data:image/png;base64,' + (await readBackground(input.composition.background.id, backgroundsDir)).png.toString('base64'); }
+      catch { return res.status(400).json({ error: 'Background not found' }); }
+    }
     // An AI character is always drawn from the library on disk, never from images named by the client.
     let images: Record<string, string> | undefined;
     if (isVector(input.character)) {
@@ -554,7 +599,7 @@ export function createApp() {
         return res.status(404).json({ error: 'Character not found' });
       }
     }
-    const ext = input.format.transparent ? 'webm' : 'mp4';
+    const ext = input.format.transparent && input.format.container === 'mov' ? 'mov' : input.format.transparent ? 'webm' : 'mp4';
     const file = `${randomUUID()}.${ext}`;
     await mkdir(EXPORT_DIR, { recursive: true });
     res.type('application/x-ndjson');
@@ -564,6 +609,8 @@ export function createApp() {
       await renderVideo({
         ...input,
         images,
+        composition: input.composition,
+        background,
         audioPath: p,
         outPath: join(EXPORT_DIR, file),
         onProgress: (frame, total) => {

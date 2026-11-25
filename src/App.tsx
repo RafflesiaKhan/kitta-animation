@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isArt, isVector } from '../shared/types';
-import type { AnyCharacter, ArtCharacter, VectorCharacter, ArtPose, ImageProvider, Line, Marks, ScriptLineInput, Timeline } from '../shared/types';
+import type { AnyCharacter, ArtCharacter, VectorCharacter, ArtPose, ImageProvider, Line, Marks, ScriptLineInput, Timeline, StudioComposition } from '../shared/types';
+import { DEFAULT_COMPOSITION } from '../shared/types';
 import { VOICES, type TtsProvider } from '../shared/voices';
 import { STARTERS } from '../shared/character/starters';
 import { marksOf } from '../shared/marks';
@@ -13,7 +14,7 @@ import { ExportStep } from './steps/ExportStep';
 import { UsagePanel } from './UsagePanel';
 import { RUNNING_STAGES, type VectorJob } from '../shared/vector-job';
 
-export interface State { character: AnyCharacter; timeline: Timeline | null; audioId: string | null; source: 'upload' | 'script' | null }
+export interface State { character: AnyCharacter; timeline: Timeline | null; audioId: string | null; source: 'upload' | 'script' | null; composition?: StudioComposition }
 
 const NEW_LINE: ScriptLineInput = { text: '', voice: VOICES[0], expression: 'neutral', gesture: 'none' };
 const STEPS = ['Character', 'Voiceover', 'Animate', 'Export'];
@@ -31,8 +32,9 @@ export function withTaggedLines(s: State, startedAudioId: string, lines: Line[])
 
 export function App() {
   const [step, setStep] = useState(0);
+  const [aspect, setAspect] = useState<'16:9' | '9:16'>('16:9');
   const audioRef = useRef<HTMLAudioElement>(null); // the preview's audio, shared with the Animate timeline
-  const [state, setState] = useState<State>({ character: KIT, timeline: null, audioId: null, source: null });
+  const [state, setState] = useState<State>({ character: KIT, timeline: null, audioId: null, source: null, composition: DEFAULT_COMPOSITION });
   const [status, setStatus] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null); // how a directed script's directions were matched
@@ -226,6 +228,7 @@ export function App() {
   };
 
   const audioUrl = state.audioId ? `/api/audio/${state.audioId}` : null;
+  const composition = state.composition ?? DEFAULT_COMPOSITION;
   return (
     <div className="app">
       <header>
@@ -245,8 +248,8 @@ export function App() {
       </header>
       {step === 2 ? (
         <main className="animate">
-          <Preview character={state.character} timeline={state.timeline} audioUrl={audioUrl} status={status} audioRef={audioRef} />
-          <AnimateStep character={state.character} timeline={state.timeline} audioUrl={audioUrl} audioRef={audioRef} onMarks={editMarks} />
+          <Preview character={state.character} timeline={state.timeline} audioUrl={audioUrl} status={status} audioRef={audioRef} composition={composition} aspect={aspect} onComposition={(next) => setState((s) => ({ ...s, composition: next }))} />
+          <AnimateStep character={state.character} timeline={state.timeline} audioUrl={audioUrl} audioRef={audioRef} onMarks={editMarks} composition={composition} onComposition={(next) => setState((s) => ({ ...s, composition: next }))} />
         </main>
       ) : (
         <main>
@@ -255,9 +258,9 @@ export function App() {
               library={library} vectors={vectors} onImportVector={addVector} onDeleteVector={deleteVector} imageProviders={imageProviders} busy={busy} error={error} onCreate={createArt} onDraw={drawPoses} onFindMouths={findMouths} onSetMouth={setMouth} onDelete={deleteArt}
               vectorJobs={vectorJobs} vectorDraw={vectorDraw.ok} vectorDrawBy={vectorDraw.by} onCreateVector={createVector} onJob={vectorJob} />}
             {step === 1 && <VoiceoverStep geminiOk={geminiOk} ttsProviders={ttsProviders} ttsProvider={ttsProvider} onTtsProvider={setTtsProvider} ttsEngine={ttsEngine} onTtsEngine={setTtsEngine} busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} onAutoTag={autoTagScript} onAddExpressions={addExpressions} uploadLines={state.source === 'upload' ? state.timeline?.lines ?? null : null} onEditUploadLine={editUploadLine} handAnimated={!!state.timeline?.marks} notice={notice} />}
-            {step === 3 && <ExportStep character={state.character} timeline={state.timeline} audioId={state.audioId} />}
+            {step === 3 && <ExportStep character={state.character} timeline={state.timeline} audioId={state.audioId} composition={composition} aspect={aspect} onAspect={setAspect} />}
           </section>
-          <Preview character={state.character} timeline={state.timeline} audioUrl={audioUrl} status={status} audioRef={audioRef} />
+          <Preview character={state.character} timeline={state.timeline} audioUrl={audioUrl} status={status} audioRef={audioRef} composition={composition} aspect={aspect} onComposition={(next) => setState((s) => ({ ...s, composition: next }))} />
         </main>
       )}
     </div>

@@ -30,7 +30,17 @@ export interface ScriptLineInput {
   language?: string; style?: 'normal' | 'whisper'; pitch?: number; speed?: number; variability?: 'steady' | 'varied';
   speaker?: string; // VoiceStudio's engine default voice: who it sounds like (shared/voices.ts SPEAKERS), else DEFAULT_SPEAKER
 }
-export type ExportFormat = { aspect: '16:9' | '9:16'; transparent: boolean };
+export type ExportFormat = { aspect: '16:9' | '9:16'; transparent: boolean; container?: 'webm' | 'mov' };
+export type StudioBackground =
+  | { kind: 'transparent' }
+  | { kind: 'color'; color: string }
+  | { kind: 'picture'; id: string };
+export interface CharacterPlacement { x: number; bottom: number; scale: number; flip: boolean }
+export interface StudioComposition { background: StudioBackground; placement: CharacterPlacement }
+export const DEFAULT_COMPOSITION: StudioComposition = {
+  background: { kind: 'transparent' }, placement: { x: 0.5, bottom: 0, scale: 1, flip: false },
+};
+export interface BackgroundRecord { id: string; name: string; mime: string; size: number; added: string }
 
 // ---------- AI-created characters (painted artwork instead of the SVG rig) ----------
 /** Poses painted for an AI character: one per expression, a closed-eyes frame for blinks, and one per action gesture. */

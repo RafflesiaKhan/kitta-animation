@@ -36,7 +36,7 @@ const probe = (file: string) => {
     a: j.streams.find((s: { codec_type: string }) => s.codec_type === 'audio'),
   };
 };
-const render = (format: { aspect: '16:9' | '9:16'; transparent: boolean }, name: string, onProgress?: (f: number, t: number) => void) => {
+const render = (format: { aspect: '16:9' | '9:16'; transparent: boolean; container?: 'webm' | 'mov' }, name: string, onProgress?: (f: number, t: number) => void) => {
   const outPath = join(tmp, name);
   return renderVideo({ character, timeline, audioPath: wav, format, outPath, onProgress }).then(() => outPath);
 };
@@ -66,6 +66,16 @@ describe('renderVideo', () => {
     const { v } = probe(out);
     const alpha = v.pix_fmt === 'yuva420p' || v.tags?.alpha_mode === '1';
     expect(alpha).toBe(true);
+  }, 60_000);
+
+  it('renders transparent MOV as ProRes 4444 with an alpha pixel format', async () => {
+    const out = await render({ aspect: '16:9', transparent: true, container: 'mov' }, 'e.mov');
+    const { v, a } = probe(out);
+    expect(v.codec_name).toBe('prores');
+    // Some ffmpeg builds expose ProRes 4444 as 12-bit after encoding even
+    // though the renderer requests yuva444p10le; both retain an alpha plane.
+    expect(['yuva444p10le', 'yuva444p12le']).toContain(v.pix_fmt);
+    expect(a.codec_name).toBe('pcm_s16le');
   }, 60_000);
 
   it('keeps transparent pixels transparent and anchors the body to the bottom edge', async () => {
