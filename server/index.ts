@@ -32,6 +32,7 @@ import { isArt, isVector, type ArtPose } from '../shared/types';
 import { setting } from './settings';
 import { clearSession, createAdminPasswordIfAbsent, createSession, hasAdminPassword, initializeAdminResetState, readSession, requireAdmin, requireSameOrigin, setSessionCookie, verifyWithDelay } from './auth';
 import { publicSettings, setSettings, SettingsFileError } from './settings';
+import { BACKGROUNDS_DIR, BackgroundError, deleteBackground, listBackgrounds, readBackground, saveBackground, validBackgroundName } from './backgrounds';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UPLOAD_DIR = join('data', 'uploads');
@@ -82,13 +83,15 @@ function sendGeminiError(res: express.Response, e: unknown, failed: string): boo
   return true;
 }
 
-export function createApp() {
+export function createApp(options: { backgroundsDir?: string } = {}) {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
   app.use('/api/projects', projectRoutes());
   app.get('/api/actions', actionRoutes());
   const upload = multer({ dest: UPLOAD_DIR, limits: { fileSize: 100 * 1024 * 1024 } });
   const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
+  const backgroundUpload = multer({ storage: multer.memoryStorage(), preservePath: true, limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
+  const backgroundsDir = options.backgroundsDir ?? BACKGROUNDS_DIR;
 
   /** Standard replies for character-library failures; false when e is something else. */
   const sendCharacterError = (res: express.Response, e: unknown, failed: string) => {
@@ -107,6 +110,42 @@ export function createApp() {
   app.get('/api/health', async (_req, res) => {
     const vectorDraw = Boolean(setting(drawProvider() === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'));
     res.json({ rhubarb: await rhubarbAvailable(), gemini: Boolean(setting('GEMINI_API_KEY')), imageProviders: imageProviders(), ttsProviders: ttsProviders(), vectorDraw, vectorDrawProvider: drawProvider() });
+  });
+
+  app.get('/api/backgrounds', async (_req, res) => {
+    res.json({ backgrounds: await listBackgrounds(backgroundsDir) });
+  });
+
+  app.post('/api/backgrounds', (req, res) => {
+    backgroundUpload.single('file')(req, res, async (err) => {
+      const file = req.file;
+      if (err || !file || !validBackgroundName(file.originalname)) return res.status(400).json({ error: 'Invalid background upload.' });
+      try {
+        const background = await saveBackground(file.mimetype, file.buffer, file.originalname, backgroundsDir);
+        res.status(201).json({ background });
+      } catch (error) {
+        if (error instanceof BackgroundError) return res.status(400).json({ error: 'Invalid background upload.' });
+        res.status(500).json({ error: 'Background upload failed.' });
+      }
+    });
+  });
+
+  app.get('/api/backgrounds/:id', async (req, res) => {
+    try {
+      const { png } = await readBackground(req.params.id, backgroundsDir);
+      res.type('image/png').send(png);
+    } catch (error) {
+      if (error instanceof BackgroundError) return res.status(404).json({ error: 'Background not found' });
+      res.status(500).json({ error: 'Background could not be read.' });
+    }
+  });
+
+  app.delete('/api/backgrounds/:id', async (req, res) => {
+    try { await deleteBackground(req.params.id, backgroundsDir); res.status(204).end(); }
+    catch (error) {
+      if (error instanceof BackgroundError) return res.status(404).json({ error: 'Background not found' });
+      res.status(500).json({ error: 'Background could not be deleted.' });
+    }
   });
 
   app.get('/api/auth/status', async (req, res) => {
