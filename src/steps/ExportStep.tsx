@@ -18,6 +18,7 @@ export function ExportStep({ character, timeline, audioId, composition: supplied
   const [error, setError] = useState<string | null>(null);
   const exporting = progress !== null;
   const ready = timeline !== null && audioId !== null;
+  const effectiveTransparent = composition.background.kind === 'transparent' && transparent;
 
   const start = async () => {
     if (!timeline || !audioId) return;
@@ -25,7 +26,6 @@ export function ExportStep({ character, timeline, audioId, composition: supplied
     setUrl(null);
     setProgress(0);
     try {
-      const effectiveTransparent = composition.background.kind === 'transparent' && transparent;
       const legacy = composition.background.kind === 'transparent' && composition.placement.x === .5 && composition.placement.bottom === 0 && composition.placement.scale === 1 && !composition.placement.flip;
       setUrl(await api.exportVideo({ character, timeline, audioId, format: { aspect, transparent: effectiveTransparent }, ...(legacy ? {} : { composition }) }, setProgress));
     } catch (e) {
@@ -55,7 +55,7 @@ export function ExportStep({ character, timeline, audioId, composition: supplied
         <div><dt>Character</dt><dd>{isArt(character) || isVector(character) ? character.name : STARTERS[character.starter].name}</dd></div>
         <div><dt>Length</dt><dd>{timeline ? `${Math.round(timeline.durationMs / 1000)} s` : 'No voiceover yet'}</dd></div>
         <div><dt>Size</dt><dd>{aspect === '16:9' ? '1920 × 1080' : '1080 × 1920'}</dd></div>
-        <div><dt>File</dt><dd>{transparent ? 'WebM' : 'MP4'}</dd></div>
+        <div><dt>File</dt><dd>{effectiveTransparent ? 'WebM' : 'MP4'}</dd></div>
       </dl>
       <p>
         <button className="btn" disabled={!ready || exporting} onClick={start}>Export video</button>

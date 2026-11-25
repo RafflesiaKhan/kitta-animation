@@ -76,11 +76,12 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks, 
       {(['transparent', 'color', 'picture'] as const).map((kind) => <button key={kind} className={`tab${composition.background.kind === kind ? ' active' : ''}`} onClick={() => {
         if (kind === 'transparent') onComposition({ ...composition, background: { kind } });
         else if (kind === 'color') onComposition({ ...composition, background: { kind, color: '#ffffff' } });
-        else onComposition({ ...composition, background: backgrounds[0] ? { kind, id: backgrounds[0].id } : { kind: 'transparent' } });
+        else onComposition({ ...composition, background: { kind, id: backgrounds[0]?.id ?? '' } });
       }}>{kind === 'transparent' ? 'Transparent' : kind === 'color' ? 'Colour' : 'Picture'}</button>)}
     </div>
     {composition.background.kind === 'color' && <div className="field"><label htmlFor="background-colour">Colour</label><input id="background-colour" type="color" value={composition.background.color} onChange={(e) => onComposition({ ...composition, background: { kind: 'color', color: e.target.value } })} /></div>}
     {composition.background.kind === 'picture' && <>
+      {!backgrounds.length && <p className="hint">Upload a PNG, JPEG or SVG to use a picture background.</p>}
       <div className="background-list">{backgrounds.map((b) => <button key={b.id} className={`mini${composition.background.kind === 'picture' && composition.background.id === b.id ? ' selected' : ''}`} onClick={() => onComposition({ ...composition, background: { kind: 'picture', id: b.id } })}>{b.name}</button>)}</div>
       <label className="btn upload">Upload picture<input type="file" accept="image/png,image/jpeg,image/svg+xml" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; try { const b = await api.uploadBackground(file); setBackgrounds((old) => [b, ...old]); onComposition({ ...composition, background: { kind: 'picture', id: b.id } }); } catch {} e.currentTarget.value = ''; }} /></label>
       {composition.background.id && <button className="mini" onClick={() => onComposition({ ...composition, background: { kind: 'transparent' } })}>Remove</button>}

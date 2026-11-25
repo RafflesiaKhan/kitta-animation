@@ -29,11 +29,14 @@ export function Preview({ character, timeline, audioUrl, status, audioRef: share
   const [clock, setClock] = useState<{ ms: number; source: FrameSource }>(() => ({ ms: 0, source: (ms) => frameAt(IDLE, ms) }));
   const stageRef = useRef<HTMLDivElement>(null);
   const dragging = useRef<{ x: number; bottom: number } | null>(null);
+  const compositionRef = useRef(composition); compositionRef.current = composition;
+  const callbackRef = useRef(onComposition); callbackRef.current = onComposition;
   const place = (e: globalThis.PointerEvent) => {
     const r = stageRef.current?.getBoundingClientRect();
-    if (!r || !onComposition) return;
+    if (!r || !callbackRef.current) return;
     const offset = dragging.current ?? { x: 0, bottom: 0 };
-    onComposition({ ...composition, placement: { ...composition.placement, x: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width - offset.x)), bottom: Math.max(0, Math.min(1, (r.bottom - e.clientY) / r.height - offset.bottom)) } });
+    const current = compositionRef.current;
+    callbackRef.current({ ...current, placement: { ...current.placement, x: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width - offset.x)), bottom: Math.max(0, Math.min(1, (r.bottom - e.clientY) / r.height - offset.bottom)) } });
   };
   useEffect(() => { const move = (e: globalThis.PointerEvent) => { if (dragging.current) place(e); }; const up = () => { dragging.current = null; }; window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); }; });
 
