@@ -9,13 +9,15 @@ Give Codex one prompt at a time, in this order. After each one, ask Claude to re
 | [00-save-draft-and-sync.md](00-save-draft-and-sync.md) | Saved the draft in the other checkout and synced it to the branch. |
 | [step-2-projects-and-storage.md](step-2-projects-and-storage.md), [step-2-fixes.md](step-2-fixes.md) | Projects, episodes, and storage. |
 | [step-3-characters-and-sets.md](step-3-characters-and-sets.md), [step-3-fixes.md](step-3-fixes.md), [step-3-fixes-2.md](step-3-fixes-2.md) | Reusable characters and backgrounds. |
+| Given in chat | The action library, step 1 ([action-library-plan.md](../action-library-plan.md)), and the Settings page ([settings-page-plan.md](../settings-page-plan.md)). |
 
-## Next: a usable v2 in three runs
+## Next: a usable v2
 
 | Order | Prompt | What it does |
 |---|---|---|
-| 4 | [step-4-talking-scene.md](step-4-talking-scene.md) | Script, voices, several characters, poses, and camera cuts in one scene, built in the app. |
-| 5 | [step-5-settings-and-director.md](step-5-settings-and-director.md) | Bring-your-own-key Settings, and the AI Director that drafts scripts, scenes, and backgrounds. |
+| 3b | No prompt yet: [background-plan.md](../background-plan.md) | A background in the studio (transparent, colour or picture) with the character placed on it, and MOV for editors. Small, and step 4 reuses it. |
+| 4 | [step-4-talking-scene.md](step-4-talking-scene.md) | Script, voices, several characters on a background, library actions, and camera cuts in one scene, built in the app. |
+| 5 | [step-5-settings-and-director.md](step-5-settings-and-director.md) | The AI Director that drafts scripts, scenes, and backgrounds. Its Settings part is already done. |
 | 6 | [step-6-editing-and-export.md](step-6-editing-and-export.md) | Scene order, transitions, audio mix, and whole-episode export. |
 
 ## Later, after you've used it

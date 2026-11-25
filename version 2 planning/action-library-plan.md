@@ -103,7 +103,7 @@ Start with the library and the + New action tile. Each step below fits one promp
 2. **+ New action tile** at the end of the Actions row: a text box, play mode and length, the cost shown before it starts, running in the background like vector creation.
 3. **Keyframe writer and check loop.** The model writes the clip; Kitta validates the bones, renders check frames and sends them back for fixes.
 4. **More faces.** Draw angry, sad, sleepy and excited when a vector character is created, and map all 11 expressions one to one.
-5. **Walking.** A walk-cycle clip plus the Move block.
+5. **Walking.** A walk-cycle clip plus the Move block, which moves the character across its background from the placement set in [background-plan.md](background-plan.md).
 6. **Two-person Animate.** Lanes per actor, the Look at block and listener nods, built on `shared/scene.ts`.
 7. **Camera lane.** Shot blocks (wide, medium, close-up, reverse), then the optional 30° body drawing at character creation.
 
