@@ -40,7 +40,10 @@ Watch for:
 ## Task 3: scene editor
 
 - Place several characters on a set: position, scale, flip, and stage ground, using step 3's anchor. A new character's default must not show where its body ends.
-- Choose each character's expressions and gestures over time. Use `src/steps/AnimateStep.tsx` as the timeline, adapted to a chosen character. Don't write a second timeline.
+- The set is a background from [background-plan.md](../background-plan.md): pick it, upload one, or use a project set. Reuse that plan's picker, store and placement controls (if it hasn't been built yet, build those parts here as that plan describes). Don't add a second background path.
+- Choose each character's expressions and actions over time. Use `src/steps/AnimateStep.tsx` as the timeline, adapted to a chosen character. Don't write a second timeline.
+- Actions come from the action library (`shared/actions.ts`, `/api/actions`, see [action-library-plan.md](../action-library-plan.md)): string ids, `once`, `loop` and `hold` play modes, and actions a character can't do (`needs` against `character.capabilities`) greyed out. Don't go back to a fixed gesture list.
+- Keep each actor's placement in a shape that a later **Move** block (walking, action library step 5) can change over time: a starting position, not a fixed one.
 - Add, move, and remove shots tied to a line and a position within it, as in `shared/scene.ts`. Each shot has a camera with zoom and focus. Wide, two-shot, speaker, and reaction presets fill in those numbers, which stay editable.
 - Add listener reactions.
 - The preview plays with the audio, or with a play button for a silent scene. It must not open frozen at time 0 before a gesture has started.
@@ -60,7 +63,7 @@ Tests themselves still use mocks, as the shared rules say.
 
 ## Not in this step
 
-The Director and Settings (step 5), transitions and episode export (step 6), props, new motions, and other voice providers.
+The Director (step 5; Settings is already done), transitions and episode export (step 6), props, creating new actions (action library step 2), walking (action library step 5), and other voice providers.
 
 ## Acceptance
 
@@ -74,5 +77,6 @@ The Director and Settings (step 5), transitions and episode export (step 6), pro
 8. Episodes saved in steps 2 and 3 still open. The step 1 sample render still matches its frame hashes.
 9. A shot's camera can't show anything outside the set.
 10. Today's four-step flow still works, including an export.
+11. A scene uses an uploaded background picture, and a looping action (for example a wave on `loop`) plays for its whole block on one character while the other only blinks and sways.
 
 Write the report as `version 2 planning/codex-reports/step-4.md`.
