@@ -22,7 +22,7 @@ export interface FrameState {
   fromExpression?: Expression; blend?: number; glance?: number;
   nod?: number; tilt?: number; sway?: number; browLift?: number; beat?: number; talk?: number;
 }
-export type StarterId = 'kit' | 'milo' | 'pip';
+export type StarterId = 'kit' | 'milo' | 'pip' | 'kai' | 'ira' | 'rohan' | 'baba' | 'mochi';
 export interface CharacterConfig { starter: StarterId; skin: string; hairStyle: string; hairColor: string; eyeStyle: string; outfit: string; outfitColor: string }
 export interface ScriptLineInput {
   text: string; voice: string; expression: Expression; gesture: Gesture; note?: string;
