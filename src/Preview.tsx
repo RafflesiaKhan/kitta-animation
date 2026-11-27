@@ -15,7 +15,7 @@ export interface PreviewProps {
   audioRef?: RefObject<HTMLAudioElement>; // pass one to read or move the clock from outside (the Animate timeline)
   composition?: StudioComposition;
   onComposition?: (composition: StudioComposition) => void;
-  aspect?: '16:9' | '9:16';
+  aspect?: '16:9' | '9:16' | '1:1' | 'circle';
 }
 
 // The <audio> element is the master clock: every animation frame reads its
@@ -71,8 +71,8 @@ export function Preview({ character, timeline, audioUrl, status, audioRef: share
   return (
     <div className="preview">
       <div className="preview-head"><span>Preview</span>{timeline && <span className="ready">Lip sync ready</span>}</div>
-      <div ref={stageRef} className="stage" style={{ aspectRatio: aspect === '16:9' ? '16 / 9' : '9 / 16' }} data-testid="stage" data-starter={isArt(character) ? `art:${character.id}` : isVector(character) ? `vector:${character.id}` : character.starter} onPointerDown={(e: PointerEvent<HTMLDivElement>) => { const r = e.currentTarget.getBoundingClientRect(); dragging.current = { x: (e.clientX - r.left) / r.width - composition.placement.x, bottom: (r.bottom - e.clientY) / r.height - composition.placement.bottom }; place(e.nativeEvent); }}>
-        <StudioFrame character={character} frame={frame} width={aspect === '16:9' ? 16 : 9} height={aspect === '16:9' ? 9 : 16} placement={composition.placement} background={composition.background}
+      <div ref={stageRef} className={`stage${aspect === '9:16' ? ' portrait' : ''}${aspect === 'circle' ? ' circle' : ''}`} style={{ aspectRatio: aspect === '16:9' ? '16 / 9' : aspect === '9:16' ? '9 / 16' : '1 / 1' }} data-testid="stage" data-starter={isArt(character) ? `art:${character.id}` : isVector(character) ? `vector:${character.id}` : character.starter} onPointerDown={(e: PointerEvent<HTMLDivElement>) => { const r = e.currentTarget.getBoundingClientRect(); dragging.current = { x: (e.clientX - r.left) / r.width - composition.placement.x, bottom: (r.bottom - e.clientY) / r.height - composition.placement.bottom }; place(e.nativeEvent); }}>
+        <StudioFrame character={character} frame={frame} width={aspect === '16:9' ? 16 : aspect === '9:16' ? 9 : 1} height={aspect === '16:9' ? 9 : aspect === '9:16' ? 16 : 1} placement={composition.placement} background={composition.background} shape={aspect === 'circle' ? 'circle' : 'rect'}
           picture={composition.background.kind === 'picture' ? `/api/backgrounds/${composition.background.id}` : undefined} clockMs={clock.ms} frameSource={clock.source} />
         {status && <div className="status">{status}</div>}
       </div>

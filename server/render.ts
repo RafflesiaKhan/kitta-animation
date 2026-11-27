@@ -24,9 +24,9 @@ export interface RenderOptions {
 }
 
 /** The character's square box is 80% of the frame height, centred horizontally and anchored to the bottom edge (portrait-style crop). */
-function frameSvg(character: AnyCharacter, frame: ReturnType<typeof frameAt>, w: number, h: number, images: Record<string, string>, composition: StudioComposition, background?: string, picture?: string) {
+function frameSvg(character: AnyCharacter, frame: ReturnType<typeof frameAt>, w: number, h: number, images: Record<string, string>, composition: StudioComposition, background?: string, picture?: string, circle = false) {
   return renderToStaticMarkup(createElement(StudioFrame, { character, frame, width: w, height: h, placement: composition.placement,
-    background: composition.background, picture: background, resolve: (f: string) => images[f] ?? '', characterPicture: picture }));
+    background: composition.background, picture: background, resolve: (f: string) => images[f] ?? '', characterPicture: picture, shape: circle ? 'circle' : 'rect' }));
 }
 
 /** resvg returns premultiplied RGBA; ffmpeg's rgba input expects straight alpha. */
@@ -92,7 +92,7 @@ async function encodeFrames(
 }
 
 export async function renderVideo({ character, images = {}, timeline, audioPath, format, composition = { background: { kind: 'transparent' }, placement: { x: .5, bottom: 0, scale: 1, flip: false } }, background, outPath, onProgress }: RenderOptions): Promise<void> {
-  const size: [number, number] = format.aspect === '16:9' ? [1920, 1080] : [1080, 1920];
+  const size: [number, number] = format.aspect === '16:9' ? [1920, 1080] : format.aspect === '9:16' ? [1080, 1920] : [1080, 1080];
   const frameAtI = (i: number) => frameAt(timeline, (i * 1000) / FPS);
   // A vector character is drawn by a stateful stage (springs), stepped once per frame in order; no frame can be skipped.
   const stage = isVector(character) ? await openStage(character.id) : undefined;
@@ -103,7 +103,7 @@ export async function renderVideo({ character, images = {}, timeline, audioPath,
   };
   return encodeFrames(size, format, audioPath, outPath, frameCount(timeline.durationMs),
     (i) => (stage ? JSON.stringify([i, composition, composition.background.kind === 'picture' ? composition.background.id : '']) : JSON.stringify([frameAtI(i), composition, composition.background.kind === 'picture' ? composition.background.id : ''])),
-    (i) => frameSvg(character, frameAtI(i), size[0], size[1], images, composition, background, picture(i)),
+    (i) => frameSvg(character, frameAtI(i), size[0], size[1], images, composition, background, picture(i), format.aspect === 'circle'),
     onProgress);
 }
 

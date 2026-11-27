@@ -41,3 +41,16 @@ it('shows an export error verbatim', async () => {
   fireEvent.click(button());
   expect((await screen.findByRole('alert')).textContent).toBe('Export failed. Please try again.');
 });
+
+it('offers square and circle exports', () => {
+  render(<ExportStep character={character} timeline={timeline} audioId="abc" />);
+  expect(screen.getByRole('button', { name: 'Square 1:1' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Circle 1:1 alpha' })).toBeTruthy();
+});
+
+it('makes circle export alpha explicit and offers its container choices', () => {
+  render(<ExportStep character={character} timeline={timeline} audioId="abc" />);
+  fireEvent.click(screen.getByRole('button', { name: 'Circle 1:1 alpha' }));
+  expect((screen.getByLabelText('Transparent background') as HTMLInputElement).checked).toBe(true);
+  expect(screen.getByRole('group', { name: 'Transparent container' })).toBeTruthy();
+});

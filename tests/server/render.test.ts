@@ -36,7 +36,7 @@ const probe = (file: string) => {
     a: j.streams.find((s: { codec_type: string }) => s.codec_type === 'audio'),
   };
 };
-const render = (format: { aspect: '16:9' | '9:16'; transparent: boolean; container?: 'webm' | 'mov' }, name: string, onProgress?: (f: number, t: number) => void) => {
+const render = (format: { aspect: '16:9' | '9:16' | '1:1' | 'circle'; transparent: boolean; container?: 'webm' | 'mov' }, name: string, onProgress?: (f: number, t: number) => void) => {
   const outPath = join(tmp, name);
   return renderVideo({ character, timeline, audioPath: wav, format, outPath, onProgress }).then(() => outPath);
 };
@@ -59,6 +59,20 @@ describe('renderVideo', () => {
   it('renders 9:16 as 1080x1920', async () => {
     const { v } = probe(await render({ aspect: '9:16', transparent: false }, 'b.mp4'));
     expect([v.width, v.height]).toEqual([1080, 1920]);
+  }, 60_000);
+
+  it('renders square as 1080x1080', async () => {
+    const { v } = probe(await render({ aspect: '1:1', transparent: false }, 'square.mp4'));
+    expect([v.width, v.height]).toEqual([1080, 1080]);
+  }, 60_000);
+
+  it('renders circle as a transparent 1080x1080 WebM with transparent corners', async () => {
+    const out = await render({ aspect: 'circle', transparent: true }, 'circle.webm');
+    const { v } = probe(out);
+    expect([v.width, v.height]).toEqual([1080, 1080]);
+    expect(v.pix_fmt === 'yuva420p' || v.tags?.alpha_mode === '1').toBe(true);
+    const buf = rawFrame(out);
+    expect(px(buf, 1080, 0, 0)[3]).toBe(0);
   }, 60_000);
 
   it('renders transparent WebM with alpha', async () => {

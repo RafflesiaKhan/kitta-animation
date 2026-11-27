@@ -157,6 +157,9 @@ input[type=file]::file-selector-button:hover { background: var(--accent-tint); }
 /* White, because a video that isn't transparent exports on white. */
 .stage { position: relative; aspect-ratio: 16 / 9; background: var(--white); border-radius: var(--r-md); display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .stage > svg { height: 100%; width: auto; }
+/* Portrait export previews should remain reviewable beside the configuration panel. */
+main.export > .preview .stage { max-height: min(72vh, 760px); }
+main.export > .preview .stage.portrait { width: min(100%, 420px); margin-inline: auto; }
 .background-panel { min-width: 0; }
 .background-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
 .background-list .selected { background: var(--accent); color: var(--white); border-color: var(--accent); }
@@ -175,6 +178,8 @@ input[type=file]::file-selector-button:hover { background: var(--accent-tint); }
 .shape { flex: none; border-radius: 4px; background: var(--taupe); }
 .shape.wide { width: 64px; height: 36px; }
 .shape.tall { width: 28px; height: 50px; margin: 0 18px; }
+.shape.square { width: 42px; height: 42px; }
+.shape.circle { width: 42px; height: 42px; border-radius: 50%; }
 .format.active .shape { background: var(--accent); }
 .check-card { display: flex !important; min-height: 56px; padding: 12px 18px; border: 1px solid var(--sand); border-radius: 14px; color: var(--ink); }
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; margin: 14px 0 20px; background: var(--sand); border: 1px solid var(--sand); border-radius: 14px; overflow: hidden; }

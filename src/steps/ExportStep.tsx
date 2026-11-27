@@ -20,7 +20,7 @@ export function ExportStep({ character, timeline, audioId, composition: supplied
   const exporting = progress !== null;
   const missingPicture = composition.background.kind === 'picture' && !composition.background.id;
   const ready = timeline !== null && audioId !== null && !missingPicture;
-  const effectiveTransparent = composition.background.kind === 'transparent' && transparent;
+  const effectiveTransparent = aspect === 'circle' || (composition.background.kind === 'transparent' && transparent);
 
   const start = async () => {
     if (!timeline || !audioId) return;
@@ -48,19 +48,25 @@ export function ExportStep({ character, timeline, audioId, composition: supplied
         <button className={`format${aspect === '9:16' ? ' active' : ''}`} aria-pressed={aspect === '9:16'} onClick={() => setAspect('9:16')}>
           <span className="shape tall" /><span><strong>Vertical</strong> <span className="hint">9:16</span></span>
         </button>
+        <button className={`format${aspect === '1:1' ? ' active' : ''}`} aria-pressed={aspect === '1:1'} onClick={() => setAspect('1:1')}>
+          <span className="shape square" /><span><strong>Square</strong> <span className="hint">1:1</span></span>
+        </button>
+        <button className={`format${aspect === 'circle' ? ' active' : ''}`} aria-pressed={aspect === 'circle'} onClick={() => setAspect('circle')}>
+          <span className="shape circle" /><span><strong>Circle</strong> <span className="hint">1:1 alpha</span></span>
+        </button>
       </div>
       <label className="check-card">
-        <input type="checkbox" disabled={composition.background.kind !== 'transparent'} checked={transparent && composition.background.kind === 'transparent'} onChange={(e) => setTransparent(e.target.checked)} /> Transparent background
+        <input type="checkbox" disabled={composition.background.kind !== 'transparent' || aspect === 'circle'} checked={effectiveTransparent} onChange={(e) => setTransparent(e.target.checked)} /> Transparent background
       </label>
-      {transparent && composition.background.kind === 'transparent' && <div className="formats" role="group" aria-label="Transparent container">
+      {effectiveTransparent && <div className="formats" role="group" aria-label="Transparent container">
         <button className={`format${container === 'webm' ? ' active' : ''}`} onClick={() => setContainer('webm')}><span><strong>WebM</strong><span className="hint"> Browsers, CapCut, DaVinci Resolve</span></span></button>
         <button className={`format${container === 'mov' ? ' active' : ''}`} onClick={() => setContainer('mov')}><span><strong>MOV, ProRes 4444</strong><span className="hint"> Premiere, Final Cut, After Effects</span></span></button>
       </div>}
-      {composition.background.kind !== 'transparent' && <p className="hint">Transparent export is unavailable while a colour or picture is selected.</p>}
+      {composition.background.kind !== 'transparent' && aspect !== 'circle' && <p className="hint">Transparent export is unavailable while a colour or picture is selected.</p>}
       <dl className="facts">
         <div><dt>Character</dt><dd>{isArt(character) || isVector(character) ? character.name : STARTERS[character.starter].name}</dd></div>
         <div><dt>Length</dt><dd>{timeline ? `${Math.round(timeline.durationMs / 1000)} s` : 'No voiceover yet'}</dd></div>
-        <div><dt>Size</dt><dd>{aspect === '16:9' ? '1920 × 1080' : '1080 × 1920'}</dd></div>
+        <div><dt>Size</dt><dd>{aspect === '16:9' ? '1920 × 1080' : aspect === '9:16' ? '1080 × 1920' : '1080 × 1080'}</dd></div>
         <div><dt>File</dt><dd>{effectiveTransparent ? (container === 'mov' ? 'MOV' : 'WebM') : 'MP4'}</dd></div>
       </dl>
       <p>

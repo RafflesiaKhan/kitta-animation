@@ -39,4 +39,19 @@ describe('validateExport marks', () => {
     expect(validateExport({ character, timeline, format: { aspect: '16:9', transparent: true, container: 'mov' } })?.format.container).toBe('mov');
     expect(validateExport({ character, timeline, format: { aspect: '16:9', transparent: false, container: 'webm' } })).toBeNull();
   });
+
+  it('accepts a vector character with a portrait colour background', () => {
+    const vector = { kind: 'vector', id: '67f5ee1f-fd95-46af-bcce-7cf4753f974e', name: 'Pearl (vector)' };
+    const timeline = { durationMs: 1000, cues: [], lines: [{ text: '', startMs: 0, endMs: 1000, expression: 'neutral', gesture: 'none' }] };
+    expect(validateExport({ character: vector, timeline, format: { aspect: '9:16', transparent: false }, composition: {
+      background: { kind: 'color', color: '#ffffff' }, placement: { x: .5, bottom: 0, scale: 1, flip: false },
+    } })).not.toBeNull();
+  });
+
+  it('requires alpha for circle exports and permits a background inside the circle', () => {
+    const timeline = { durationMs: 1000, cues: [], lines: [] };
+    const composition = { background: { kind: 'color', color: '#ffffff' }, placement: { x: .5, bottom: 0, scale: 1, flip: false } };
+    expect(validateExport({ character, timeline, format: { aspect: 'circle', transparent: true }, composition })).not.toBeNull();
+    expect(validateExport({ character, timeline, format: { aspect: 'circle', transparent: false }, composition })).toBeNull();
+  });
 });
