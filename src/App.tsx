@@ -252,7 +252,7 @@ export function App() {
           <AnimateStep character={state.character} timeline={state.timeline} audioUrl={audioUrl} audioRef={audioRef} onMarks={editMarks} composition={composition} onComposition={(next) => setState((s) => ({ ...s, composition: next }))} />
         </main>
       ) : (
-        <main>
+        <main className={step === 3 ? 'export' : undefined}>
           <section className="panel">
             {step === 0 && <CharacterStep character={state.character} onChange={(character) => setState((s) => ({ ...s, character }))}
               library={library} vectors={vectors} onImportVector={addVector} onDeleteVector={deleteVector} imageProviders={imageProviders} busy={busy} error={error} onCreate={createArt} onDraw={drawPoses} onFindMouths={findMouths} onSetMouth={setMouth} onDelete={deleteArt}

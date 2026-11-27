@@ -40,3 +40,8 @@ it('keeps blinking/breathing on the wall clock while the audio is paused', () =>
   act(() => { vi.advanceTimersByTime(600); });
   expect(bob()).not.toBe(first);
 });
+
+it('marks portrait previews so export layouts can constrain their height', () => {
+  const { container } = render(<Preview character={kit} timeline={timeline} audioUrl={null} aspect="9:16" />);
+  expect(container.querySelector('[data-testid=stage]')?.className).toContain('portrait');
+});

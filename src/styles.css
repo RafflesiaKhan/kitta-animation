@@ -157,6 +157,9 @@ input[type=file]::file-selector-button:hover { background: var(--accent-tint); }
 /* White, because a video that isn't transparent exports on white. */
 .stage { position: relative; aspect-ratio: 16 / 9; background: var(--white); border-radius: var(--r-md); display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .stage > svg { height: 100%; width: auto; }
+/* Portrait export previews should remain reviewable beside the configuration panel. */
+main.export > .preview .stage { max-height: min(72vh, 760px); }
+main.export > .preview .stage.portrait { width: min(100%, 420px); margin-inline: auto; }
 .background-panel { min-width: 0; }
 .background-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
 .background-list .selected { background: var(--accent); color: var(--white); border-color: var(--accent); }
