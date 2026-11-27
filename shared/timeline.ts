@@ -67,6 +67,7 @@ export function frameAt(t: Timeline, ms: number, idleOffsetMs = 0): FrameState {
   const talk = talkLevel(speech, ms);
 
   return {
+    timeMs: ms,
     expression,
     fromExpression,
     blend,

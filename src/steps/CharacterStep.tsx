@@ -353,7 +353,19 @@ function Customize({ character, onChange, showExpressions }: { character: Charac
     <div>
       <h3>Customize</h3>
       <div className="fields">
-        {colour('Skin colour', 'skin')}
+        {character.starter === 'ira' && <>
+          <label className="field"><span>Framing</span>
+            <select value={character.framing ?? 'waist'} onChange={e => set({ framing: e.target.value === 'full' ? 'full' : 'waist' })}>
+              <option value="waist">Waist-up</option><option value="full">Full body</option>
+            </select>
+          </label>
+          <label className="field"><span>Entrance</span>
+            <select value={character.walkIn ? 'walk' : 'stand'} onChange={e => set({ walkIn: e.target.value === 'walk' })}>
+              <option value="stand">Stand</option><option value="walk">Walk in two steps</option>
+            </select>
+          </label>
+        </>}
+        {colour('Skin colour', 'skin')}}
         {colour('Hair colour', 'hairColor')}
         {colour('Outfit colour', 'outfitColor')}
         {select('Hair style', 'hairStyle', OPTIONS.hairStyles)}

@@ -18,12 +18,13 @@ export interface Timeline { durationMs: number; cues: MouthCue[]; lines: Line[];
 // sway = gentle side-to-side drift (px), browLift = brow raise on phrase openers (0..1), beat = hand beat gesture
 // (0..1), talk = 1 while speaking. The character scales them by its expression's energy.
 export interface FrameState {
+  timeMs?: number;
   expression: Expression; mouth: MouthShape; gesture: Gesture; gestureProgress: number; gestureDurationMs?: number; blink: boolean; bob: number;
   fromExpression?: Expression; blend?: number; glance?: number;
   nod?: number; tilt?: number; sway?: number; browLift?: number; beat?: number; talk?: number;
 }
 export type StarterId = 'kit' | 'milo' | 'pip' | 'kai' | 'ira' | 'rohan' | 'baba' | 'mochi';
-export interface CharacterConfig { starter: StarterId; skin: string; hairStyle: string; hairColor: string; eyeStyle: string; outfit: string; outfitColor: string }
+export interface CharacterConfig { framing?: 'waist' | 'full'; walkIn?: boolean; starter: StarterId; skin: string; hairStyle: string; hairColor: string; eyeStyle: string; outfit: string; outfitColor: string }
 export interface ScriptLineInput {
   text: string; voice: string; expression: Expression; gesture: Gesture; note?: string;
   // Per-line voice controls (shared/voices.ts): language id, style, pitch and speed in % (0 = as is), steady or varied takes.

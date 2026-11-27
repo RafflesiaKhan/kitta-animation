@@ -101,7 +101,9 @@ function characterInput(body: unknown, style: Project['style']): ProjectCharacte
   if (typeof starter !== 'string' || !Object.hasOwn(STARTERS, starter) || !color(skin) || !color(hairColor) || !color(outfitColor)
     || typeof hairStyle !== 'string' || !OPTIONS.hairStyles.includes(hairStyle) || typeof eyeStyle !== 'string' || !OPTIONS.eyeStyles.includes(eyeStyle)
     || typeof outfit !== 'string' || !OPTIONS.outfits.includes(outfit)) return;
-  return { ...defaults, character: { starter: starter as CharacterConfig['starter'], skin, hairStyle, hairColor, eyeStyle, outfit, outfitColor } };
+  return { ...defaults, character: { ...(starter === 'ira' && character.framing === 'full' ? { framing: 'full' as const } : {}),
+    ...(starter === 'ira' && character.walkIn === true ? { walkIn: true } : {}),
+    starter: starter as CharacterConfig['starter'], skin, hairStyle, hairColor, eyeStyle, outfit, outfitColor } };
 }
 
 function episodeSceneInput(body: unknown): EpisodeSceneInput | undefined {

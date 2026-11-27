@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import type { CharacterConfig, FrameState, StarterId } from '../types';
 import { FACES, mixFaces, type BrowParams, type FaceParams, type MouthMood } from './expressions';
+import { entrancePose, Legs } from './Biped';
 import { CastCostume, CastHair, CastHead, isCast } from './CastArt';
 import { STARTERS } from './starters';
 import { mouthDetail, mouthPath } from './mouth';
@@ -186,7 +187,9 @@ export function Mouth({ shape, mood, x, y, scale }: { shape: FrameState['mouth']
 function Body({ config, layout }: { config: CharacterConfig; layout: Layout }) {
   const { cx, cy, ry } = layout.head;
   const top = layout.shoulderY, w = layout.shoulderW;
-  const torso = `M${cx - w} 1030 L${cx - w} ${top + 80} Q${cx - w} ${top} ${cx - w + 80} ${top} L${cx + w - 80} ${top} Q${cx + w} ${top} ${cx + w} ${top + 80} L${cx + w} 1030 Z`;
+  const torso = config.starter === 'ira'
+    ? 'M343 728 Q364 702 425 687 Q481 716 556 689 Q610 694 652 720 L638 790 Q617 868 630 941 L647 1006 Q510 1041 355 1011 L373 935 Q384 857 349 794Z'
+    : `M${cx - w} 1030 L${cx - w} ${top + 80} Q${cx - w} ${top} ${cx - w + 80} ${top} L${cx + w - 80} ${top} Q${cx + w} ${top} ${cx + w} ${top + 80} L${cx + w} 1030 Z`;
   const neckTop = cy + ry * 0.6;
   const line = { fill: 'none', stroke: INK, strokeWidth: SW, strokeLinecap: 'round' as const };
   const o = config.outfit;
@@ -195,8 +198,13 @@ function Body({ config, layout }: { config: CharacterConfig; layout: Layout }) {
       {o === 'hoodie' && <path data-part="hood" d={`M${cx - 120} ${top + 20} Q${cx - 130} ${top - 60} ${cx} ${top - 60} Q${cx + 130} ${top - 60} ${cx + 120} ${top + 20} Z`} fill={config.outfitColor} stroke={INK} strokeWidth={SW} />}
       <rect data-part="neck" x={cx - 45} y={n(neckTop)} width={90} height={n(top + 40 - neckTop)} fill={config.skin} stroke={INK} strokeWidth={SW} />
       <path d={torso} fill={o === 'overalls' ? SHIRT : config.outfitColor} stroke={INK} strokeWidth={SW} strokeLinejoin="round" />
+      {config.starter === 'ira' && o === 'hoodie' && <g stroke={INK} strokeWidth="5" strokeLinejoin="round">
+        <path fill="#e8ddcb" d="M438 699 Q493 742 565 698 L536 808 L482 1014 L451 1009 L470 805Z"/>
+        <path fill={config.outfitColor} d="M414 692 L441 668 L485 732 L465 795 L428 747 L444 731Z M575 676 L598 703 L561 732 L570 744 L529 787 L544 725Z"/>
+        <path fill="none" stroke="#b69a62" d="M467 799 L453 993 M532 795 L488 1000"/>
+      </g>}
       {o === 'tshirt' && <path d={`M${cx - 60} ${top} Q${cx} ${top + 70} ${cx + 60} ${top}`} fill={config.skin} stroke={INK} strokeWidth={SW} />}
-      {o === 'hoodie' && (
+      {o === 'hoodie' && config.starter !== 'ira' && (
         <g>
           <path d={`M${cx - 70} ${top} Q${cx} ${top + 60} ${cx + 70} ${top}`} fill={config.skin} stroke={INK} strokeWidth={SW} />
           <path {...line} d={`M${cx - 30} ${top + 40} L${cx - 34} ${top + 130} M${cx + 30} ${top + 40} L${cx + 34} ${top + 130}`} />
@@ -218,7 +226,7 @@ function Body({ config, layout }: { config: CharacterConfig; layout: Layout }) {
 }
 
 // Arm = upper arm rotated about the shoulder + forearm rotated about the elbow.
-function Arm({ side, layout, config, raise, bend, pointing = false }: { side: 'left' | 'right'; layout: Layout; config: CharacterConfig; raise: number; bend: number; pointing?: boolean }) {
+function Arm({ side, layout, config, raise, bend, pointing = false, open = false }: { side: 'left' | 'right'; layout: Layout; config: CharacterConfig; raise: number; bend: number; pointing?: boolean; open?: boolean }) {
   const dir = side === 'right' ? 1 : -1;
   const { len, w } = layout.arm;
   const sx = layout.head.cx + dir * (layout.shoulderW - w * 0.55);
@@ -238,7 +246,7 @@ function Arm({ side, layout, config, raise, bend, pointing = false }: { side: 'l
       <g transform={foreT}>
         <path d={seg(ex, ey, hx, hy)} stroke={fore} strokeWidth={w} strokeLinecap="round" />
         {isCast(config.starter) ? <g transform={`translate(${hx} ${hy}) scale(${dir} 1)`}><path data-part="hand" stroke={INK} strokeWidth={SW} strokeLinejoin="round" fill={config.skin}
-          d={pointing ? 'M-21 -18 Q-29 -7 -22 9 L-16 26 Q-9 38 0 28 Q12 40 18 24 L22 9 L25 62 Q28 76 36 65 L41 8 Q44 -19 21 -27Z' : 'M-20 -24 Q-36 -13 -32 9 Q-31 25 -20 23 Q-16 40 -3 32 Q10 40 17 28 Q31 29 32 12 Q48 -1 36 -14 Q30 -22 19 -17 L17 -27Z'}/></g> : <circle data-part="hand" cx={n(hx)} cy={n(hy)} r={n(w * 0.75)} fill={config.skin} stroke={INK} strokeWidth={SW} />}
+          d={open ? 'M-19 -21 Q-27 -10 -23 9 L-20 34 Q-18 43 -13 38 L-12 14 L-9 48 Q-6 55 -2 48 L0 15 L4 52 Q8 58 12 50 L12 14 L18 43 Q23 50 26 40 L23 6 Q45 19 47 10 Q46 5 29 -10 L18 -23Z' : pointing ? 'M-21 -18 Q-29 -7 -22 9 L-16 26 Q-9 38 0 28 Q12 40 18 24 L22 9 L25 62 Q28 76 36 65 L41 8 Q44 -19 21 -27Z' : config.starter === 'ira' ? 'M-19 -18 Q-24 -3 -19 12 L-9 36 Q-6 42 -2 37 L-6 17 L1 38 Q5 44 8 36 L3 15 L12 33 Q18 37 18 28 L13 5 Q25 16 29 9 Q30 3 18 -13 L15 -23Z' : 'M-20 -24 Q-36 -13 -32 9 Q-31 25 -20 23 Q-16 40 -3 32 Q10 40 17 28 Q31 29 32 12 Q48 -1 36 -14 Q30 -22 19 -17 L17 -27Z'}/></g> : <circle data-part="hand" cx={n(hx)} cy={n(hy)} r={n(w * 0.75)} fill={config.skin} stroke={INK} strokeWidth={SW} />}
       </g>
     </g>
   );
@@ -311,6 +319,8 @@ export interface CharacterProps { config: CharacterConfig; frame: FrameState; wi
 const ARM_GESTURES = new Set(['wave', 'celebrate', 'shrug', 'think', 'point', 'explain']);
 
 export function Character({ config, frame, width = 1000, height = 1000 }: CharacterProps) {
+  const biped = config.starter === 'ira';
+  const gait = entrancePose(frame.timeMs ?? 0, biped && !!config.walkIn);
   const L = LAYOUTS[config.starter] ?? LAYOUTS.kit;
   const h = L.head;
   const f: FaceParams = frame.fromExpression !== undefined && frame.blend !== undefined
@@ -361,9 +371,9 @@ export function Character({ config, frame, width = 1000, height = 1000 }: Charac
     left = mixPose(left, reach(L, 'left', h.cx - L.shoulderW - L.arm.len * 0.5, L.shoulderY + L.arm.len * 0.35 - wob, 'down'), ease);
     right = mixPose(right, reach(L, 'right', h.cx + L.shoulderW + L.arm.len * 0.5, L.shoulderY + L.arm.len * 0.35 + wob, 'down'), ease);
   }
-  const raiseR = right.raise + waveRaise - cheer * 140 - shrug * 30;
+  const raiseR = gait.swing * (1 - busy) + right.raise + waveRaise - cheer * 140 - shrug * 30;
   const bendR = right.bend + waveBend - cheer * 10 - shrug * 75;
-  const raiseL = left.raise + cheer * 140 + shrug * 30;
+  const raiseL = -gait.swing + left.raise + cheer * 140 + shrug * 30;
   const bendL = left.bend + cheer * 10 + shrug * 75;
 
   const blushK = Math.max(0, Math.min(1, f.blush));
@@ -376,15 +386,19 @@ export function Character({ config, frame, width = 1000, height = 1000 }: Charac
   const neutralWeight = (frame.expression === 'neutral' ? blend : 0) + (frame.fromExpression === 'neutral' ? 1 - blend : 0);
   const restingLid = config.starter === 'kai' || config.starter === 'mochi' ? 0.55 : config.starter === 'ira' ? 0.32 : 0;
   const pivotY = h.cy + h.ry * 0.85; // the head tilts about the neck
+  const upperY = frame.bob + hop + f.slump * 0.25 + gait.bounce;
+  const full = biped && config.framing === 'full';
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" overflow="visible" width={width} height={height}>
-      <g data-part="character" transform={`translate(${n(sway * 0.6)} ${n(frame.bob + hop + f.slump * 0.25)})`}>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox={full ? '-225 100 1450 1450' : '0 0 1000 1000'} overflow={biped ? 'hidden' : 'visible'} width={width} height={height}>
+      <g transform={`translate(${gait.root} 0)`}>
+        {biped && <Legs pose={gait} upperY={upperY}/>}
+      <g data-part="character"  transform={`translate(${n(sway * 0.6)} ${n(upperY)})`}>
         {config.starter === 'mochi' && <g stroke={INK} strokeWidth={SW}><path fill={config.skin} d="M421 920 Q328 964 278 900 Q243 865 263 815 Q276 785 299 804 Q318 818 309 848 Q302 887 337 888 Q369 889 404 860Z"/><path fill="#ffebca" d="M261 831 Q260 784 288 797 Q320 801 311 839 Q287 824 261 845Z"/></g>}
         {config.starter === 'mochi' && config.outfit === STARTERS.mochi.outfit
           ? <path data-part="body" fill={config.outfitColor} stroke={INK} strokeWidth={SW} d="M424 602 Q495 641 572 602 Q566 664 603 701 Q636 773 648 905 Q657 975 624 1025 H378 Q347 965 365 867 Q373 750 407 692 Q433 652 424 602Z"/>
           : <Body config={config} layout={L} />}
         {isCast(config.starter) && <CastCostume id={config.starter}/>}
-        <Arm side="left" layout={L} config={config} raise={raiseL} bend={bendL} />
+        <Arm side="left" open={biped && g === 'explain' && ease > 0.4} layout={L} config={config} raise={raiseL} bend={bendL} />
         <g data-part="head-group" transform={`translate(${n(sway * 0.4)} ${n(headY)}) rotate(${n(tilt)} ${h.cx} ${n(pivotY)})`}>
           {cast ? <g transform={artTransform}><CastHead config={config}/></g> : <>
           <Ears layout={L} skin={config.skin} />
@@ -412,7 +426,8 @@ export function Character({ config, frame, width = 1000, height = 1000 }: Charac
           <Brow side="right" x={h.cx + L.eye.dx} y={browY} brow={f.browR} />
           <Mouth shape={frame.mouth} mood={f.mouth} x={h.cx} y={L.mouth.y} scale={L.mouth.scale} />
         </g>
-        <Arm side="right" pointing={g === 'point' && ease > 0.5} layout={L} config={config} raise={raiseR} bend={bendR} />
+        <Arm side="right" open={biped && (g === 'wave' || g === 'explain') && ease > 0.4} pointing={g === 'point' && ease > 0.5} layout={L} config={config} raise={raiseR} bend={bendR} />
+      </g>
       </g>
     </svg>
   );
