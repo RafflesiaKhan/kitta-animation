@@ -365,7 +365,7 @@ function Customize({ character, onChange, showExpressions }: { character: Charac
             </select>
           </label>
         </>}
-        {colour('Skin colour', 'skin')}}
+        {colour('Skin colour', 'skin')}
         {colour('Hair colour', 'hairColor')}
         {colour('Outfit colour', 'outfitColor')}
         {select('Hair style', 'hairStyle', OPTIONS.hairStyles)}
