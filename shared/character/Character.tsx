@@ -1,6 +1,8 @@
 import type { ReactElement } from 'react';
 import type { CharacterConfig, FrameState, StarterId } from '../types';
 import { FACES, mixFaces, type BrowParams, type FaceParams, type MouthMood } from './expressions';
+import { CastCostume, CastHair, CastHead, isCast } from './CastArt';
+import { STARTERS } from './starters';
 import { mouthDetail, mouthPath } from './mouth';
 
 // Pure props → SVG. No hooks, no CSS, no browser APIs: this is also rendered
@@ -25,7 +27,18 @@ interface Layout {
   hairRange: [number, number]; // degrees on the head ellipse (270 = top)
 }
 
+function castLayout(rx: number, ry: number, shoulderW: number): Layout {
+  return { head: { cx: 500, cy: 465, rx, ry }, eye: { dx: rx * 0.39, y: 468, r: rx * 0.19 },
+    mouth: { y: 552, scale: 0.84 }, shoulderY: 699, shoulderW, arm: { len: 132, w: 54 },
+    ears: 'human', cheeks: false, hairRange: [185, 355] };
+}
+
 const LAYOUTS: Record<StarterId, Layout> = {
+  kai: castLayout(210, 197, 173),
+  ira: castLayout(192, 193, 176),
+  rohan: castLayout(210, 203, 170),
+  baba: castLayout(222, 198, 216),
+  mochi: castLayout(214, 183, 142),
   // round-faced kid: big round head, compact body
   kit: { head: { cx: 500, cy: 440, rx: 225, ry: 215 }, eye: { dx: 80, y: 445, r: 34 }, mouth: { y: 550, scale: 1 },
     shoulderY: 700, shoulderW: 200, arm: { len: 170, w: 58 }, ears: 'human', cheeks: true, hairRange: [190, 350] },
@@ -205,7 +218,7 @@ function Body({ config, layout }: { config: CharacterConfig; layout: Layout }) {
 }
 
 // Arm = upper arm rotated about the shoulder + forearm rotated about the elbow.
-function Arm({ side, layout, config, raise, bend }: { side: 'left' | 'right'; layout: Layout; config: CharacterConfig; raise: number; bend: number }) {
+function Arm({ side, layout, config, raise, bend, pointing = false }: { side: 'left' | 'right'; layout: Layout; config: CharacterConfig; raise: number; bend: number; pointing?: boolean }) {
   const dir = side === 'right' ? 1 : -1;
   const { len, w } = layout.arm;
   const sx = layout.head.cx + dir * (layout.shoulderW - w * 0.55);
@@ -224,7 +237,8 @@ function Arm({ side, layout, config, raise, bend }: { side: 'left' | 'right'; la
       <path d={seg(sx, sy, ex, ey)} stroke={sleeve} strokeWidth={w} strokeLinecap="round" />
       <g transform={foreT}>
         <path d={seg(ex, ey, hx, hy)} stroke={fore} strokeWidth={w} strokeLinecap="round" />
-        <circle data-part="hand" cx={n(hx)} cy={n(hy)} r={n(w * 0.75)} fill={config.skin} stroke={INK} strokeWidth={SW} />
+        {isCast(config.starter) ? <g transform={`translate(${hx} ${hy}) scale(${dir} 1)`}><path data-part="hand" stroke={INK} strokeWidth={SW} strokeLinejoin="round" fill={config.skin}
+          d={pointing ? 'M-21 -18 Q-29 -7 -22 9 L-16 26 Q-9 38 0 28 Q12 40 18 24 L22 9 L25 62 Q28 76 36 65 L41 8 Q44 -19 21 -27Z' : 'M-20 -24 Q-36 -13 -32 9 Q-31 25 -20 23 Q-16 40 -3 32 Q10 40 17 28 Q31 29 32 12 Q48 -1 36 -14 Q30 -22 19 -17 L17 -27Z'}/></g> : <circle data-part="hand" cx={n(hx)} cy={n(hy)} r={n(w * 0.75)} fill={config.skin} stroke={INK} strokeWidth={SW} />}
       </g>
     </g>
   );
@@ -355,13 +369,24 @@ export function Character({ config, frame, width = 1000, height = 1000 }: Charac
   const blushK = Math.max(0, Math.min(1, f.blush));
   const eyeR = L.eye.r;
   const browY = L.eye.y - eyeR * f.eyeScale - 40 - (config.eyeStyle === 'glasses' ? 22 : 0) - (frame.browLift ?? 0) * 12 * Math.min(1.2, energy);
+  const cast = isCast(config.starter);
+  const signatureHair = cast && config.hairStyle === STARTERS[config.starter].hairStyle;
+  const artTransform = `translate(${h.cx} ${h.cy}) scale(${h.rx / 100} ${h.ry / 100})`;
+  const blend = frame.fromExpression === undefined ? 1 : frame.blend ?? 1;
+  const neutralWeight = (frame.expression === 'neutral' ? blend : 0) + (frame.fromExpression === 'neutral' ? 1 - blend : 0);
+  const restingLid = config.starter === 'kai' || config.starter === 'mochi' ? 0.55 : config.starter === 'ira' ? 0.32 : 0;
   const pivotY = h.cy + h.ry * 0.85; // the head tilts about the neck
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" overflow="visible" width={width} height={height}>
       <g data-part="character" transform={`translate(${n(sway * 0.6)} ${n(frame.bob + hop + f.slump * 0.25)})`}>
-        <Body config={config} layout={L} />
+        {config.starter === 'mochi' && <g stroke={INK} strokeWidth={SW}><path fill={config.skin} d="M421 920 Q328 964 278 900 Q243 865 263 815 Q276 785 299 804 Q318 818 309 848 Q302 887 337 888 Q369 889 404 860Z"/><path fill="#ffebca" d="M261 831 Q260 784 288 797 Q320 801 311 839 Q287 824 261 845Z"/></g>}
+        {config.starter === 'mochi' && config.outfit === STARTERS.mochi.outfit
+          ? <path data-part="body" fill={config.outfitColor} stroke={INK} strokeWidth={SW} d="M424 602 Q495 641 572 602 Q566 664 603 701 Q636 773 648 905 Q657 975 624 1025 H378 Q347 965 365 867 Q373 750 407 692 Q433 652 424 602Z"/>
+          : <Body config={config} layout={L} />}
+        {isCast(config.starter) && <CastCostume id={config.starter}/>}
         <Arm side="left" layout={L} config={config} raise={raiseL} bend={bendL} />
         <g data-part="head-group" transform={`translate(${n(sway * 0.4)} ${n(headY)}) rotate(${n(tilt)} ${h.cx} ${n(pivotY)})`}>
+          {cast ? <g transform={artTransform}><CastHead config={config}/></g> : <>
           <Ears layout={L} skin={config.skin} />
           <ellipse data-part="head" cx={h.cx} cy={h.cy} rx={h.rx} ry={h.ry} fill={config.skin} stroke={INK} strokeWidth={SW} />
           {(L.cheeks || blushK > 0.02) && (
@@ -376,17 +401,18 @@ export function Character({ config, frame, width = 1000, height = 1000 }: Charac
               <path data-part="nose" d={`M${h.cx - 22} ${L.mouth.y - 72} Q${h.cx} ${L.mouth.y - 80} ${h.cx + 22} ${L.mouth.y - 72} Q${h.cx} ${L.mouth.y - 40} ${h.cx - 22} ${L.mouth.y - 72} Z`} fill={INK} stroke={INK} strokeWidth={6} strokeLinejoin="round" />
             </g>
           )}
-          <Hair style={config.hairStyle} color={config.hairColor} layout={L} />
-          <Eye side="left" x={h.cx - L.eye.dx} y={L.eye.y} r={eyeR} style={config.eyeStyle} scale={f.eyeScale} lid={f.lidL} squint={f.squint}
+          </>}
+          {signatureHair ? <g transform={artTransform}><CastHair config={config}/></g> : <Hair style={config.hairStyle} color={config.hairColor} layout={L} />}
+          <Eye side="left" x={h.cx - L.eye.dx} y={L.eye.y} r={eyeR} style={config.eyeStyle} scale={f.eyeScale} lid={Math.max(f.lidL, neutralWeight * restingLid)} squint={f.squint}
             lookX={lookX} lookY={f.lookY} blink={frame.blink} lookDown={lookDown} skin={config.skin} />
-          <Eye side="right" x={h.cx + L.eye.dx} y={L.eye.y} r={eyeR} style={config.eyeStyle} scale={f.eyeScale} lid={f.lidR} squint={f.squint}
+          <Eye side="right" x={h.cx + L.eye.dx} y={L.eye.y} r={eyeR} style={config.eyeStyle} scale={f.eyeScale} lid={Math.max(f.lidR, neutralWeight * restingLid)} squint={f.squint}
             lookX={lookX} lookY={f.lookY} blink={frame.blink} lookDown={lookDown} skin={config.skin} />
           {config.eyeStyle === 'glasses' && <Glasses layout={L} r={eyeR} />}
           <Brow side="left" x={h.cx - L.eye.dx} y={browY} brow={f.browL} />
           <Brow side="right" x={h.cx + L.eye.dx} y={browY} brow={f.browR} />
           <Mouth shape={frame.mouth} mood={f.mouth} x={h.cx} y={L.mouth.y} scale={L.mouth.scale} />
         </g>
-        <Arm side="right" layout={L} config={config} raise={raiseR} bend={bendR} />
+        <Arm side="right" pointing={g === 'point' && ease > 0.5} layout={L} config={config} raise={raiseR} bend={bendR} />
       </g>
     </svg>
   );

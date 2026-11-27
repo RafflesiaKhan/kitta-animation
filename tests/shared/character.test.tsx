@@ -34,8 +34,8 @@ describe('Character root', () => {
 });
 
 describe('STARTERS / OPTIONS', () => {
-  it('has 3 starters', () => {
-    expect(Object.keys(STARTERS).length).toBe(3);
+  it('registers the original starters and illustrated cast', () => {
+    expect(Object.keys(STARTERS).sort()).toEqual(['baba', 'ira', 'kai', 'kit', 'milo', 'mochi', 'pip', 'rohan']);
   });
   it('offers at least 3 of each option', () => {
     expect(OPTIONS.hairStyles.length).toBeGreaterThanOrEqual(3);
