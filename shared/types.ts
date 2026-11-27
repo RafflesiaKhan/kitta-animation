@@ -24,7 +24,9 @@ export interface FrameState {
   nod?: number; tilt?: number; sway?: number; browLift?: number; beat?: number; talk?: number;
 }
 export type StarterId = 'kit' | 'milo' | 'pip' | 'kai' | 'ira' | 'rohan' | 'baba' | 'mochi';
-export interface CharacterConfig { framing?: 'waist' | 'full'; walkIn?: boolean; starter: StarterId; skin: string; hairStyle: string; hairColor: string; eyeStyle: string; outfit: string; outfitColor: string }
+export const BODY_STYLES = ['classic', 'compact', 'broad', 'slender'] as const;
+export type BodyStyle = typeof BODY_STYLES[number];
+export interface CharacterConfig { bodyStyle?: BodyStyle; framing?: 'waist' | 'full'; walkIn?: boolean; starter: StarterId; skin: string; hairStyle: string; hairColor: string; eyeStyle: string; outfit: string; outfitColor: string }
 export interface ScriptLineInput {
   text: string; voice: string; expression: Expression; gesture: Gesture; note?: string;
   // Per-line voice controls (shared/voices.ts): language id, style, pitch and speed in % (0 = as is), steady or varied takes.

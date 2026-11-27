@@ -37,6 +37,7 @@ export function parseAction(value: unknown): Action {
 
 const noneMotion: MotionJson = { name: 'none', label: 'None', duration: 1, loop: true, keys: [{ t: 0 }] };
 const builtins: Action[] = [
+  legacy('starterWalk', 'Walk', noneMotion, { duration: 2, play: 'once' }),
   legacy('wave', 'wave', mbWaveJson as unknown as MotionJson, { play: 'once' }),
   legacy('nod', 'nod', nodJson as MotionJson, { play: 'once' }),
   legacy('lookDown', 'look down', { ...noneMotion, name: 'lookDown' }, { play: 'once' }),

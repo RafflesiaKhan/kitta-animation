@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent, type RefObject } from 'react';
-import { EXPRESSIONS, isVector } from '../../shared/types';
+import { EXPRESSIONS, isArt, isVector } from '../../shared/types';
 import { DEFAULT_COMPOSITION, type ActionMark, type AnyCharacter, type BackgroundRecord, type Expression, type FrameState, type Marks, type StudioComposition, type Timeline } from '../../shared/types';
 import { actionsForLibrary, LEGACY_ACTION_IDS, parseActions, replaceActions, type Action as LibraryAction } from '../../shared/actions';
 import { CharacterView } from '../../shared/character/CharacterView';
@@ -69,7 +69,7 @@ export function AnimateStep({ character, timeline, audioUrl, audioRef, onMarks, 
       if (body.errors?.length) setNote(body.errors.join(' '));
     }).catch(() => {});
   }, []);
-  const paletteActions = isVector(character) ? library.filter((a) => a.name !== 'none') : library.filter((a) => LEGACY_ACTION_IDS.includes(a.name as typeof LEGACY_ACTION_IDS[number]));
+  const paletteActions = isVector(character) ? library.filter((a) => a.name !== 'none' && a.name !== 'starterWalk') : library.filter((a) => (a.name === 'starterWalk' && !isArt(character)) || LEGACY_ACTION_IDS.includes(a.name as typeof LEGACY_ACTION_IDS[number]));
 
   const backgroundPanel = <section className="panel background-panel">
     <p className="eyebrow">Studio</p><h2>Background</h2>

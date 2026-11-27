@@ -1,5 +1,5 @@
 import { useEffect, useState, type MouseEvent } from 'react';
-import { ART_ACTIONS, EXPRESSIONS, GESTURES, isArt, isVector } from '../../shared/types';
+import { BODY_STYLES, ART_ACTIONS, EXPRESSIONS, GESTURES, isArt, isVector } from '../../shared/types';
 import type { AnyCharacter, ArtCharacter, ArtPose, CharacterConfig, FrameState, ImageProvider, StarterId, VectorCharacter } from '../../shared/types';
 import { CharacterView } from '../../shared/character/CharacterView';
 import { Character } from '../../shared/character/Character';
@@ -353,7 +353,7 @@ function Customize({ character, onChange, showExpressions }: { character: Charac
     <div>
       <h3>Customize</h3>
       <div className="fields">
-        {character.starter === 'ira' && <>
+        
           <label className="field"><span>Framing</span>
             <select value={character.framing ?? 'waist'} onChange={e => set({ framing: e.target.value === 'full' ? 'full' : 'waist' })}>
               <option value="waist">Waist-up</option><option value="full">Full body</option>
@@ -364,7 +364,11 @@ function Customize({ character, onChange, showExpressions }: { character: Charac
               <option value="stand">Stand</option><option value="walk">Walk in two steps</option>
             </select>
           </label>
-        </>}
+        <label className="field"><span>Body style</span>
+          <select value={character.bodyStyle ?? 'classic'} onChange={e => set({ bodyStyle: BODY_STYLES.find(s => s === e.target.value) })}>
+            {BODY_STYLES.map(s => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}
+          </select>
+        </label>
         {colour('Skin colour', 'skin')}
         {colour('Hair colour', 'hairColor')}
         {colour('Outfit colour', 'outfitColor')}

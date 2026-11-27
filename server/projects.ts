@@ -6,7 +6,7 @@ import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
 import type { Episode, EpisodeScene, EpisodeSceneInput, MediaAsset, Project, ProjectCharacterInput, ProjectScene, ProjectVoice } from '../shared/projects';
 import type { Scene } from '../shared/scene';
-import { EXPRESSIONS, isArt, type CharacterConfig } from '../shared/types';
+import { BODY_STYLES, EXPRESSIONS, isArt, type CharacterConfig } from '../shared/types';
 import { OPTIONS, STARTERS } from '../shared/character/starters';
 import { TTS_PROVIDERS } from '../shared/voices';
 import { addAction } from '../shared/marks';
@@ -97,12 +97,13 @@ function characterInput(body: unknown, style: Project['style']): ProjectCharacte
   if (!voiceName || typeof voice.engine !== 'string' || typeof voice.speaker !== 'string') return;
   const defaults = { name, anchorY, voice: { provider, voice: voiceName, engine: clean(voice.engine, 100), speaker: clean(voice.speaker, 100), variability } } as const;
   if (style === 'ai') return idString(character.artId) ? { ...defaults, character: { artId: character.artId } } : undefined;
+  const bodyStyle = BODY_STYLES.find(s => s === character.bodyStyle);
   const { starter, skin, hairStyle, hairColor, eyeStyle, outfit, outfitColor } = character;
   if (typeof starter !== 'string' || !Object.hasOwn(STARTERS, starter) || !color(skin) || !color(hairColor) || !color(outfitColor)
     || typeof hairStyle !== 'string' || !OPTIONS.hairStyles.includes(hairStyle) || typeof eyeStyle !== 'string' || !OPTIONS.eyeStyles.includes(eyeStyle)
     || typeof outfit !== 'string' || !OPTIONS.outfits.includes(outfit)) return;
-  return { ...defaults, character: { ...(starter === 'ira' && character.framing === 'full' ? { framing: 'full' as const } : {}),
-    ...(starter === 'ira' && character.walkIn === true ? { walkIn: true } : {}),
+  return { ...defaults, character: { ...(bodyStyle ? { bodyStyle } : {}), ...(character.framing === 'full' ? { framing: 'full' as const } : {}),
+    ...(character.walkIn === true ? { walkIn: true } : {}),
     starter: starter as CharacterConfig['starter'], skin, hairStyle, hairColor, eyeStyle, outfit, outfitColor } };
 }
 

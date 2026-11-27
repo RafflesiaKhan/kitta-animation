@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import type { CharacterConfig, FrameState, StarterId } from '../types';
 import { FACES, mixFaces, type BrowParams, type FaceParams, type MouthMood } from './expressions';
-import { entrancePose, Legs } from './Biped';
+import { entrancePose, walkingPose, Legs } from './Biped';
 import { CastCostume, CastHair, CastHead, isCast } from './CastArt';
 import { STARTERS } from './starters';
 import { mouthDetail, mouthPath } from './mouth';
@@ -187,7 +187,12 @@ export function Mouth({ shape, mood, x, y, scale }: { shape: FrameState['mouth']
 function Body({ config, layout }: { config: CharacterConfig; layout: Layout }) {
   const { cx, cy, ry } = layout.head;
   const top = layout.shoulderY, w = layout.shoulderW;
-  const torso = config.starter === 'ira'
+  const silhouette = config.bodyStyle;
+  const waist = w * (silhouette === 'broad' ? .76 : silhouette === 'compact' ? 1.02 : .78);
+  const hip = w * (silhouette === 'slender' ? .91 : .97);
+  const shaped = `M${cx-w} ${top+52} Q${cx-w+8} ${top+10} ${cx-48} ${top-6} Q${cx} ${top+26} ${cx+48} ${top-6} Q${cx+w-8} ${top+10} ${cx+w} ${top+52}
+    Q${cx+w} ${top+105} ${cx+waist} 925 L${cx+hip} 1016 Q${cx} 1044 ${cx-hip} 1016 L${cx-waist} 925 Q${cx-w} ${top+105} ${cx-w} ${top+52}Z`;
+  const torso = silhouette && silhouette !== 'classic' ? shaped : config.starter === 'ira'
     ? 'M343 728 Q364 702 425 687 Q481 716 556 689 Q610 694 652 720 L638 790 Q617 868 630 941 L647 1006 Q510 1041 355 1011 L373 935 Q384 857 349 794Z'
     : `M${cx - w} 1030 L${cx - w} ${top + 80} Q${cx - w} ${top} ${cx - w + 80} ${top} L${cx + w - 80} ${top} Q${cx + w} ${top} ${cx + w} ${top + 80} L${cx + w} 1030 Z`;
   const neckTop = cy + ry * 0.6;
@@ -319,8 +324,11 @@ export interface CharacterProps { config: CharacterConfig; frame: FrameState; wi
 const ARM_GESTURES = new Set(['wave', 'celebrate', 'shrug', 'think', 'point', 'explain']);
 
 export function Character({ config, frame, width = 1000, height = 1000 }: CharacterProps) {
-  const biped = config.starter === 'ira';
-  const gait = entrancePose(frame.timeMs ?? 0, biped && !!config.walkIn);
+  const biped = config.starter === 'ira' || config.framing === 'full' || !!config.walkIn || frame.gesture === 'starterWalk';
+  const style = config.bodyStyle ?? 'classic';
+  const widthScale = { classic: 1, compact: 1.06, slender: .83, broad: 1.24 }[style] ?? 1;
+  const lengthScale = style === 'compact' ? .81 : style === 'slender' ? 1.07 : 1;
+  const gait = frame.gesture === 'starterWalk' ? walkingPose(frame.gestureProgress, frame.gestureDurationMs ?? 2000) : entrancePose(frame.timeMs ?? 0, biped && !!config.walkIn);
   const L = LAYOUTS[config.starter] ?? LAYOUTS.kit;
   const h = L.head;
   const f: FaceParams = frame.fromExpression !== undefined && frame.blend !== undefined
@@ -389,9 +397,9 @@ export function Character({ config, frame, width = 1000, height = 1000 }: Charac
   const upperY = frame.bob + hop + f.slump * 0.25 + gait.bounce;
   const full = biped && config.framing === 'full';
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox={full ? '-225 100 1450 1450' : '0 0 1000 1000'} overflow={biped ? 'hidden' : 'visible'} width={width} height={height}>
-      <g transform={`translate(${gait.root} 0)`}>
-        {biped && <Legs pose={gait} upperY={upperY}/>}
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox={full ? (style === 'slender' ? '-265 90 1530 1530' : '-225 100 1450 1450') : '0 0 1000 1000'} overflow={biped ? 'hidden' : 'visible'} width={width} height={height}>
+      <g transform={`translate(${gait.root} 0) translate(500 660) scale(${widthScale} ${lengthScale}) translate(-500 -660)`}>
+        {biped && <Legs fur={config.starter === 'mochi' || config.starter === 'pip' ? config.skin : undefined} pose={gait} upperY={upperY}/>}
       <g data-part="character"  transform={`translate(${n(sway * 0.6)} ${n(upperY)})`}>
         {config.starter === 'mochi' && <g stroke={INK} strokeWidth={SW}><path fill={config.skin} d="M421 920 Q328 964 278 900 Q243 865 263 815 Q276 785 299 804 Q318 818 309 848 Q302 887 337 888 Q369 889 404 860Z"/><path fill="#ffebca" d="M261 831 Q260 784 288 797 Q320 801 311 839 Q287 824 261 845Z"/></g>}
         {config.starter === 'mochi' && config.outfit === STARTERS.mochi.outfit
@@ -399,6 +407,7 @@ export function Character({ config, frame, width = 1000, height = 1000 }: Charac
           : <Body config={config} layout={L} />}
         {isCast(config.starter) && <CastCostume id={config.starter}/>}
         <Arm side="left" open={biped && g === 'explain' && ease > 0.4} layout={L} config={config} raise={raiseL} bend={bendL} />
+        <g transform={`translate(500 660) scale(${1 / widthScale} ${1 / lengthScale}) translate(-500 -660)`}>
         <g data-part="head-group" transform={`translate(${n(sway * 0.4)} ${n(headY)}) rotate(${n(tilt)} ${h.cx} ${n(pivotY)})`}>
           {cast ? <g transform={artTransform}><CastHead config={config}/></g> : <>
           <Ears layout={L} skin={config.skin} />
@@ -425,6 +434,7 @@ export function Character({ config, frame, width = 1000, height = 1000 }: Charac
           <Brow side="left" x={h.cx - L.eye.dx} y={browY} brow={f.browL} />
           <Brow side="right" x={h.cx + L.eye.dx} y={browY} brow={f.browR} />
           <Mouth shape={frame.mouth} mood={f.mouth} x={h.cx} y={L.mouth.y} scale={L.mouth.scale} />
+        </g>
         </g>
         <Arm side="right" open={biped && (g === 'wave' || g === 'explain') && ease > 0.4} pointing={g === 'point' && ease > 0.5} layout={L} config={config} raise={raiseR} bend={bendR} />
       </g>
