@@ -317,3 +317,27 @@ it('reuses a project character and safe set without sharing episode performance'
     await rm(root, { recursive: true, force: true });
   }
 }, 25_000);
+
+it('keeps an episode voice override local to that episode', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'kitta-project-voice-'));
+  const voice = { provider: 'voicestudio', voice: 'steady-default', engine: 'omni', speaker: 'man', variability: 'steady' };
+  const override = { ...voice, voice: 'steady-override', speaker: 'woman' };
+  try {
+    const client = request(express().use(express.json()).use('/projects', projectRoutes(root)));
+    const { body: project } = await client.post('/projects').send({ name: 'Voices', style: 'svg' }).expect(201);
+    const path = '/projects/' + project.id;
+    const { body: cast } = await client.post(path + '/characters').send({ name: 'Pip', anchorY: .75, voice, character: STARTERS.pip }).expect(201);
+    const { body: set } = await client.post(path + '/assets').attach('media', Buffer.from('<svg width="32" height="24"/>'), { filename: 'set.svg', contentType: 'image/svg+xml' }).expect(201);
+    const { body: first } = await client.post(path + '/episodes').send({ title: 'First' }).expect(201);
+    const { body: second } = await client.post(path + '/episodes').send({ title: 'Second' }).expect(201);
+    const input = { characterId: cast.characters[0].id, backgroundAssetId: set.assets[0].id, expression: 'neutral', gesture: 'wave', x: .5, scale: .8, groundY: 1 };
+    await client.put(path + '/episodes/' + first.id + '/scene').send({ ...input, voice: override }).expect(200);
+    await client.put(path + '/episodes/' + second.id + '/scene').send(input).expect(200);
+    const { body: reopened } = await client.get(path).expect(200);
+    expect(reopened.characters[0].voice).toEqual(voice);
+    expect(reopened.episodes[0].projectScene.voice).toEqual(override);
+    expect(reopened.episodes[1].projectScene.voice).toBeUndefined();
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

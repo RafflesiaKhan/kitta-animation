@@ -58,6 +58,8 @@ export interface EpisodeSceneInput {
   x: number;
   scale: number;
   groundY: number;
+  /** Optional episode-local override; the project character default remains shared. */
+  voice?: ProjectVoice;
 }
 
 export interface EpisodeScene extends EpisodeSceneInput {

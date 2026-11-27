@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
-import type { Episode, EpisodeScene, EpisodeSceneInput, MediaAsset, Project, ProjectCharacterInput, ProjectScene } from '../shared/projects';
+import type { Episode, EpisodeScene, EpisodeSceneInput, MediaAsset, Project, ProjectCharacterInput, ProjectScene, ProjectVoice } from '../shared/projects';
 import type { Scene } from '../shared/scene';
 import { EXPRESSIONS, isArt, type CharacterConfig } from '../shared/types';
 import { OPTIONS, STARTERS } from '../shared/character/starters';
@@ -111,7 +111,18 @@ function episodeSceneInput(body: unknown): EpisodeSceneInput | undefined {
   const gesture = typeof body.gesture === 'string' && actionFor(body.gesture) ? body.gesture : undefined;
   if (!idString(characterId) || !idString(backgroundAssetId) || !expression || !gesture
     || !inRange(x, 0, 1) || !inRange(scale, .1, 2) || !inRange(groundY, 0, 1)) return;
-  return { characterId, backgroundAssetId, expression, gesture, x, scale, groundY };
+  let voice: ProjectVoice | undefined;
+  if (body.voice !== undefined) {
+    const rawVoice = body.voice;
+    if (!object(rawVoice)) return;
+    const provider = TTS_PROVIDERS.find(value => value === rawVoice.provider);
+    const variability = rawVoice.variability;
+    const voiceName = clean(rawVoice.voice, 100);
+    if (!provider || (variability !== 'steady' && variability !== 'varied') || !voiceName
+      || typeof rawVoice.engine !== 'string' || typeof rawVoice.speaker !== 'string') return;
+    voice = { provider, voice: voiceName, engine: clean(rawVoice.engine, 100), speaker: clean(rawVoice.speaker, 100), variability };
+  }
+  return { characterId, backgroundAssetId, expression, gesture, x, scale, groundY, ...(voice ? { voice } : {}) };
 }
 
 export function projectRoutes(root = resolve('data/projects'), {
