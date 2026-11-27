@@ -47,4 +47,11 @@ describe('validateExport marks', () => {
       background: { kind: 'color', color: '#ffffff' }, placement: { x: .5, bottom: 0, scale: 1, flip: false },
     } })).not.toBeNull();
   });
+
+  it('requires alpha for circle exports and permits a background inside the circle', () => {
+    const timeline = { durationMs: 1000, cues: [], lines: [] };
+    const composition = { background: { kind: 'color', color: '#ffffff' }, placement: { x: .5, bottom: 0, scale: 1, flip: false } };
+    expect(validateExport({ character, timeline, format: { aspect: 'circle', transparent: true }, composition })).not.toBeNull();
+    expect(validateExport({ character, timeline, format: { aspect: 'circle', transparent: false }, composition })).toBeNull();
+  });
 });

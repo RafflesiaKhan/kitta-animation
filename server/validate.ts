@@ -32,7 +32,7 @@ export function validateExport(body: unknown): { character: AnyCharacter; timeli
   const { character, timeline, format } = body;
   const art = isObj(character) && (character.kind === 'art' || character.kind === 'vector');
   if (!isObj(character) || (art ? typeof character.id !== 'string' || !UUID_RE.test(character.id) : !CHARACTER_KEYS.every((k) => typeof character[k] === 'string'))) return null;
-  if (!isObj(format) || (format.aspect !== '16:9' && format.aspect !== '9:16') || typeof format.transparent !== 'boolean' || (format.container !== undefined && format.container !== 'webm' && format.container !== 'mov') || (format.container !== undefined && !format.transparent) || (format.container === 'mov' && !format.transparent)) return null;
+  if (!isObj(format) || !['16:9', '9:16', '1:1', 'circle'].includes(format.aspect as string) || typeof format.transparent !== 'boolean' || (format.aspect === 'circle' && !format.transparent) || (format.container !== undefined && format.container !== 'webm' && format.container !== 'mov') || (format.container !== undefined && !format.transparent) || (format.container === 'mov' && !format.transparent)) return null;
   const raw = body.composition;
   const composition = raw === undefined ? DEFAULT_COMPOSITION : raw;
   if (!isObj(composition) || !isObj(composition.placement) || !isObj(composition.background)) return null;
@@ -41,8 +41,8 @@ export function validateExport(body: unknown): { character: AnyCharacter; timeli
   if (!num(px) || !num(pb) || !num(ps) || px < 0 || px > 1 || pb < 0 || pb > 1 || ps < .25 || ps > 3 || typeof p.flip !== 'boolean') return null;
   const b = composition.background;
   if (b.kind === 'transparent') { /* both opaque white and alpha exports are valid */ }
-  else if (b.kind === 'color') { if (!/^#[0-9a-f]{6}$/i.test(String(b.color)) || format.transparent) return null; }
-  else if (b.kind === 'picture') { if (typeof b.id !== 'string' || !UUID_RE.test(b.id) || format.transparent) return null; }
+  else if (b.kind === 'color') { if (!/^#[0-9a-f]{6}$/i.test(String(b.color)) || (format.transparent && format.aspect !== 'circle')) return null; }
+  else if (b.kind === 'picture') { if (typeof b.id !== 'string' || !UUID_RE.test(b.id) || (format.transparent && format.aspect !== 'circle')) return null; }
   else return null;
   if (!isObj(timeline) || !num(timeline.durationMs) || timeline.durationMs <= 0 || timeline.durationMs > MAX_AUDIO_MS) return null;
   const { cues, lines } = timeline;
@@ -57,7 +57,7 @@ export function validateExport(body: unknown): { character: AnyCharacter; timeli
       ? character.kind === 'vector' ? ({ kind: 'vector', id: character.id, name: '' } as VectorCharacter) : ({ kind: 'art', id: character.id, name: '', prompt: '', style: '', images: {} } as ArtCharacter)
       : (character as unknown as AnyCharacter),
     timeline: timeline as unknown as Timeline,
-    format: { aspect: format.aspect, transparent: format.transparent, ...(format.transparent && format.container ? { container: format.container } : {}) },
+    format: { aspect: format.aspect as ExportFormat['aspect'], transparent: format.transparent, ...(format.transparent && format.container ? { container: format.container } : {}) },
     composition: composition as unknown as StudioComposition,
   };
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isArt, isVector } from '../shared/types';
-import type { AnyCharacter, ArtCharacter, VectorCharacter, ArtPose, ImageProvider, Line, Marks, ScriptLineInput, Timeline, StudioComposition } from '../shared/types';
+import type { AnyCharacter, ArtCharacter, VectorCharacter, ArtPose, ImageProvider, Line, Marks, ScriptLineInput, Timeline, StudioComposition, ExportFormat } from '../shared/types';
 import { DEFAULT_COMPOSITION } from '../shared/types';
 import { VOICES, type TtsProvider } from '../shared/voices';
 import { STARTERS } from '../shared/character/starters';
@@ -32,7 +32,7 @@ export function withTaggedLines(s: State, startedAudioId: string, lines: Line[])
 
 export function App() {
   const [step, setStep] = useState(0);
-  const [aspect, setAspect] = useState<'16:9' | '9:16'>('16:9');
+  const [aspect, setAspect] = useState<ExportFormat['aspect']>('16:9');
   const audioRef = useRef<HTMLAudioElement>(null); // the preview's audio, shared with the Animate timeline
   const [state, setState] = useState<State>({ character: KIT, timeline: null, audioId: null, source: null, composition: DEFAULT_COMPOSITION });
   const [status, setStatus] = useState('');
