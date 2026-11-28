@@ -1,3 +1,4 @@
+import type { SvgRigCharacter } from './svg-rig';
 export type Expression = 'neutral' | 'happy' | 'sad' | 'surprised' | 'angry' | 'excited' | 'thinking' | 'confused' | 'worried' | 'wink' | 'sleepy';
 export type Gesture = string;
 export type MouthShape = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'X';
@@ -69,9 +70,12 @@ export interface ArtCharacter { kind: 'art'; id: string; name: string; prompt: s
  * Unlike an art character it is drawn live (Canvas 2D) from the frame state, so it has no per-pose pictures.
  */
 export interface VectorCharacter { kind: 'vector'; id: string; name: string; capabilities?: string[] }
-/** Whatever the user picked in the Character step: a customised SVG starter, an AI-created character or a vector one. */
-export type AnyCharacter = CharacterConfig | ArtCharacter | VectorCharacter;
+/** Whatever the user picked in the Character step: a customised SVG starter, an AI-created, vector or reference-made SVG one. */
+export type AnyCharacter = CharacterConfig | ArtCharacter | VectorCharacter | SvgRigCharacter;
 export const isArt = (c: AnyCharacter): c is ArtCharacter => (c as ArtCharacter).kind === 'art';
 export const isVector = (c: AnyCharacter): c is VectorCharacter => (c as VectorCharacter).kind === 'vector';
+export const isSvgRig = (c: AnyCharacter): c is SvgRigCharacter => (c as SvgRigCharacter).kind === 'svg-rig';
+/** A customised SVG starter: the only kind without a `kind` (use this, not "not art and not vector"). */
+export const isStarter = (c: AnyCharacter): c is CharacterConfig => !('kind' in c);
 /** A character in the on-disk library (data/characters). */
-export type LibraryCharacter = ArtCharacter | VectorCharacter;
+export type LibraryCharacter = ArtCharacter | VectorCharacter | SvgRigCharacter;

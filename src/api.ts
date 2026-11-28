@@ -2,6 +2,8 @@ import type { Episode, EpisodeSceneInput, Project, ProjectCharacterInput, Projec
 import type { TtsProvider, VoiceStudioInfo } from '../shared/voices';
 import type { UsageReport } from '../shared/usage';
 import type { VectorJob } from '../shared/vector-job';
+import type { RigJob, RigModel, RigProvider } from '../shared/svg-rig-job';
+import type { SvgRigCharacter } from '../shared/svg-rig';
 import type { Scene } from '../shared/scene';
 import type { AnyCharacter, ArtCharacter, VectorCharacter, ArtPose, ImageProvider, Expression, ExportFormat, Gesture, Line, Marks, MouthCue, ScriptLineInput, Timeline, BackgroundRecord } from '../shared/types';
 import type { KnownModel } from '../shared/prices';
@@ -298,4 +300,32 @@ export function startVectorJob({ description, name, provider, reference }: Creat
   form.append('name', name);
   if (reference) form.append('reference', reference);
   return post<{ job: VectorJob }>('/api/vector-jobs', { body: form }).then((b) => b.job);
+}
+
+// ---------- reference-made SVG characters (server/svg-rig-storage.ts, server/svg-rig-create.ts) ----------
+export interface CreateRigInput { description: string; name: string; provider: RigProvider; model: string; reference: File }
+
+export const listRigCharacters = () => getJson<{ characters: SvgRigCharacter[] }>('/api/rig-characters').then((b) => b.characters);
+export const addRigSample = () => post<{ character: SvgRigCharacter }>('/api/rig-characters/sample', {}).then((b) => b.character);
+export async function deleteRigCharacter(id: string): Promise<void> {
+  const res = await fetch(`/api/characters/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Delete failed.');
+}
+export const listRigModels = () => getJson<{ models: RigModel[] }>('/api/rig-models').then((b) => b.models);
+export const listRigJobs = () => getJson<{ jobs: RigJob[] }>('/api/rig-jobs').then((b) => b.jobs);
+export const getRigJob = (id: string) => getJson<{ job: RigJob }>(`/api/rig-jobs/${id}`).then((b) => b.job);
+export const cancelRigJob = (id: string) => post<{ job: RigJob }>(`/api/rig-jobs/${id}/cancel`, {}).then((b) => b.job);
+export const resumeRigJob = (id: string) => post<{ job: RigJob }>(`/api/rig-jobs/${id}/resume`, {}).then((b) => b.job);
+export async function discardRigJob(id: string): Promise<void> {
+  const res = await fetch(`/api/rig-jobs/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Could not discard it.');
+}
+export function startRigJob({ description, name, provider, model, reference }: CreateRigInput): Promise<RigJob> {
+  const form = new FormData();
+  form.append('provider', provider);
+  form.append('model', model);
+  form.append('description', description);
+  form.append('name', name);
+  form.append('reference', reference);
+  return post<{ job: RigJob }>('/api/rig-jobs', { body: form }).then((b) => b.job);
 }

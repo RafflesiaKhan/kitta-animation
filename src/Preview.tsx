@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent, type RefObject } from 'react';
-import { isArt, isVector } from '../shared/types';
+import { isArt, isSvgRig, isVector } from '../shared/types';
 import type { AnyCharacter, FrameState, StudioComposition, Timeline } from '../shared/types';
 import { StudioFrame } from '../shared/StudioFrame';
 import { frameAt } from '../shared/timeline';
@@ -71,7 +71,7 @@ export function Preview({ character, timeline, audioUrl, status, audioRef: share
   return (
     <div className="preview">
       <div className="preview-head"><span>Preview</span>{timeline && <span className="ready">Lip sync ready</span>}</div>
-      <div ref={stageRef} className={`stage${aspect === '9:16' ? ' portrait' : ''}${aspect === 'circle' ? ' circle' : ''}`} style={{ aspectRatio: aspect === '16:9' ? '16 / 9' : aspect === '9:16' ? '9 / 16' : '1 / 1' }} data-testid="stage" data-starter={isArt(character) ? `art:${character.id}` : isVector(character) ? `vector:${character.id}` : character.starter} onPointerDown={(e: PointerEvent<HTMLDivElement>) => { const r = e.currentTarget.getBoundingClientRect(); dragging.current = { x: (e.clientX - r.left) / r.width - composition.placement.x, bottom: (r.bottom - e.clientY) / r.height - composition.placement.bottom }; place(e.nativeEvent); }}>
+      <div ref={stageRef} className={`stage${aspect === '9:16' ? ' portrait' : ''}${aspect === 'circle' ? ' circle' : ''}`} style={{ aspectRatio: aspect === '16:9' ? '16 / 9' : aspect === '9:16' ? '9 / 16' : '1 / 1' }} data-testid="stage" data-starter={isArt(character) ? `art:${character.id}` : isVector(character) ? `vector:${character.id}` : isSvgRig(character) ? `svg-rig:${character.id}` : character.starter} onPointerDown={(e: PointerEvent<HTMLDivElement>) => { const r = e.currentTarget.getBoundingClientRect(); dragging.current = { x: (e.clientX - r.left) / r.width - composition.placement.x, bottom: (r.bottom - e.clientY) / r.height - composition.placement.bottom }; place(e.nativeEvent); }}>
         <StudioFrame character={character} frame={frame} width={aspect === '16:9' ? 16 : aspect === '9:16' ? 9 : 1} height={aspect === '16:9' ? 9 : aspect === '9:16' ? 16 : 1} placement={composition.placement} background={composition.background} shape={aspect === 'circle' ? 'circle' : 'rect'}
           picture={composition.background.kind === 'picture' ? `/api/backgrounds/${composition.background.id}` : undefined} clockMs={clock.ms} frameSource={clock.source} />
         {status && <div className="status">{status}</div>}

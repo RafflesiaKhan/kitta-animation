@@ -13,6 +13,7 @@ import { AnimateStep } from './steps/AnimateStep';
 import { ExportStep } from './steps/ExportStep';
 import { UsagePanel } from './UsagePanel';
 import { RUNNING_STAGES, type VectorJob } from '../shared/vector-job';
+import { useRigCharacters } from './useRigCharacters';
 
 export interface State { character: AnyCharacter; timeline: Timeline | null; audioId: string | null; source: 'upload' | 'script' | null; composition?: StudioComposition }
 
@@ -43,6 +44,8 @@ export function App() {
   const [library, setLibrary] = useState<ArtCharacter[]>([]); // saved AI characters
   const [vectors, setVectors] = useState<VectorCharacter[]>([]); // saved vector-avator characters
   const [vectorJobs, setVectorJobs] = useState<VectorJob[]>([]); // vector characters being created (or stopped)
+  // reference-made SVG characters; a finished one becomes the character in use
+  const rigs = useRigCharacters((made) => setState((s) => ({ ...s, character: made })));
   const [vectorDraw, setVectorDraw] = useState<{ ok: boolean; by: 'anthropic' | 'openai' }>({ ok: false, by: 'openai' });
   // Fetched once, shared by the Character and Voiceover steps.
   const [geminiOk, setGeminiOk] = useState(true);
@@ -256,7 +259,8 @@ export function App() {
           <section className="panel">
             {step === 0 && <CharacterStep character={state.character} onChange={(character) => setState((s) => ({ ...s, character }))}
               library={library} vectors={vectors} onImportVector={addVector} onDeleteVector={deleteVector} imageProviders={imageProviders} busy={busy} error={error} onCreate={createArt} onDraw={drawPoses} onFindMouths={findMouths} onSetMouth={setMouth} onDelete={deleteArt}
-              vectorJobs={vectorJobs} vectorDraw={vectorDraw.ok} vectorDrawBy={vectorDraw.by} onCreateVector={createVector} onJob={vectorJob} />}
+              vectorJobs={vectorJobs} vectorDraw={vectorDraw.ok} vectorDrawBy={vectorDraw.by} onCreateVector={createVector} onJob={vectorJob}
+              rigs={rigs} onRigAction={(work) => run('Working…', async () => { await work(); })} />}
             {step === 1 && <VoiceoverStep geminiOk={geminiOk} ttsProviders={ttsProviders} ttsProvider={ttsProvider} onTtsProvider={setTtsProvider} ttsEngine={ttsEngine} onTtsEngine={setTtsEngine} busy={busy} error={error} onUpload={upload} scriptLines={scriptLines} onScriptLines={setScriptLines} onGenerate={generate} onAutoTag={autoTagScript} onAddExpressions={addExpressions} uploadLines={state.source === 'upload' ? state.timeline?.lines ?? null : null} onEditUploadLine={editUploadLine} handAnimated={!!state.timeline?.marks} notice={notice} />}
             {step === 3 && <ExportStep character={state.character} timeline={state.timeline} audioId={state.audioId} composition={composition} aspect={aspect} onAspect={setAspect} />}
           </section>

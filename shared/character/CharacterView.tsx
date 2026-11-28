@@ -1,8 +1,9 @@
 import type { AnyCharacter, FrameState } from '../types';
-import { isArt, isVector } from '../types';
+import { isArt, isSvgRig, isVector } from '../types';
 import { Character } from './Character';
 import { ArtCharacterView } from './ArtCharacter';
 import { VectorCharacterView } from './VectorCharacter';
+import { SvgRigCharacterView } from './SvgRigCharacter';
 import type { FrameSource } from '../vector-avator/stage';
 
 export interface CharacterViewProps {
@@ -17,6 +18,7 @@ export interface CharacterViewProps {
 
 /** Draws any kind of character: the customisable SVG rig, an AI-painted one or a vector-avator one. */
 export function CharacterView({ config, resolve, clockMs, picture, frameSource, framing, ...rest }: CharacterViewProps) {
+  if (isSvgRig(config)) return <SvgRigCharacterView character={config} {...rest} />;
   if (isVector(config)) return <VectorCharacterView character={config} clockMs={clockMs} frameSource={frameSource} picture={picture} framing={framing} {...rest} />;
   return isArt(config) ? <ArtCharacterView character={config} resolve={resolve} {...rest} /> : <Character config={config} {...rest} />;
 }

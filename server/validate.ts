@@ -1,3 +1,4 @@
+import { rigOptions, type SvgRigCharacter } from '../shared/svg-rig';
 import { EXPRESSIONS } from '../shared/types';
 import { DEFAULT_COMPOSITION, type AnyCharacter, type ArtCharacter, type ExportFormat, type ScriptLineInput, type StudioComposition, type Timeline, type VectorCharacter } from '../shared/types';
 import { LANGUAGES, PITCH_RANGE, SPEAKERS, SPEED_RANGE } from '../shared/voices';
@@ -30,7 +31,7 @@ function validMarks(marks: unknown, durationMs: number): boolean {
 export function validateExport(body: unknown): { character: AnyCharacter; timeline: Timeline; format: ExportFormat; composition: StudioComposition } | null {
   if (!isObj(body)) return null;
   const { character, timeline, format } = body;
-  const art = isObj(character) && (character.kind === 'art' || character.kind === 'vector');
+  const art = isObj(character) && (character.kind === 'art' || character.kind === 'vector' || character.kind === 'svg-rig');
   if (!isObj(character) || (art ? typeof character.id !== 'string' || !UUID_RE.test(character.id) : !CHARACTER_KEYS.every((k) => typeof character[k] === 'string'))) return null;
   if (!isObj(format) || !['16:9', '9:16', '1:1', 'circle'].includes(format.aspect as string) || typeof format.transparent !== 'boolean' || (format.aspect === 'circle' && !format.transparent) || (format.container !== undefined && format.container !== 'webm' && format.container !== 'mov') || (format.container !== undefined && !format.transparent) || (format.container === 'mov' && !format.transparent)) return null;
   const raw = body.composition;
@@ -54,7 +55,10 @@ export function validateExport(body: unknown): { character: AnyCharacter; timeli
   if (timeline.marks !== undefined && !validMarks(timeline.marks, timeline.durationMs)) return null;
   return {
     character: art
-      ? character.kind === 'vector' ? ({ kind: 'vector', id: character.id, name: '' } as VectorCharacter) : ({ kind: 'art', id: character.id, name: '', prompt: '', style: '', images: {} } as ArtCharacter)
+      ? character.kind === 'vector' ? ({ kind: 'vector', id: character.id, name: '' } as VectorCharacter)
+        // the artwork is loaded from the library by the route; only the per-use options come from the request
+        : character.kind === 'svg-rig' ? ({ kind: 'svg-rig', id: character.id, name: '', packVersion: 1, ...rigOptions(character) } as SvgRigCharacter)
+        : ({ kind: 'art', id: character.id, name: '', prompt: '', style: '', images: {} } as ArtCharacter)
       : (character as unknown as AnyCharacter),
     timeline: timeline as unknown as Timeline,
     format: { aspect: format.aspect as ExportFormat['aspect'], transparent: format.transparent, ...(format.transparent && format.container ? { container: format.container } : {}) },

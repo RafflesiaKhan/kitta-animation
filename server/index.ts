@@ -26,9 +26,11 @@ import { validateExport, validScriptLine } from './validate';
 import { deleteVectorCharacter, ensureSample, listVectorCharacters, readVectorMeta, vectorPath } from './vector';
 import { cancelVectorJob, discardVectorJob, getVectorJob, listVectorJobs, resumeVectorJob, startVectorJob, vectorJobFile, VectorJobError } from './vector-create';
 import { drawProvider } from './vector-draw';
-import { CharacterError, createCharacter, deleteCharacter, generatePose, getCharacter, imageDataUris, imagePath, listCharacters, measureMouths, setMouthPoint } from './characters';
+import { CharacterError, createCharacter, deleteCharacter, generatePose, getCharacter, imageDataUris, imagePath, listCharacters, measureMouths, setMouthPoint, toPng } from './characters';
 import { ART_STYLES } from '../shared/character/art';
-import { isArt, isVector, type ArtPose } from '../shared/types';
+import { isArt, isSvgRig, isVector, type ArtPose } from '../shared/types';
+import { ensureRigSample, listRigs, readRigWith, rigPackFile } from './svg-rig-storage';
+import { cancelRigJob, discardRigJob, getRigJob, listRigJobs, resumeRigJob, rigJobFile, rigModels, startRigJob, RigJobError } from './svg-rig-create';
 import { setting } from './settings';
 import { clearSession, createAdminPasswordIfAbsent, createSession, hasAdminPassword, initializeAdminResetState, readSession, requireAdmin, requireSameOrigin, setSessionCookie, verifyWithDelay } from './auth';
 import { publicSettings, setSettings, SettingsFileError } from './settings';
@@ -502,6 +504,83 @@ export function createApp(options: { backgroundsDir?: string } = {}) {
     }
   });
 
+  // ---------- reference-made SVG characters (server/svg-rig-storage.ts; same folder, kind 'svg-rig') ----------
+  app.get('/api/rig-characters', async (_req, res) => {
+    res.json({ characters: await listRigs() });
+  });
+
+  app.post('/api/rig-characters/sample', async (_req, res) => {
+    try {
+      res.json({ character: await ensureRigSample() });
+    } catch (e) {
+      console.error('add rig sample failed', e);
+      res.status(500).json({ error: 'Could not add the sample character.' });
+    }
+  });
+
+  // ---------- generating them from a reference picture (server/svg-rig-create.ts) ----------
+  const sendRigJobError = (res: express.Response, e: unknown) => {
+    if (e instanceof RigJobError) return res.status(e.code === 'not_found' ? 404 : e.code === 'bad_model' ? 400 : 409)
+      .json({ error: e.code === 'not_found' ? 'Job not found' : e.code === 'bad_model' ? 'Choose one of the offered models.' : 'This character is already finished.' });
+    console.error('svg character job request failed', e);
+    res.status(500).json({ error: 'Something went wrong' });
+  };
+
+  app.get('/api/rig-models', (_req, res) => {
+    res.json({ models: rigModels() });
+  });
+
+  app.get('/api/rig-jobs', async (_req, res) => {
+    res.json({ jobs: await listRigJobs() });
+  });
+
+  app.post('/api/rig-jobs', (req, res) => {
+    imageUpload.single('reference')(req, res, async (err) => {
+      const ref = req.file;
+      const description = typeof req.body?.description === 'string' ? req.body.description.trim() : '';
+      const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+      const provider = req.body?.provider === 'anthropic' || req.body?.provider === 'openai' ? req.body.provider : null;
+      const model = typeof req.body?.model === 'string' ? req.body.model : '';
+      if (err || !ref || !IMAGE_TYPES.includes(ref.mimetype)) return res.status(400).json({ error: 'Add a reference picture: PNG, JPEG or WebP, up to 10 MB.' });
+      if (!provider || description.length > 400 || name.length > 40) return res.status(400).json({ error: 'Invalid request' });
+      try {
+        const reference = await toPng(ref.buffer, false).catch(() => null);
+        if (!reference) return res.status(400).json({ error: 'That picture could not be read.' });
+        res.json({ job: await startRigJob({ name, description, provider, model, reference }) });
+      } catch (e) {
+        sendRigJobError(res, e);
+      }
+    });
+  });
+
+  app.get('/api/rig-jobs/:id', async (req, res) => {
+    try { res.json({ job: await getRigJob(req.params.id) }); } catch (e) { sendRigJobError(res, e); }
+  });
+
+  app.post('/api/rig-jobs/:id/cancel', async (req, res) => {
+    try { res.json({ job: await cancelRigJob(req.params.id) }); } catch (e) { sendRigJobError(res, e); }
+  });
+
+  app.post('/api/rig-jobs/:id/resume', async (req, res) => {
+    try { res.json({ job: await resumeRigJob(req.params.id) }); } catch (e) { sendRigJobError(res, e); }
+  });
+
+  app.delete('/api/rig-jobs/:id', async (req, res) => {
+    try { await discardRigJob(req.params.id); res.status(204).end(); } catch (e) { sendRigJobError(res, e); }
+  });
+
+  app.get('/api/rig-jobs/:id/:file', (req, res) => {
+    const p = rigJobFile(req.params.id, req.params.file);
+    if (!p) return res.status(404).json({ error: 'Picture not found' });
+    res.set('Cache-Control', 'no-store').type('image/png').sendFile(p, { root: process.cwd() });
+  });
+
+  app.get('/api/characters/:id/rig.json', async (req, res) => {
+    const p = await rigPackFile(req.params.id);
+    if (!p) return res.status(404).json({ error: 'Character not found' });
+    res.type('application/json').sendFile(p, { root: process.cwd() });
+  });
+
   // ---------- creating vector characters in the background (server/vector-create.ts) ----------
   const sendJobError = (res: express.Response, e: unknown) => {
     if (e instanceof VectorJobError) return res.status(e.code === 'not_found' ? 404 : 409).json({ error: e.code === 'not_found' ? 'Job not found' : 'This character is already finished.' });
@@ -585,7 +664,13 @@ export function createApp(options: { backgroundsDir?: string } = {}) {
     }
     // An AI character is always drawn from the library on disk, never from images named by the client.
     let images: Record<string, string> | undefined;
-    if (isVector(input.character)) {
+    if (isSvgRig(input.character)) {
+      try {
+        input.character = await readRigWith(input.character.id, input.character);
+      } catch {
+        return res.status(404).json({ error: 'Character not found' });
+      }
+    } else if (isVector(input.character)) {
       try {
         input.character = await readVectorMeta(input.character.id);
       } catch {

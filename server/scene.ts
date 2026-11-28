@@ -2,11 +2,13 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import { resolveScene, sceneProblems } from '../shared/scene';
 import type { SavedScene, Scene, SceneSource } from '../shared/scene';
-import { isArt, isVector } from '../shared/types';
+import { isArt, isSvgRig, isVector } from '../shared/types';
 import type { AnyCharacter, ScriptLineInput } from '../shared/types';
+import { rigOptions } from '../shared/svg-rig';
 import { concatWithGaps } from './audio';
 import { captureCharacter, CharacterError, getLibraryCharacter } from './characters';
 import { runRhubarb } from './rhubarb';
+import { readRigWith, RigStorageError } from './svg-rig-storage';
 import { plainText } from './speech';
 
 // Builds a scene from its source (voicing every line), saves the resolved Scene, and loads it back for export.
@@ -30,8 +32,14 @@ export class MissingSceneCharacterError extends SceneError {
 }
 
 function missingSceneCharacter(error: unknown): never {
-  if (error instanceof CharacterError && error.code === 'not_found') throw new MissingSceneCharacterError();
+  if ((error instanceof CharacterError || error instanceof RigStorageError) && error.code === 'not_found') throw new MissingSceneCharacterError();
   throw error;
+}
+
+/** A library character by id; a reference-made SVG one comes with its validated pack and the given per-use options. */
+export async function libraryCharacter(id: string, options?: unknown): Promise<AnyCharacter> {
+  const c = await getLibraryCharacter(id);
+  return isSvgRig(c) ? readRigWith(id, options) : c;
 }
 
 async function readBackground(sourceDir: string, file: string): Promise<string> {
@@ -49,7 +57,7 @@ async function loadCharacters(source: SceneSource): Promise<Record<string, AnyCh
   for (const a of source.actors) {
     if (!('artId' in a.character)) { out[a.id] = a.character; continue; }
     try {
-      out[a.id] = await getLibraryCharacter(a.character.artId);
+      out[a.id] = await libraryCharacter(a.character.artId, a.character);
     } catch (e) {
       if (e instanceof CharacterError) throw new SceneError([`Actor "${a.id}": character ${a.character.artId} not found`]);
       throw e;
@@ -76,14 +84,14 @@ export async function buildScene(source: SceneSource, sourceDir: string, speak: 
 }
 
 export function snapshotScene(scene: Scene): SavedScene {
-  return { ...scene, actors: scene.actors.map(a => ({ ...a, character: isArt(a.character) || isVector(a.character) ? { artId: a.character.id } : a.character })) };
+  return { ...scene, actors: scene.actors.map(a => ({ ...a, character: isSvgRig(a.character) ? { artId: a.character.id, ...rigOptions(a.character) } : isArt(a.character) || isVector(a.character) ? { artId: a.character.id } : a.character })) };
 }
 
 export async function hydrateScene(scene: SavedScene | Scene): Promise<Scene> {
   const actors = await Promise.all(scene.actors.map(async a => {
     const character = a.character;
-    if ('artId' in character) return { ...a, character: await getLibraryCharacter(character.artId).catch(missingSceneCharacter) };
-    return isArt(character) || isVector(character) ? { ...a, character: await getLibraryCharacter(character.id).catch(missingSceneCharacter) } : { ...a, character };
+    if ('artId' in character) return { ...a, character: await libraryCharacter(character.artId, character).catch(missingSceneCharacter) };
+    return isArt(character) || isVector(character) || isSvgRig(character) ? { ...a, character: await libraryCharacter(character.id, character).catch(missingSceneCharacter) } : { ...a, character };
   }));
   return { ...scene, actors };
 }
@@ -110,6 +118,7 @@ export async function captureScene(scene: Scene) {
   const captured = new Map<string, Awaited<ReturnType<typeof captureCharacter>>>();
   const actors: Scene['actors'] = [];
   for (const actor of scene.actors) {
+    if (isSvgRig(actor.character)) { actors.push({ ...actor, character: await libraryCharacter(actor.character.id, actor.character).catch(missingSceneCharacter) }); continue; }
     if (isVector(actor.character)) { actors.push({ ...actor, character: await getLibraryCharacter(actor.character.id).catch(missingSceneCharacter) }); continue; }
     if (!isArt(actor.character)) { actors.push(actor); continue; }
     const id = actor.character.id;

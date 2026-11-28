@@ -15,6 +15,8 @@ import { AUDIO_DIR } from './audio';
 import { renderScene } from './render';
 import { hydrateScene, loadScene, captureScene, snapshotScene, MissingSceneCharacterError } from './scene';
 import { CharacterError, getCharacter } from './characters';
+import { readRig } from './svg-rig-storage';
+import { rigOptions } from '../shared/svg-rig';
 import { actionFor } from '../shared/actions';
 
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
@@ -97,6 +99,8 @@ function characterInput(body: unknown, style: Project['style']): ProjectCharacte
   if (!voiceName || typeof voice.engine !== 'string' || typeof voice.speaker !== 'string') return;
   const defaults = { name, anchorY, voice: { provider, voice: voiceName, engine: clean(voice.engine, 100), speaker: clean(voice.speaker, 100), variability } } as const;
   if (style === 'ai') return idString(character.artId) ? { ...defaults, character: { artId: character.artId } } : undefined;
+  // SVG projects take the built-in starters or a reference-made SVG character from the library, with its per-use options
+  if (character.artId !== undefined) return idString(character.artId) ? { ...defaults, character: { artId: character.artId, ...rigOptions(character) } } : undefined;
   const bodyStyle = BODY_STYLES.find(s => s === character.bodyStyle);
   const { starter, skin, hairStyle, hairColor, eyeStyle, outfit, outfitColor } = character;
   if (typeof starter !== 'string' || !Object.hasOwn(STARTERS, starter) || !color(skin) || !color(hairColor) || !color(outfitColor)
@@ -260,7 +264,11 @@ export function projectRoutes(root = resolve('data/projects'), {
     if (!project) return res.status(404).json({ error: 'Project not found.' });
     const input = characterInput(req.body, project.style);
     if (!input) return res.status(400).json({ error: 'Choose a character matching this project’s style, a name, an anchor and default voice settings.' });
-    if ('artId' in input.character) {
+    if ('artId' in input.character && project.style === 'svg') {
+      if (!await readRig(input.character.artId).catch(() => undefined)) return res.status(400).json({ error: 'Choose an available saved SVG character.' });
+      project = read(req.params.id);
+      if (!project || project.style !== 'svg') return res.status(404).json({ error: 'Project not found.' });
+    } else if ('artId' in input.character) {
       const art = await getCharacter(input.character.artId).catch(error => {
         if (error instanceof CharacterError && error.code === 'not_found') return undefined;
         throw error;
@@ -331,7 +339,9 @@ export function projectRoutes(root = resolve('data/projects'), {
     const set = backgroundFor(project, input.backgroundAssetId);
     if (!set) return res.status(400).json({ error: 'Choose an image or SVG from this project.' });
     await setImage(set);
-    if ('artId' in cast.character) {
+    if ('artId' in cast.character && project.style === 'svg') {
+      await readRig(cast.character.artId).catch(() => { throw new MissingSceneCharacterError(); });
+    } else if ('artId' in cast.character) {
       const art = await getCharacter(cast.character.artId).catch(error => {
         if (error instanceof CharacterError && error.code === 'not_found') throw new MissingSceneCharacterError();
         throw error;

@@ -1,5 +1,5 @@
 import { useEffect, useState, type MouseEvent } from 'react';
-import { BODY_STYLES, ART_ACTIONS, EXPRESSIONS, GESTURES, isArt, isVector } from '../../shared/types';
+import { BODY_STYLES, ART_ACTIONS, EXPRESSIONS, GESTURES, isArt, isStarter, isSvgRig, isVector } from '../../shared/types';
 import type { AnyCharacter, ArtCharacter, ArtPose, CharacterConfig, FrameState, ImageProvider, StarterId, VectorCharacter } from '../../shared/types';
 import { CharacterView } from '../../shared/character/CharacterView';
 import { Character } from '../../shared/character/Character';
@@ -11,6 +11,8 @@ import type { ProjectStyle } from '../../shared/projects';
 import { RUNNING_STAGES, type VectorJob } from '../../shared/vector-job';
 import { Tile } from './AnimateStep';
 import { VectorSheet } from './VectorSheet';
+import { RigCreateForm, RigJobCard, RigSheet } from './RigCharacter';
+import type { RigCharacters } from '../useRigCharacters';
 
 const REST: FrameState = { expression: 'neutral', mouth: 'X', gesture: 'none', gestureProgress: 0, blink: false, bob: 0 };
 const NEEDS_KEY = 'Needs GEMINI_API_KEY or OPENAI_API_KEY';
@@ -38,6 +40,9 @@ interface Props {
   vectorDrawBy?: 'anthropic' | 'openai';
   onCreateVector?: (input: api.CreateVectorInput) => void;
   onJob?: (id: string, action: 'cancel' | 'resume' | 'discard') => void;
+  // Reference-made SVG characters: library, jobs and models (src/useRigCharacters.ts). Offered in SVG projects too.
+  rigs?: RigCharacters;
+  onRigAction?: (work: () => Promise<unknown>) => void; // runs one with the caller's busy/error handling
 }
 
 const DRAW_NAMES = { anthropic: 'Claude', openai: 'OpenAI' } as const;
@@ -47,13 +52,16 @@ const imgUrl = (c: ArtCharacter, pose: ArtPose) => {
   return im ? `/api/characters/${c.id}/${im.file}` : null;
 };
 
-export function CharacterStep({ character, onChange, library, vectors = [], onImportVector, onDeleteVector, projectStyle, imageProviders = [], busy = false, error = null, onCreate, onDraw, onFindMouths, onSetMouth, onDelete, vectorJobs = [], vectorDraw = false, vectorDrawBy = 'openai', onCreateVector, onJob }: Props) {
-  const [creating, setCreating] = useState<'picture' | 'vector' | null>(null);
+export function CharacterStep({ character, onChange, library, vectors = [], onImportVector, onDeleteVector, projectStyle, imageProviders = [], busy = false, error = null, onCreate, onDraw, onFindMouths, onSetMouth, onDelete, vectorJobs = [], vectorDraw = false, vectorDrawBy = 'openai', onCreateVector, onJob, rigs, onRigAction: onRigActionProp }: Props) {
+  const [rigError, setRigError] = useState<string | null>(null);
+  const onRigAction = onRigActionProp ?? ((work: () => Promise<unknown>) => { setRigError(null); work().catch((e: Error) => setRigError(e.message)); });
+  const [creating, setCreating] = useState<'picture' | 'vector' | 'rig' | null>(null);
   const aiOk = imageProviders.length > 0;
   // A finished creation selects the new character; leave the form then.
   useEffect(() => { if (character && isArt(character)) setCreating(null); }, [character && isArt(character) ? character.id : null]);
   // A started vector job shows as a card below; leave the form then too.
   useEffect(() => { if (vectorJobs.length) setCreating(null); }, [vectorJobs[0]?.id]);
+  useEffect(() => { if (rigs?.jobs.length) setCreating(null); }, [rigs?.jobs[0]?.id]);
 
   const pickStarter = (id: StarterId) => {
     const { name: _name, ...config } = STARTERS[id];
@@ -67,7 +75,7 @@ export function CharacterStep({ character, onChange, library, vectors = [], onIm
       <h2>Pick a character</h2>
       <div className="tiles">
         {projectStyle !== 'ai' && (Object.keys(STARTERS) as StarterId[]).map((id) => {
-          const on = !creating && !!character && !isArt(character) && !isVector(character) && character.starter === id;
+          const on = !creating && !!character && isStarter(character) && character.starter === id;
           return (
             <button type="button" key={id} className={`tile${on ? ' selected' : ''}`} aria-pressed={on} onClick={() => pickStarter(id)}>
               <Character config={STARTERS[id]} frame={REST} width={84} height={84} />
@@ -90,6 +98,23 @@ export function CharacterStep({ character, onChange, library, vectors = [], onIm
             </button>
           );
         })}
+        {projectStyle !== 'ai' && rigs?.characters.map((c) => {
+          const on = !creating && !!character && isSvgRig(character) && character.id === c.id;
+          return (
+            <button type="button" key={c.id} className={`tile${on ? ' selected' : ''}`} aria-pressed={on} onClick={() => { setCreating(null); onChange(c); }}>
+              <CharacterView config={c} frame={REST} width={84} height={84} />
+              <span>{c.name}</span>
+            </button>
+          );
+        })}
+        {projectStyle !== 'ai' && rigs && !rigs.characters.length && <button type="button" className="tile create" onClick={() => onRigAction(async () => onChange(await rigs.addSample()))}>
+          <span className="plus"><Icon name="plus" size={22} /></span>
+          <span>Add SVG sample</span>
+        </button>}
+        {projectStyle !== 'ai' && rigs && <button type="button" className={`tile create${creating === 'rig' ? ' selected' : ''}`} aria-pressed={creating === 'rig'} onClick={() => setCreating('rig')}>
+          <span className="plus"><Icon name="plus" size={22} /></span>
+          <span>Create from reference (SVG)</span>
+        </button>}
         {!projectStyle && onImportVector && !vectors.length && <button type="button" className="tile create" onClick={onImportVector}>
           <span className="plus"><Icon name="plus" size={22} /></span>
           <span>Add vector sample</span>
@@ -104,22 +129,27 @@ export function CharacterStep({ character, onChange, library, vectors = [], onIm
         </button>}
       </div>
       {!projectStyle && onJob && vectorJobs.map((j) => <VectorJobCard key={j.id} job={j} onJob={onJob} />)}
+      {projectStyle !== 'ai' && rigs?.jobs.map((j) => <RigJobCard key={j.id} job={j} onJob={(id, action) => onRigAction(() => rigs.job(id, action))} />)}
       {creating === 'picture' && onCreate
         ? <CreateForm busy={busy} providers={imageProviders} onCreate={onCreate} onCancel={() => setCreating(null)} />
+        : creating === 'rig' && rigs
+        ? <RigCreateForm busy={busy} models={rigs.models} onCreate={(input) => onRigAction(() => rigs.create(input))} onCancel={() => setCreating(null)} />
         : creating === 'vector' && onCreateVector
         ? <VectorCreateForm busy={busy} providers={imageProviders} vectorDraw={vectorDraw} vectorDrawBy={vectorDrawBy} onCreate={onCreateVector} onCancel={() => setCreating(null)} />
-        : character && (isVector(character)
+        : character && (isSvgRig(character)
+          ? <RigSheet character={character} busy={busy} onChange={onChange} onDelete={!projectStyle && rigs ? (id) => onRigAction(async () => { await rigs.remove(id); pickStarter('kit'); }) : undefined} />
+          : isVector(character)
           ? !projectStyle && <VectorSheet character={character} busy={busy} onDelete={onDeleteVector} />
           : isArt(character)
           ? !projectStyle && onDraw && onFindMouths && onSetMouth && onDelete && <ArtSheet character={character} busy={busy} geminiOk={aiOk} onDraw={onDraw} onFindMouths={onFindMouths} onSetMouth={onSetMouth} onDelete={onDelete} />
-          : <Customize character={character} onChange={onChange} showExpressions={!projectStyle} />)}
-      {projectStyle && character && <>
+          : isStarter(character) && <Customize character={character} onChange={onChange} showExpressions={!projectStyle} />)}
+      {projectStyle && character && !isSvgRig(character) && <>
         <h3>Expressions</h3>
         <div className="expressions">{EXPRESSIONS.map(value => <Tile key={value} character={character} kind="expression" value={value} />)}</div>
         <h3>Actions</h3>
         <div className="expressions">{GESTURES.filter(value => value !== 'none').map(value => <Tile key={value} character={character} kind="action" value={value} />)}</div>
       </>}
-      {error && <p role="alert" className="error">{error}</p>}
+      {(error ?? rigError) && <p role="alert" className="error">{error ?? rigError}</p>}
     </div>
   );
 }

@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { STARTERS } from '../shared/character/starters';
 import type { Project, ProjectCharacter, ProjectCharacterInput, ProjectVoice } from '../shared/projects';
-import { isArt, isVector, type AnyCharacter, type ArtCharacter } from '../shared/types';
+import { isArt, isSvgRig, isVector, type AnyCharacter, type ArtCharacter } from '../shared/types';
+import { rigOptions } from '../shared/svg-rig';
+import { useRigCharacters } from './useRigCharacters';
 import { DEFAULT_SPEAKER, TTS_PROVIDERS, TTS_PROVIDER_NAMES } from '../shared/voices';
 import { CharacterStep } from './steps/CharacterStep';
 
@@ -11,12 +13,19 @@ export function ProjectCharacters({ project, library, busy, onSave }: {
 }) {
   const [selectedId, setSelectedId] = useState('');
   const [character, setCharacter] = useState<AnyCharacter | undefined>(() => project.style === 'svg' ? STARTERS.kit : undefined);
+  const rigs = useRigCharacters(made => setCharacter(made));
   const selected = project.characters?.find(item => item.id === selectedId);
+  // a saved library reference: an AI character in AI projects, a reference-made SVG one (with its options) in SVG projects
+  const fromRef = (ref: { artId: string }): AnyCharacter | undefined => {
+    if (project.style === 'ai') return library.find(art => art.id === ref.artId);
+    const rig = rigs.characters.find(c => c.id === ref.artId);
+    return rig && { ...rig, ...rigOptions(ref) };
+  };
   function edit(item?: ProjectCharacter) {
     setSelectedId(item?.id ?? '');
     const saved = item?.character;
     if (!saved) setCharacter(project.style === 'svg' ? STARTERS.kit : undefined);
-    else setCharacter('artId' in saved ? library.find(art => art.id === saved.artId) : saved);
+    else setCharacter('artId' in saved ? fromRef(saved) : saved);
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,7 +33,7 @@ export function ProjectCharacters({ project, library, busy, onSave }: {
     const data = new FormData(event.currentTarget);
     const saved = await onSave({
       name: String(data.get('name')), anchorY: Number(data.get('anchorY')),
-      character: isArt(character) ? { artId: character.id } : character,
+      character: isArt(character) ? { artId: character.id } : isSvgRig(character) ? { artId: character.id, ...rigOptions(character) } : character,
       voice: { provider: data.get('provider') as ProjectVoice['provider'], voice: String(data.get('voice')),
         engine: String(data.get('engine')), speaker: String(data.get('speaker')), variability: data.get('variability') as ProjectVoice['variability'] },
     }, selected?.id);
@@ -38,7 +47,7 @@ export function ProjectCharacters({ project, library, busy, onSave }: {
     {project.style === 'ai' && !busy && library.length === 0 && <p className="hint">No painted characters in the saved library.</p>}
     <form key={selectedId} className="project-form" onSubmit={submit}>
       <fieldset className="project-character-fields" disabled={busy}>
-        <CharacterStep projectStyle={project.style} character={character} onChange={setCharacter} library={library} busy={busy} />
+        <CharacterStep projectStyle={project.style} character={character} onChange={setCharacter} library={library} busy={busy} rigs={rigs} />
         <div className="fields">
           <label className="field">Character name <input name="name" required maxLength={100} defaultValue={selected?.name} /></label>
           <label className="field">Character ground anchor <input type="number" name="anchorY" min="0" max="1" step="0.01" required defaultValue={selected?.anchorY ?? 1} /></label>

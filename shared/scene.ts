@@ -1,3 +1,4 @@
+import type { RigOptions } from './svg-rig';
 import type { ActionMark, AnyCharacter, CharacterConfig, Expression, Gesture, Line, MouthCue, Timeline } from './types';
 import { EXPRESSIONS } from './types';
 import { actionFor } from './actions';
@@ -9,7 +10,9 @@ import { addAction, addExpression, marksFromLines } from './marks';
 export const STAGE_W = 1920, STAGE_H = 1080;
 
 export interface LineMoment { line: number; at: number } // `at` is 0..1 through that line
-export interface SceneActorSource { id: string; character: CharacterConfig | { artId: string }; voice: string; speaker?: string; x: number; scale: number; flip?: boolean; idleOffsetMs: number }
+/** A library character by id; a reference-made SVG one also keeps its per-use view, framing and proportions. */
+export type CharacterRef = { artId: string } & RigOptions;
+export interface SceneActorSource { id: string; character: CharacterConfig | CharacterRef; voice: string; speaker?: string; x: number; scale: number; flip?: boolean; idleOffsetMs: number }
 export interface SceneLineSource { actor: string; text: string; expression: Expression; gesture: Gesture }
 export interface ShotSource extends LineMoment { name: string; zoom: number; focusX: number; focusY: number } // focus is 0..1 of the stage
 export interface ReactionSource extends LineMoment { actor: string; expression?: Expression; gesture?: ActionMark['gesture'] }
@@ -19,7 +22,7 @@ export interface SceneActor { id: string; character: AnyCharacter; anchorY?: num
 export interface Shot { startMs: number; name: string; zoom: number; focusX: number; focusY: number }
 export interface Scene { title: string; audioId: string; durationMs: number; background: string; actors: SceneActor[]; shots: Shot[] } // background is a data URI
 
-export type SavedActor = Omit<SceneActor, 'character'> & { character: CharacterConfig | { artId: string } };
+export type SavedActor = Omit<SceneActor, 'character'> & { character: CharacterConfig | CharacterRef };
 export type SavedScene = Omit<Scene, 'actors'> & { actors: SavedActor[] };
 
 const validLine = (source: SceneSource, line: number) => Number.isInteger(line) && line >= 0 && line < source.lines.length;

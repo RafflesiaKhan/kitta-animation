@@ -68,10 +68,15 @@ it.each(['svg', 'ai'] as const)('offers only matching character choices in a %s 
   fireEvent.click(await screen.findByRole('button', { name: 'Characters' }));
   if (style === 'svg') {
     expect(screen.getByRole('button', { name: 'Kit' })).toBeTruthy();
-    expect(fetch).toHaveBeenCalledTimes(2);
+    // the painted (AI) library is not loaded; the reference-made SVG characters are
+    const urls = fetch.mock.calls.map(call => String(call[0]));
+    expect(urls).not.toContain('/api/characters');
+    expect(urls).toContain('/api/rig-characters');
+    expect(screen.getByRole('button', { name: 'Create from reference (SVG)' })).toBeTruthy();
   } else {
     expect(await screen.findByRole('button', { name: 'Max' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Kit' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Create from reference (SVG)' })).toBeNull();
   }
   expect(screen.queryByRole('button', { name: 'Create with AI' })).toBeNull();
 });

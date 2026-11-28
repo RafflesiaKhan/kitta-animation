@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { AnyCharacter, ExportFormat, StudioComposition, Timeline } from '../../shared/types';
-import { isArt, isVector } from '../../shared/types';
+import { isStarter } from '../../shared/types';
 import { STARTERS } from '../../shared/character/starters';
 import * as api from '../api';
 import { Icon } from '../Icon';
@@ -64,7 +64,7 @@ export function ExportStep({ character, timeline, audioId, composition: supplied
       </div>}
       {composition.background.kind !== 'transparent' && aspect !== 'circle' && <p className="hint">Transparent export is unavailable while a colour or picture is selected.</p>}
       <dl className="facts">
-        <div><dt>Character</dt><dd>{isArt(character) || isVector(character) ? character.name : STARTERS[character.starter].name}</dd></div>
+        <div><dt>Character</dt><dd>{isStarter(character) ? STARTERS[character.starter].name : character.name}</dd></div>
         <div><dt>Length</dt><dd>{timeline ? `${Math.round(timeline.durationMs / 1000)} s` : 'No voiceover yet'}</dd></div>
         <div><dt>Size</dt><dd>{aspect === '16:9' ? '1920 × 1080' : aspect === '9:16' ? '1080 × 1920' : '1080 × 1080'}</dd></div>
         <div><dt>File</dt><dd>{effectiveTransparent ? (container === 'mov' ? 'MOV' : 'WebM') : 'MP4'}</dd></div>
